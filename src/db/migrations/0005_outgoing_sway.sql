@@ -1,0 +1,1 @@
+ALTER TYPE "public"."rejection_reason" ADD VALUE 'not_suitable' BEFORE 'other';

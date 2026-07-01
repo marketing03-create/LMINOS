@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>LMIROS — System Map &amp; Guide</title>
+<style>
+  :root{
+    --bg:#0b1020; --panel:#121a33; --panel2:#0f1730; --ink:#e8ecf8; --muted:#9aa6c8;
+    --line:#2a3760; --green:#22c55e; --amber:#f59e0b; --red:#ef4444; --blue:#3b82f6;
+    --violet:#8b5cf6; --cyan:#06b6d4; --pink:#ec4899;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Segoe UI",system-ui,-apple-system,sans-serif;
+    background:radial-gradient(1200px 600px at 20% -10%,#1a2347 0,transparent 60%),var(--bg);
+    background-color:var(--bg);color:var(--ink);line-height:1.5;padding:0 0 80px}
+  header.hero{padding:40px 32px 28px;background:linear-gradient(120deg,#1e293b,#312e81 60%,#4c1d95);
+    border-bottom:1px solid var(--line)}
+  header.hero h1{margin:0;font-size:30px;letter-spacing:.3px}
+  header.hero p{margin:8px 0 0;color:#c7d2fe;max-width:820px}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 24px}
+  h2{font-size:22px;margin:42px 0 6px;display:flex;align-items:center;gap:10px}
+  h2 .dot{width:12px;height:12px;border-radius:50%}
+  .sub{color:var(--muted);margin:0 0 18px;font-size:14px}
+
+  /* legend */
+  .legend{display:flex;flex-wrap:wrap;gap:14px;margin:18px 0 6px}
+  .legend .item{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);
+    background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:6px 12px}
+  .pill{width:11px;height:11px;border-radius:3px;display:inline-block}
+
+  /* flow lanes */
+  .lane{margin:14px 0}
+  .lane-label{font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin:0 0 10px}
+  .row{display:flex;gap:14px;flex-wrap:wrap;align-items:stretch}
+  .card{flex:1 1 220px;min-width:200px;background:linear-gradient(180deg,var(--panel),var(--panel2));
+    border:1px solid var(--line);border-radius:14px;padding:14px 16px;position:relative;overflow:hidden}
+  .card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px}
+  .card.green::before{background:var(--green)} .card.amber::before{background:var(--amber)}
+  .card.red::before{background:var(--red)} .card.blue::before{background:var(--blue)}
+  .card h3{margin:0 0 4px;font-size:15px}
+  .card p{margin:0;font-size:13px;color:var(--muted)}
+  .tag{display:inline-block;font-size:10px;letter-spacing:1px;text-transform:uppercase;
+    padding:3px 8px;border-radius:999px;margin-top:10px;font-weight:600}
+  .tag.green{background:rgba(34,197,94,.15);color:#86efac}
+  .tag.amber{background:rgba(245,158,11,.15);color:#fcd34d}
+  .tag.red{background:rgba(239,68,68,.15);color:#fca5a5}
+  .arrow{text-align:center;color:var(--violet);font-size:26px;line-height:1;margin:6px 0}
+
+  /* sidebar guide */
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:16px}
+  .menu{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);
+    border-radius:14px;padding:16px 18px}
+  .menu .top{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+  .menu .ico{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;font-size:18px;
+    background:rgba(139,92,246,.18)}
+  .menu h3{margin:0;font-size:16px}
+  .menu .src{font-size:11px;color:var(--cyan);letter-spacing:.4px}
+  .menu p{margin:8px 0 0;font-size:13.5px;color:#cdd6f4}
+  .menu .what{margin-top:10px;font-size:12.5px;color:var(--muted);border-top:1px dashed var(--line);padding-top:9px}
+  .adminbadge{font-size:9px;background:rgba(236,72,153,.2);color:#f9a8d4;padding:2px 7px;border-radius:999px;
+    letter-spacing:1px;text-transform:uppercase}
+
+  /* tables */
+  table{width:100%;border-collapse:collapse;margin-top:12px;font-size:13.5px;
+    background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  th,td{padding:10px 12px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+  th{background:#0e1630;color:var(--muted);font-size:11px;letter-spacing:1px;text-transform:uppercase}
+  tr:last-child td{border-bottom:none}
+  code{background:#0a1228;border:1px solid var(--line);padding:1px 6px;border-radius:6px;font-size:12px;color:#a5b4fc}
+  .chip{font-size:10px;padding:2px 8px;border-radius:999px;font-weight:600}
+  .chip.recycle{background:rgba(34,197,94,.16);color:#86efac}
+  .chip.resale{background:rgba(245,158,11,.16);color:#fcd34d}
+
+  /* improvement cards */
+  .imp{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px;margin-top:6px}
+  .impc{border-radius:14px;padding:16px 18px;border:1px solid var(--line);
+    background:linear-gradient(180deg,var(--panel),var(--panel2))}
+  .impc .rank{font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--muted)}
+  .impc h3{margin:4px 0 6px;font-size:16px}
+  .impc p{margin:0;font-size:13px;color:#cdd6f4}
+  .impc .eff{margin-top:10px;font-size:12px;color:var(--muted)}
+  .impc.hi{border-color:rgba(34,197,94,.5)} .impc.mid{border-color:rgba(245,158,11,.45)}
+  .impc.low{border-color:rgba(59,130,246,.4)}
+  .note{background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.4);border-radius:12px;
+    padding:14px 16px;margin-top:16px;font-size:13.5px;color:#ddd6fe}
+  footer{color:var(--muted);font-size:12px;text-align:center;margin-top:50px}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <h1>🧭 LMIROS — System Map &amp; Plain-English Guide</h1>
+  <p>How leads flow in, where everything is stored, what each sidebar page does, and the highest-value places to improve. Colours show health: <b style="color:#86efac">working</b>, <b style="color:#fcd34d">can improve</b>, <b style="color:#fca5a5">not built yet</b>.</p>
+</header>
+
+<div class="wrap">
+
+  <!-- ============ FLOW CHART ============ -->
+  <h2><span class="dot" style="background:var(--green)"></span>The Big Picture — how a lead becomes revenue</h2>
+  <p class="sub">Read top to bottom. Each box is a real moving part of the system.</p>
+
+  <div class="legend">
+    <span class="item"><span class="pill" style="background:var(--green)"></span> Working now</span>
+    <span class="item"><span class="pill" style="background:var(--amber)"></span> Works, but could be better</span>
+    <span class="item"><span class="pill" style="background:var(--red)"></span> Not built yet</span>
+    <span class="item"><span class="pill" style="background:var(--blue)"></span> Manual step (you do it)</span>
+  </div>
+
+  <!-- LANE 1: SOURCES -->
+  <div class="lane">
+    <p class="lane-label">① Where leads &amp; money come from</p>
+    <div class="row">
+      <div class="card green"><h3>📣 Google Ads</h3><p>Your ads on Google send people to your websites. This is the ad spend you pay.</p><span class="tag green">Live</span></div>
+      <div class="card green"><h3>🌐 Agent Websites</h3><p>A visitor lands on your site and fills in the loan enquiry form.</p><span class="tag green">Live</span></div>
+      <div class="card green"><h3>📄 Zoho Sheet</h3><p>Every form submission drops into your Zoho spreadsheet — name, phone, loan type, location, assigned agent.</p><span class="tag green">Live</span></div>
+      <div class="card green"><h3>💬 Agents on Telegram</h3><p>Agents follow up by WhatsApp and report closed deals in Telegram — their existing habit.</p><span class="tag green">Live</span></div>
+    </div>
+  </div>
+  <div class="arrow">▼</div>
+
+  <!-- LANE 2: INTAKE -->
+  <div class="lane">
+    <p class="lane-label">② How LMIROS pulls the data in (the "front doors")</p>
+    <div class="row">
+      <div class="card green"><h3>🔄 Zoho Auto-Sync</h3><p>LMIROS reads your Zoho Sheet automatically <b>every 10 minutes</b> — no copy-paste. This is the main lead source.</p><span class="tag green">Every 10 min</span></div>
+      <div class="card green"><h3>🤖 Telegram Sale Bot</h3><p>An agent types <code>/sale 0123456789 25000</code> and the deal + revenue is captured instantly.</p><span class="tag green">Just launched</span></div>
+      <div class="card blue"><h3>📊 Google Ads CSV</h3><p>You export the Google Ads cost report and upload it on the Spend page so ROAS knows what you spent.</p><span class="tag amber">Manual / weekly</span></div>
+      <div class="card amber"><h3>🔗 Website Webhook</h3><p>A live "instant" pipe for websites also exists, but Zoho sync is the primary path today.</p><span class="tag amber">Built, secondary</span></div>
+    </div>
+  </div>
+  <div class="arrow">▼</div>
+
+  <!-- LANE 3: BRAIN -->
+  <div class="lane">
+    <p class="lane-label">③ The brain — what LMIROS decides automatically</p>
+    <div class="row">
+      <div class="card green"><h3>🧹 Tidy &amp; De-duplicate</h3><p>Cleans phone numbers to one standard format and avoids counting the same row twice.</p><span class="tag green">Live</span></div>
+      <div class="card green"><h3>✅ Eligibility Check</h3><p>Reads the form and auto-flags leads that can never qualify (wrong loan, out of area, etc.).</p><span class="tag green">Live</span></div>
+      <div class="card green"><h3>🧑‍💼 Agent Matching</h3><p>Links each lead's "Assigned To" name to a real agent so performance can be measured.</p><span class="tag green">Live</span></div>
+      <div class="card green"><h3>📈 ROAS Calculation</h3><p>Revenue ÷ Ad spend — by website and by agent, refreshed continuously.</p><span class="tag green">Live</span></div>
+    </div>
+  </div>
+  <div class="arrow">▼</div>
+
+  <!-- LANE 4: STORAGE -->
+  <div class="lane">
+    <p class="lane-label">④ Where everything is stored (the database)</p>
+    <div class="row">
+      <div class="card green"><h3>📥 Leads table</h3><p>Every enquiry, with status (new → contacted → approved…).</p></div>
+      <div class="card green"><h3>💰 Sales records</h3><p>Closed deals &amp; revenue — from the Telegram bot and from Zoho outcomes.</p></div>
+      <div class="card green"><h3>♻️ Rejected pool</h3><p>Rejected leads kept as a reusable asset (recycle or resell).</p></div>
+      <div class="card green"><h3>🧾 Ad spend</h3><p>Google Ads cost per day/website, used for ROAS.</p></div>
+    </div>
+  </div>
+  <div class="arrow">▼</div>
+
+  <!-- LANE 5: VIEWS -->
+  <div class="lane">
+    <p class="lane-label">⑤ What you see — the sidebar dashboards</p>
+    <div class="row">
+      <div class="card green"><h3>📊 Overview · Leads · Sales</h3><p>Live numbers that used to take a month to see.</p></div>
+      <div class="card green"><h3>📈 Real ROAS</h3><p>Which websites &amp; agents actually make money.</p></div>
+      <div class="card green"><h3>🏆 Agents</h3><p>Per-agent leaderboard: leads, close rate, revenue.</p></div>
+      <div class="card green"><h3>♻️ Rejected Pool</h3><p>Recycle / resale assets, by reason.</p></div>
+    </div>
+  </div>
+
+  <div class="note">💡 <b>The one bottleneck:</b> the system can only show revenue it's been told about. Out of ~1,000 leads, only a handful had a recorded outcome in Zoho — that's why ROAS looked low. The new <b>Telegram Sale Bot</b> is the fix: every closed deal now gets captured the moment the agent reports it.</div>
+
+  <!-- ============ SIDEBAR GUIDE ============ -->
+  <h2><span class="dot" style="background:var(--cyan)"></span>What each sidebar item does</h2>
+  <p class="sub">In plain English — and where each one gets its data.</p>
+
+  <div class="grid">
+    <div class="menu">
+      <div class="top"><div class="ico">📊</div><div><h3>Overview</h3><div class="src">Source: all tables combined</div></div></div>
+      <p>Your home screen. Headline numbers — total leads, how many became sales, total revenue, ROAS — at a glance.</p>
+      <div class="what">Pulls from: Leads + Sales records + Ad spend.</div>
+    </div>
+
+    <div class="menu">
+      <div class="top"><div class="ico">📥</div><div><h3>Leads</h3><div class="src">Source: Zoho Sheet (auto every 10 min)</div></div></div>
+      <p>The full list of everyone who submitted a form. Click one to see their details, contact history and status.</p>
+      <div class="what">Where the data comes from: pulled from your Zoho spreadsheet automatically. No manual entry.</div>
+    </div>
+
+    <div class="menu">
+      <div class="top"><div class="ico">💰</div><div><h3>Sales</h3><div class="src">Source: Telegram bot + Zoho outcomes</div></div></div>
+      <p>Every closed deal and the revenue it brought. This is what feeds the "real money" side of ROAS.</p>
+      <div class="what">Where the data comes from: mostly the <b>Telegram /sale bot</b> now; also any "Approved/Closed + Deal Amount" rows in Zoho.</div>
+    </div>
+
+    <div class="menu">
+      <div class="top"><div class="ico">🔍</div><div><h3>Unmatched sales</h3><div class="src">Source: Sales records with no lead</div></div></div>
+      <p>A safety net. If a reported sale's phone number doesn't match any lead, it lands here so nothing is silently lost — you can match it by hand.</p>
+      <div class="what">Where the data comes from: sales whose phone didn't line up with a known lead.</div>
+    </div>
+
+    <div class="menu">
+      <div class="top"><div class="ico">♻️</div><div><h3>Rejected pool</h3><div class="src">Source: Rejected leads table</div></div></div>
+      <p>Rejected leads aren't deleted — they're saved here as an asset you can recycle later or resell. Filter by "Recycle eligible" or "Resale eligible". (Full breakdown below.)</p>
+      <div class="what">Where the data comes from: filled automatically during the Zoho sync based on eligibility + agent outcome.</div>
+    </div>
+
+    <div class="menu">
+      <div class="top"><div class="ico">📈</div><div><h3>Real ROAS</h3><div class="src">Source: Sales ÷ Ad spend</div></div></div>
+      <p>The core question answered: <b>which websites and agents actually make money?</b> Revenue divided by ad spend. Switch the "by" filter to Website, Agent, Loan type, etc.</p>
+      <div class="what">Where the data comes from: revenue (Sales) divided by cost (Spend uploads).</div>
+    </div>
+
+    <div class="menu">
+      <div class="top"><div class="ico">🏆</div><div><h3>Agents</h3><div class="src">Source: Leads + Sales, grouped by agent</div></div></div>
+      <p>A leaderboard. For each agent: how many leads they got, how many they closed, and the revenue. Click an agent for their detail page.</p>
+      <div class="what">Where the data comes from: leads' "Assigned To" + the sales each agent closed.</div>
+    </div>
+
+    <div class="menu">
+      <div class="top"><div class="ico">🧾</div><div><h3>Ad accounts <span class="adminbadge">Admin</span></h3><div class="src">Source: you set up once</div></div></div>
+      <p>Tells LMIROS which Google Ads account belongs to which website, so spend can be attributed correctly.</p>
+      <div class="what">Where the data comes from: a one-time setup by you/HQ.</div>
+    </div>
+
+    <div class="menu">
+      <div class="top"><div class="ico">📊</div><div><h3>Spend uploads <span class="adminbadge">Admin</span></h3><div class="src">Source: Google Ads CSV (you upload)</div></div></div>
+      <p>Where you drop the weekly Google Ads cost export. Without this, ROAS has revenue but no cost.</p>
+      <div class="what">Where the data comes from: you export from Google Ads and upload here.</div>
+    </div>
+
+    <div class="menu">
+      <div class="top"><div class="ico">👥</div><div><h3>Teams &amp; Users <span class="adminbadge">Admin</span></h3><div class="src">Source: auto + manual</div></div></div>
+      <p>Your people. Agents are created automatically when their name first appears in Zoho; here you can organise them into teams.</p>
+      <div class="what">Where the data comes from: auto-created from Zoho "Assigned To" names.</div>
+    </div>
+
+    <div class="menu">
+      <div class="top"><div class="ico">🔀</div><div><h3>Routing rules <span class="adminbadge">Admin</span></h3><div class="src">Source: you configure</div></div></div>
+      <p>Rules for who a new lead should go to (by region, loan type, capacity). Used by the live pipeline.</p>
+      <div class="what">Where the data comes from: rules you set. Today Zoho already carries the assigned agent.</div>
+    </div>
+
+    <div class="menu">
+      <div class="top"><div class="ico">🔌</div><div><h3>Integrations <span class="adminbadge">Admin</span></h3><div class="src">Source: connection status</div></div></div>
+      <p>The control room for the Zoho connection. Shows when it last synced and has a <b>"Sync Zoho now"</b> button.</p>
+      <div class="what">Where the data comes from: live status of Zoho + Telegram links.</div>
+    </div>
+
+    <div class="menu">
+      <div class="top"><div class="ico">🗂️</div><div><h3>Audit log <span class="adminbadge">Admin</span></h3><div class="src">Source: system event history</div></div></div>
+      <p>A tamper-evident diary of important actions (a sale recorded, a lead rejected, an agent paired) — for trust and troubleshooting.</p>
+      <div class="what">Where the data comes from: written automatically whenever something important happens.</div>
+    </div>
+  </div>
+
+  <!-- ============ REJECTED POOL DEEP DIVE ============ -->
+  <h2><span class="dot" style="background:var(--amber)"></span>Rejected Pool — the full story</h2>
+  <p class="sub">A rejected lead is <b>never thrown away</b>. It's stored as a reusable asset with a reason and a "what to do next" flag.</p>
+
+  <h3 style="margin-bottom:2px">Where they're stored &amp; how they get there</h3>
+  <p class="sub">During the every-10-minute Zoho sync, LMIROS looks at each lead and decides if it's a rejection. If yes, a copy (with a snapshot of loan type, region, source) is saved into the <b>Rejected pool</b>. It's separate from the live Leads list so your funnel stays clean, but nothing is lost.</p>
+
+  <h3 style="margin-bottom:2px">Two kinds of rejection</h3>
+  <table>
+    <thead><tr><th>Type</th><th>Who decides</th><th>Meaning</th><th>What happens to it</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><b>Type 1 — Not Eligible</b></td>
+        <td>The system, automatically from the form</td>
+        <td>The lead can never qualify for this product — known without any follow-up.</td>
+        <td><span class="chip resale">RESALE</span> Marked to <b>sell to another lender</b> (it's a valid person, just not for you).</td>
+      </tr>
+      <tr>
+        <td><b>Type 2 — Rejected after follow-up</b></td>
+        <td>The agent, after WhatsApp contact</td>
+        <td>Eligible lead, but didn't proceed (not suitable now, or couldn't be reached).</td>
+        <td><span class="chip recycle">RECYCLE</span> Kept to <b>re-contact later</b> — circumstances may change.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3 style="margin:18px 0 2px">The rejection reasons explained</h3>
+  <table>
+    <thead><tr><th>Reason</th><th>Plain meaning</th><th>Type</th><th>Next action</th></tr></thead>
+    <tbody>
+      <tr><td><code>out_of_coverage</code></td><td>Lives outside your service areas (only KL, Selangor, Seremban, Putrajaya are covered).</td><td>1 · auto</td><td><span class="chip resale">resale</span></td></tr>
+      <tr><td><code>wrong_loan_type</code></td><td>Asked for a loan you don't offer (anything not a Personal Loan).</td><td>1 · auto</td><td><span class="chip resale">resale</span></td></tr>
+      <tr><td><code>not_eligible</code></td><td>Form shows a disqualifier — e.g. self-employed/freelance, or salary paid in cash (not bank).</td><td>1 · auto</td><td><span class="chip resale">resale</span></td></tr>
+      <tr><td><code>not_suitable</code></td><td>Agent spoke to them and decided it's not a fit right now.</td><td>2 · agent</td><td><span class="chip recycle">recycle</span></td></tr>
+      <tr><td><code>unreachable</code></td><td>Agent tried but couldn't get hold of them.</td><td>2 · agent</td><td><span class="chip recycle">recycle</span></td></tr>
+    </tbody>
+  </table>
+
+  <div class="note">📌 On the Rejected Pool page you'll see small count tiles per reason, and three tabs: <b>All</b>, <b>Recycle eligible</b> (re-contact later), and <b>Resale eligible</b> (sell on). Open any row to action it.</div>
+
+  <!-- ============ WHERE TO IMPROVE ============ -->
+  <h2><span class="dot" style="background:var(--pink)"></span>Where the system can improve or adjust</h2>
+  <p class="sub">Ordered by value-for-effort. Green = do this for biggest payoff.</p>
+
+  <div class="imp">
+    <div class="impc hi">
+      <div class="rank">⭐ Highest value · not code</div>
+      <h3>Get every agent using <code>/sale</code></h3>
+      <p>The bot is live, but it only works if agents pair once (<code>/start their-email</code>) and report deals. This single habit turns "monthly guess" into "live truth" and makes ROAS finally accurate.</p>
+      <div class="eff">Effort: tiny (training) · Payoff: huge</div>
+    </div>
+
+    <div class="impc hi">
+      <div class="rank">⭐ High value</div>
+      <h3>Capture outcomes for the back-catalogue</h3>
+      <p>~1,000 past leads have no recorded result. A short push to log historical wins (even rough totals) would instantly enrich every chart.</p>
+      <div class="eff">Effort: low–medium · Payoff: high</div>
+    </div>
+
+    <div class="impc mid">
+      <div class="rank">Improvement</div>
+      <h3>Per-<b>campaign</b> ROAS (not just per-website)</h3>
+      <p>Today you see which <i>website</i> earns. To see which <i>Google Ads campaign/keyword</i> earns, the website form needs to capture the campaign tag (UTM/gclid) into Zoho. Then LMIROS can split ROAS by campaign.</p>
+      <div class="eff">Effort: medium (needs form change) · Payoff: sharper ad decisions</div>
+    </div>
+
+    <div class="impc mid">
+      <div class="rank">Improvement</div>
+      <h3>Upload ad spend more often / automatically</h3>
+      <p>Spend is uploaded by hand. A weekly habit keeps ROAS honest; later, a direct Google Ads connection could automate it.</p>
+      <div class="eff">Effort: low now / medium to automate · Payoff: always-fresh ROAS</div>
+    </div>
+
+    <div class="impc low">
+      <div class="rank">Launch hardening</div>
+      <h3>Security &amp; always-on before go-live</h3>
+      <p>Rotate the passwords/tokens that appeared during setup, lock data access per team, and move the live pipeline to 24/7 hosting. Safe to defer while testing.</p>
+      <div class="eff">Effort: medium · Payoff: production-ready</div>
+    </div>
+
+    <div class="impc low">
+      <div class="rank">Nice-to-have</div>
+      <h3>Clearer dashboard time ranges</h3>
+      <p>Add obvious "All-time / This month / Last 7 days" toggles so numbers like "294 vs 1,027" are never confusing — they're just different time windows.</p>
+      <div class="eff">Effort: low · Payoff: clarity</div>
+    </div>
+  </div>
+
+  <footer>LMIROS · Loan Marketing Intelligence &amp; Revenue Operating System — system map generated for internal review.</footer>
+</div>
+</body>
+</html>

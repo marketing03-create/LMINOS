@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>LMIROS — Integration Map &amp; Field Reference</title>
+<style>
+  :root{--bg:#0b1020;--panel:#121a33;--panel2:#0f1730;--ink:#e8ecf8;--muted:#9aa6c8;--line:#2a3760;
+    --green:#22c55e;--amber:#f59e0b;--red:#ef4444;--blue:#3b82f6;--violet:#8b5cf6;--cyan:#06b6d4;--pink:#ec4899}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Segoe UI",system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--ink);line-height:1.5;padding:0 0 70px}
+  header.hero{padding:34px 32px 22px;background:linear-gradient(120deg,#1e293b,#312e81 60%,#4c1d95);border-bottom:1px solid var(--line)}
+  header.hero h1{margin:0;font-size:26px}
+  header.hero p{margin:8px 0 0;color:#c7d2fe;max-width:820px}
+  .wrap{max-width:1120px;margin:0 auto;padding:0 24px}
+  h2{font-size:20px;margin:38px 0 6px;display:flex;align-items:center;gap:10px}
+  h2 .dot{width:12px;height:12px;border-radius:50%}
+  .sub{color:var(--muted);margin:0 0 14px;font-size:14px}
+  pre.tree{background:#0a1228;border:1px solid var(--line);border-radius:14px;padding:18px 20px;overflow:auto;
+    font-family:"Cascadia Code",Consolas,monospace;font-size:13px;line-height:1.7;color:#cdd6f4}
+  pre.tree b{color:#fff} pre.tree .g{color:#86efac} pre.tree .v{color:#a5b4fc} pre.tree .m{color:#9aa6c8}
+  pre.tree .p1{color:#fcd34d} pre.tree .p2{color:#7dd3fc} pre.tree .p3{color:#f9a8d4} pre.tree .p4{color:#c4b5fd}
+  table{width:100%;border-collapse:collapse;margin-top:12px;font-size:13.5px;background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+  th{background:#0e1630;color:var(--muted);font-size:11px;letter-spacing:.6px;text-transform:uppercase}
+  tr:last-child td{border-bottom:none}
+  code{background:#0a1228;border:1px solid var(--line);padding:1px 6px;border-radius:6px;color:#a5b4fc;font-size:12px;white-space:nowrap}
+  .chip{font-size:10px;padding:2px 8px;border-radius:999px;font-weight:600;white-space:nowrap}
+  .done{background:rgba(34,197,94,.16);color:#86efac}
+  .each{background:rgba(245,158,11,.16);color:#fcd34d}
+  .auto{background:rgba(59,130,246,.18);color:#bfdbfe}
+  .legend{display:flex;flex-wrap:wrap;gap:12px;margin:14px 0 4px;font-size:12.5px;color:var(--muted)}
+  .note{background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.4);border-radius:12px;padding:13px 16px;margin-top:14px;font-size:13.5px;color:#ddd6fe}
+  footer{color:var(--muted);font-size:12px;text-align:center;margin-top:46px}
+  b{color:#fff}
+</style>
+</head>
+<body>
+<header class="hero">
+  <h1>🗺️ LMIROS — Integration Map &amp; Field Reference</h1>
+  <p>Every platform that feeds LMIROS, the exact fields each needs, and which ones you fill once vs. repeat per new account. Use the tables to add ads/agents/users yourself.</p>
+</header>
+<div class="wrap">
+
+  <div class="legend">
+    <span><span class="chip done">SET ONCE</span> platform connection — already done</span>
+    <span><span class="chip each">EACH TIME</span> you fill this per new account</span>
+    <span><span class="chip auto">AUTOMATIC</span> LMIROS creates it for you</span>
+  </div>
+
+  <!-- TREE -->
+  <h2><span class="dot" style="background:var(--green)"></span>The tree — platforms → what they need → LMIROS</h2>
+  <pre class="tree"><b>LMIROS</b>
+│
+├── <span class="p1">📣 GOOGLE ADS</span>
+│   ├── <b>Platform link</b>  <span class="m">(set once)</span>
+│   │   ├── Manager (MCC) account ──▶ <span class="g">Developer Token</span>  <span class="m">(Explorer access = enough)</span>
+│   │   ├── Google Cloud OAuth client ──▶ <span class="g">Client ID</span> + <span class="g">Client Secret</span>
+│   │   ├── Sign-in (gads:exchange) ──▶ <span class="g">Refresh Token</span>  <span class="m">(default login)</span>
+│   │   └── env: <span class="v">GOOGLE_ADS_DEVELOPER_TOKEN, _CLIENT_ID, _CLIENT_SECRET, _REFRESH_TOKEN, _LOGIN_CUSTOMER_ID</span>
+│   └── <b>Each ad account</b>  <span class="m">(repeat per account)</span>
+│       ├── <span class="g">Customer ID</span>  <span class="m">(10-digit)</span>
+│       ├── <span class="g">Website slug</span>  <span class="m">(= the Zoho "Website" value)</span>
+│       ├── <span class="g">Owning Gmail</span>  <span class="m">(does the 1 sign-in)</span>
+│       └── stored in DB: <span class="v">ad_accounts</span> row + encrypted token
+│
+├── <span class="p2">📄 ZOHO WORKSHEET</span>  <span class="m">(set once)</span>
+│   ├── Self Client (api-console.zoho.com) ──▶ <span class="g">Client ID</span> + <span class="g">Client Secret</span>  <span class="m">(scope ZohoSheet.dataAPI.READ)</span>
+│   ├── Sign-in (zoho:exchange) ──▶ <span class="g">Refresh Token</span>
+│   ├── The Sheet URL path ──▶ <span class="g">Resource ID</span>  <span class="m">(sheet.zoho.com/sheet/open/<b>THIS_PART</b>)</span>
+│   ├── The tab name ──▶ <span class="g">Worksheet Name</span>  <span class="m">(e.g. sheet_1)</span>
+│   └── env: <span class="v">ZOHO_CLIENT_ID, _CLIENT_SECRET, _REFRESH_TOKEN, _RESOURCE_ID, _WORKSHEET_NAME</span>
+│
+├── <span class="p3">💬 TELEGRAM</span>  <span class="m">(set once + per agent)</span>
+│   ├── @BotFather ──▶ <span class="g">Bot Token</span> ;  random ──▶ <span class="g">Webhook Secret</span>
+│   ├── env: <span class="v">TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET</span>
+│   └── <b>Each agent</b>: types <code>/start their-email</code> to pair  <span class="m">(self-serve)</span>
+│
+├── <span class="p4">👥 USERS &amp; AGENTS</span>
+│   ├── Staff user ──▶ <span class="auto" style="padding:1px 7px">AUTOMATIC</span> Google SSO on first login  <span class="m">(allowed domain)</span>; role set in DB
+│   └── Sales agent ──▶ <span class="auto" style="padding:1px 7px">AUTOMATIC</span> from Zoho "Assigned To" on next sync
+│
+└── <span class="m">⚙️ CORE INFRA (set once)</span>
+    └── Supabase DB + Auth · Encryption key · Cron secret · Redis
+        env: <span class="v">DATABASE_URL(_POOLED), NEXT_PUBLIC_SUPABASE_URL/_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, ENCRYPTION_KEY, CRON_SECRET, REDIS_URL, NEXT_PUBLIC_APP_URL</span></pre>
+
+  <!-- TABLE: GOOGLE ADS PLATFORM -->
+  <h2><span class="dot" style="background:var(--amber)"></span>Table A · Google Ads — platform link <span class="chip done" style="margin-left:6px">SET ONCE ✓</span></h2>
+  <p class="sub">Done already. Here so you know what each value is and where it lives.</p>
+  <table>
+    <thead><tr><th>Field</th><th>Where it comes from</th><th>Stored as</th></tr></thead>
+    <tbody>
+      <tr><td><b>Developer Token</b></td><td>Google Ads <b>Manager (MCC)</b> → Tools → API Center</td><td><code>GOOGLE_ADS_DEVELOPER_TOKEN</code></td></tr>
+      <tr><td>Access level</td><td><b>Explorer</b> (auto-granted) — enough for reading metrics</td><td>—</td></tr>
+      <tr><td><b>Client ID + Secret</b></td><td>Google Cloud Console → Credentials → OAuth client (Desktop)</td><td><code>GOOGLE_ADS_CLIENT_ID</code> / <code>_CLIENT_SECRET</code></td></tr>
+      <tr><td><b>Refresh Token</b></td><td><code>npm run gads:exchange</code> sign-in (default login)</td><td><code>GOOGLE_ADS_REFRESH_TOKEN</code></td></tr>
+      <tr><td>MCC ID</td><td>Manager account 10-digit ID (optional; empty = direct access)</td><td><code>GOOGLE_ADS_LOGIN_CUSTOMER_ID</code></td></tr>
+    </tbody>
+  </table>
+
+  <!-- TABLE: ADD AD ACCOUNT -->
+  <h2><span class="dot" style="background:var(--amber)"></span>Table B · Add a NEW Google Ads account <span class="chip each" style="margin-left:6px">EACH TIME</span></h2>
+  <p class="sub">What you gather + do for every new account. (I run the 3 commands; you do the 1 sign-in.)</p>
+  <table>
+    <thead><tr><th>You provide</th><th>Where to find it</th><th>Used for</th></tr></thead>
+    <tbody>
+      <tr><td><b>Customer ID</b> (10-digit)</td><td>Google Ads, top-right (e.g. 123-456-7890)</td><td>which account to pull</td></tr>
+      <tr><td><b>Website slug</b></td><td>The value in Zoho's <b>"Website"</b> column for that account's leads</td><td>per-website ROAS (optional; placeholder ok)</td></tr>
+      <tr><td><b>Owning Gmail</b></td><td>The Google login that can see the account in ads.google.com</td><td>the one sign-in (step 2)</td></tr>
+    </tbody>
+  </table>
+  <div class="note">Steps: <b>1)</b> <code>seed:ad-account</code> (me) → <b>2)</b> <code>gads:exchange</code> sign-in as that Gmail (you) → <b>3)</b> <code>gads:set-token</code> (me) → <b>4)</b> <code>gads:sync</code> (me). One sign-in per Gmail covers all accounts under it.</div>
+
+  <!-- TABLE: ZOHO -->
+  <h2><span class="dot" style="background:var(--cyan)"></span>Table C · Zoho Worksheet — link <span class="chip done" style="margin-left:6px">SET ONCE ✓</span></h2>
+  <p class="sub">Done already. To point at a different workbook/tab later, change Resource ID / Worksheet Name.</p>
+  <table>
+    <thead><tr><th>Field</th><th>Where it comes from</th><th>Stored as</th></tr></thead>
+    <tbody>
+      <tr><td><b>Client ID + Secret</b></td><td>api-console.zoho.com → <b>Self Client</b> (scope <code>ZohoSheet.dataAPI.READ</code>)</td><td><code>ZOHO_CLIENT_ID</code> / <code>_CLIENT_SECRET</code></td></tr>
+      <tr><td><b>Refresh Token</b></td><td><code>npm run zoho:exchange</code> (auth code → token)</td><td><code>ZOHO_REFRESH_TOKEN</code></td></tr>
+      <tr><td><b>Resource ID</b> (the URL path)</td><td>From the Sheet URL: <code>sheet.zoho.com/sheet/open/<b>&lt;RESOURCE_ID&gt;</b></code></td><td><code>ZOHO_RESOURCE_ID</code></td></tr>
+      <tr><td><b>Worksheet Name</b></td><td>The tab name at the bottom of the sheet (e.g. <code>sheet_1</code>)</td><td><code>ZOHO_WORKSHEET_NAME</code></td></tr>
+      <tr><td>Data-center domain</td><td>Region (default .com; .com.au/.eu/.in if your Zoho lives there)</td><td><code>ZOHO_ACCOUNTS_DOMAIN</code> / <code>ZOHO_SHEET_DOMAIN</code></td></tr>
+    </tbody>
+  </table>
+
+  <!-- TABLE: USERS / AGENTS -->
+  <h2><span class="dot" style="background:var(--violet)"></span>Table D · Add a new Agent or User <span class="chip auto" style="margin-left:6px">MOSTLY AUTOMATIC</span></h2>
+  <table>
+    <thead><tr><th>To add a…</th><th>What you do</th><th>How it appears</th></tr></thead>
+    <tbody>
+      <tr><td><b>Sales agent</b></td><td><b>Nothing in LMIROS</b> — just assign a lead to them in Zoho ("Assigned To")</td><td>Auto-created on the next 10-min sync; shows on /agents</td></tr>
+      <tr><td><b>Staff user</b> (HQ / marketer)</td><td>They <b>log in once</b> with their company Google account</td><td>Auto-created via Google SSO; set role/team in DB (I do this, ~10 sec)</td></tr>
+      <tr><td><b>Agent's Telegram</b></td><td>Agent sends the bot <code>/start their-email</code></td><td>Paired instantly; can then record sales with <code>/sale</code></td></tr>
+    </tbody>
+  </table>
+
+  <div class="note">🔑 <b>The honest "is this hard?" answer:</b> The credentials above are the whole list — nothing more to discover. <b>Agents &amp; users are already self-service / automatic.</b> Adding an <b>ad account</b> is the only one that still runs through 3 commands (I run them) + your 1 sign-in — there's no dashboard button for it <i>yet</i>. Turning that into a no-code "Add account" page in LMIROS is a moderate build (an admin form that walks the OAuth sign-in) — very doable whenever you want it.</div>
+
+  <footer>LMIROS · integration field reference.</footer>
+</div>
+</body>
+</html>

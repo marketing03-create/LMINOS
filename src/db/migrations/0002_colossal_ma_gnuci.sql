@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "sales_records_sheet_row_id_uq" ON "sales_records" USING btree ("sheet_row_id");

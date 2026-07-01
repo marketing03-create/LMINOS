@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Google Ads API — Basic Access Application Cheat-Sheet</title>
+<style>
+  :root{--bg:#0b1020;--panel:#121a33;--panel2:#0f1730;--ink:#e8ecf8;--muted:#9aa6c8;
+    --line:#2a3760;--green:#22c55e;--amber:#f59e0b;--blue:#3b82f6;--violet:#8b5cf6;--cyan:#06b6d4}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Segoe UI",system-ui,-apple-system,sans-serif;background:var(--bg);
+    color:var(--ink);line-height:1.55;padding:0 0 80px}
+  header.hero{padding:36px 32px 24px;background:linear-gradient(120deg,#1e293b,#312e81 60%,#4c1d95);
+    border-bottom:1px solid var(--line)}
+  header.hero h1{margin:0;font-size:26px}
+  header.hero p{margin:8px 0 0;color:#c7d2fe;max-width:760px}
+  .wrap{max-width:980px;margin:0 auto;padding:0 24px}
+  h2{font-size:20px;margin:36px 0 6px;display:flex;align-items:center;gap:10px}
+  h2 .n{width:26px;height:26px;border-radius:7px;display:grid;place-items:center;font-size:14px;
+    background:rgba(139,92,246,.25);color:#ddd6fe}
+  .sub{color:var(--muted);margin:0 0 14px;font-size:14px}
+  ol.steps{padding-left:0;list-style:none;counter-reset:s;margin:0}
+  ol.steps li{position:relative;padding:12px 14px 12px 46px;border:1px solid var(--line);border-radius:12px;
+    background:linear-gradient(180deg,var(--panel),var(--panel2));margin-bottom:10px;font-size:14.5px}
+  ol.steps li::before{counter-increment:s;content:counter(s);position:absolute;left:12px;top:12px;
+    width:24px;height:24px;border-radius:50%;background:var(--blue);color:#fff;display:grid;place-items:center;
+    font-size:13px;font-weight:600}
+  .qa{border:1px solid var(--line);border-radius:12px;background:linear-gradient(180deg,var(--panel),var(--panel2));
+    padding:14px 16px;margin-bottom:12px}
+  .qa .q{font-size:13px;color:var(--cyan);text-transform:uppercase;letter-spacing:.6px;margin-bottom:7px}
+  .qa .a{background:#0a1228;border:1px solid var(--line);border-radius:8px;padding:11px 13px;font-size:14px;
+    color:#e8ecf8;white-space:pre-wrap}
+  code{background:#0a1228;border:1px solid var(--line);padding:1px 6px;border-radius:6px;color:#a5b4fc;font-size:13px}
+  .tip{background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.4);border-radius:12px;padding:12px 15px;
+    margin:8px 0;font-size:14px;color:#bbf7d0}
+  .warn{background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.4);border-radius:12px;padding:12px 15px;
+    margin:8px 0;font-size:14px;color:#fde68a}
+  .pill{display:inline-block;font-size:11px;padding:2px 9px;border-radius:999px;background:rgba(139,92,246,.2);
+    color:#ddd6fe;letter-spacing:.5px}
+  footer{color:var(--muted);font-size:12px;text-align:center;margin-top:46px}
+  b{color:#fff}
+</style>
+</head>
+<body>
+<header class="hero">
+  <h1>📝 Google Ads API — Basic Access Application</h1>
+  <p>Copy-paste cheat-sheet for upgrading your developer token from <b>Test</b> → <b>Basic</b> so LMIROS can read your real Flexifund Capital metrics. Internal-use, read-only, single account — the fastest kind to approve.</p>
+</header>
+<div class="wrap">
+
+  <h2><span class="n">0</span> Before you start (prerequisite)</h2>
+  <p class="sub">The developer token + API Center live on a <b>Manager (MCC)</b> account, not the single ad account.</p>
+  <div class="warn">If you haven't already: at <code>ads.google.com</code> create a free <b>Manager account</b> → link <b>Flexifund Capital Loan 2 (599-853-4374)</b> under it. You apply from <i>inside the manager account</i>.</div>
+
+  <h2><span class="n">1</span> Reach the application form</h2>
+  <ol class="steps">
+    <li>Sign in to your <b>Manager (MCC)</b> account at <code>ads.google.com</code> (not the single Flexifund account).</li>
+    <li>Top-right <b>Admin</b> (gear / Tools &amp; Settings) → under <b>Setup</b> click <b>API Center</b>. <span class="pill">API Center only shows on manager accounts</span></li>
+    <li>You'll see your <b>Developer token</b> and <b>Access level: Test</b>. Accept the <b>Google Ads API Terms</b> if prompted.</li>
+    <li>Click <b>Apply for Basic Access</b> — it opens a Google application form. Fill it with the answers below.</li>
+    <li>Submit, then watch the <b>API contact email</b> for the approval (usually 1–3 business days).</li>
+  </ol>
+
+  <h2><span class="n">2</span> Copy-paste answers for the form</h2>
+  <p class="sub">Wording matters: declaring <b>internal use, own account, read-only</b> is what gets a quick yes (it also waives Google's “Required Minimum Functionality”).</p>
+
+  <div class="qa">
+    <div class="q">Are you an advertiser or a third party?</div>
+    <div class="a">Advertiser — managing our own company's single Google Ads account. Not an agency or third party.</div>
+  </div>
+
+  <div class="qa">
+    <div class="q">Tool / integration type</div>
+    <div class="a">Internal tool, for our own company's account only. Not sold, resold, or made available to any external users or other advertisers.</div>
+  </div>
+
+  <div class="qa">
+    <div class="q">Describe your company's business</div>
+    <div class="a">Flexifund Capital is a licensed personal-loan marketing company in Malaysia. We run Google Ads to generate loan enquiries through our own websites, and our sales team follows up on those enquiries.</div>
+  </div>
+
+  <div class="qa">
+    <div class="q">How will you use the Google Ads API? (use case)</div>
+    <div class="a">We have built an internal reporting dashboard (LMIROS) for our own marketing team. Once a day it reads performance metrics — impressions, clicks, cost, and conversions — from our own Google Ads account and stores them in a private internal dashboard, so we can see campaign performance and lead quality in near-real-time instead of waiting for monthly reports. It is read-only reporting; it never creates, edits, or pauses campaigns.</div>
+  </div>
+
+  <div class="qa">
+    <div class="q">Which API services will you call?</div>
+    <div class="a">GoogleAdsService (Search / SearchStream) only — read-only GAQL reporting queries selecting campaign, segments.date, and metrics (impressions, clicks, cost_micros, conversions). No mutate/write operations.</div>
+  </div>
+
+  <div class="qa">
+    <div class="q">How does the integration work? (design)</div>
+    <div class="a">A scheduled server job runs once per day. It authenticates via OAuth (offline refresh token) for our own account, sends one GoogleAdsService.SearchStream request with a GAQL query for a trailing date window, and writes the returned daily campaign metrics into our private dashboard database. No data is shared externally.</div>
+  </div>
+
+  <div class="qa">
+    <div class="q">Internal or external use?</div>
+    <div class="a">Internal use only.</div>
+  </div>
+
+  <div class="qa">
+    <div class="q">Number of accounts managed</div>
+    <div class="a">One — our own account (Customer ID 599-853-4374).</div>
+  </div>
+
+  <div class="qa">
+    <div class="q">Estimated daily API volume</div>
+    <div class="a">Very low — a single account, roughly one reporting query per day. Far below Basic access limits.</div>
+  </div>
+
+  <div class="qa">
+    <div class="q">API contact email</div>
+    <div class="a">Use a monitored work inbox — Google sends the approval and any policy notices here.</div>
+  </div>
+
+  <h2><span class="n">3</span> Tips for a fast approval</h2>
+  <div class="tip">✅ Keep repeating the three magic facts: <b>internal use</b>, <b>our own single account</b>, <b>read-only reporting</b>. That profile is low-risk and exempt from the heavier “Required Minimum Functionality” review.</div>
+  <div class="tip">✅ Be honest and specific — vague answers get follow-up questions and delay approval.</div>
+  <div class="warn">⚠️ Don't describe it as a product for clients/other advertisers, or as something that changes campaigns — that triggers the full Standard-access review.</div>
+
+  <h2><span class="n">4</span> Once approved — send me these 5 things</h2>
+  <div class="qa"><div class="a">1) Developer token (now Basic)
+2) Manager (MCC) account ID — the 10-digit number
+3) OAuth Client ID + Client secret (Google Cloud → enable “Google Ads API” → Desktop OAuth client)
+4) (then I run <code>npm run gads:exchange</code> with you for the refresh token)
+5) Customer ID 5998534374 — already on file ✅</div></div>
+  <div class="tip">💡 You can send me #2 and #3 <b>now</b>, while Basic access is still pending — then the moment it's approved I flip it on the same day, no extra waiting.</div>
+
+  <footer>LMIROS · reference card — Google Ads API Basic Access application for Flexifund Capital.</footer>
+</div>
+</body>
+</html>

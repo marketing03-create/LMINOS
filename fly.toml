@@ -1,0 +1,25 @@
+# LMIROS TikTok Live worker — Fly.io app config.
+#
+# Single always-on machine in Singapore that watches tracked TikTok handles and
+# auto-captures every live. Not a web service — no public HTTP, no ports. It
+# only connects OUT to Supabase + TikTok.
+
+app = "lmiros-tiktok"
+primary_region = "sin"   # Singapore
+
+[build]
+  dockerfile = "Dockerfile"
+
+# No [http_service] block — this is a worker, not a web server.
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"
+  cpus = 1
+
+# Keep exactly one instance running at all times. The worker must never
+# scale to zero (it would stop draining the queue) and we don't want two
+# (BullMQ handles concurrency internally; duplicate workers just split load,
+# which is fine, but one is enough for ~1k leads/day).
+[deploy]
+  min_machines_running = 1

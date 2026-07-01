@@ -1,0 +1,16 @@
+.env.local
+.env*.local
+node_modules
+.next
+.git
+*.log
+
+# Workers and dev-only scripts can't / shouldn't run on Vercel.
+# (Workers will be hosted separately on Fly/Railway in a later step.)
+src/workers
+src/scripts
+
+# Tests don't need to ship to production.
+**/*.test.ts
+**/*.test.tsx
+vitest.config.ts

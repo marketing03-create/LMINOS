@@ -1,0 +1,13 @@
+node_modules
+.next
+.git
+.env.local
+.env*.local
+*.log
+deploy.log
+.vercel
+docs
+public
+**/*.test.ts
+**/*.test.tsx
+vitest.config.ts

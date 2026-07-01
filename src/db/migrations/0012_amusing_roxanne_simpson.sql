@@ -1,0 +1,1 @@
+ALTER TABLE "ad_accounts" ADD COLUMN "owning_email" text;

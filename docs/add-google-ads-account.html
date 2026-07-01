@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>LMIROS — Add a Google Ads Account (Checklist)</title>
+<style>
+  :root{--bg:#0b1020;--panel:#121a33;--panel2:#0f1730;--ink:#e8ecf8;--muted:#9aa6c8;
+    --line:#2a3760;--green:#22c55e;--amber:#f59e0b;--blue:#3b82f6;--violet:#8b5cf6;--cyan:#06b6d4}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Segoe UI",system-ui,-apple-system,sans-serif;background:var(--bg);
+    color:var(--ink);line-height:1.55;padding:0 0 70px}
+  header.hero{padding:34px 32px 22px;background:linear-gradient(120deg,#1e293b,#312e81 60%,#4c1d95);
+    border-bottom:1px solid var(--line)}
+  header.hero h1{margin:0;font-size:25px}
+  header.hero p{margin:8px 0 0;color:#c7d2fe;max-width:780px}
+  .wrap{max-width:960px;margin:0 auto;padding:0 24px}
+  h2{font-size:19px;margin:34px 0 6px;display:flex;align-items:center;gap:10px}
+  h2 .n{width:26px;height:26px;border-radius:7px;display:grid;place-items:center;font-size:14px;
+    background:rgba(139,92,246,.25);color:#ddd6fe}
+  .sub{color:var(--muted);margin:0 0 14px;font-size:14px}
+  table{width:100%;border-collapse:collapse;margin-top:10px;font-size:14px;background:var(--panel);
+    border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  th,td{padding:10px 13px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+  th{background:#0e1630;color:var(--muted);font-size:11px;letter-spacing:1px;text-transform:uppercase}
+  tr:last-child td{border-bottom:none}
+  code{background:#0a1228;border:1px solid var(--line);padding:1px 6px;border-radius:6px;color:#a5b4fc;font-size:12.5px}
+  .card{border:1px solid var(--line);border-radius:12px;background:linear-gradient(180deg,var(--panel),var(--panel2));
+    padding:14px 16px;margin-bottom:10px}
+  .card.you{border-left:4px solid var(--amber)} .card.me{border-left:4px solid var(--green)}
+  .who{font-size:10px;letter-spacing:1px;text-transform:uppercase;padding:2px 8px;border-radius:999px;font-weight:600}
+  .who.you{background:rgba(245,158,11,.18);color:#fcd34d} .who.me{background:rgba(34,197,94,.16);color:#86efac}
+  .card h3{margin:6px 0 4px;font-size:15px}
+  .card p{margin:0;font-size:13.5px;color:#cdd6f4}
+  ul{margin:8px 0 0;padding-left:20px;font-size:14px;color:#cdd6f4}
+  li{margin:4px 0}
+  .tip{background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.4);border-radius:12px;padding:11px 15px;margin:8px 0;font-size:13.5px;color:#bbf7d0}
+  .warn{background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.4);border-radius:12px;padding:11px 15px;margin:8px 0;font-size:13.5px;color:#fde68a}
+  .half{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media(max-width:640px){.half{grid-template-columns:1fr}}
+  .pill{display:inline-block;font-size:11px;padding:2px 9px;border-radius:999px;background:rgba(59,130,246,.18);color:#bfdbfe}
+  footer{color:var(--muted);font-size:12px;text-align:center;margin-top:44px}
+  b{color:#fff}
+</style>
+</head>
+<body>
+<header class="hero">
+  <h1>➕ Add a Google Ads Account to LMIROS</h1>
+  <p>Reusable checklist. Works for any account under any Gmail. The result looks exactly like the Flexifund detail page — Spend, Impr, Clicks, CTR, Avg CPC, Conversions, plus per-campaign and daily breakdowns.</p>
+</header>
+<div class="wrap">
+
+  <h2><span class="n">①</span> Two halves of an account's data</h2>
+  <div class="half">
+    <div class="card"><h3>📊 Ad performance</h3><p>Impr · Clicks · CTR · Avg CPC · Cost · Conversions + daily/campaign breakdown. <b>Comes from the Google Ads API — appears the moment the account is connected.</b></p></div>
+    <div class="card"><h3>💰 Revenue / ROAS / Quality%</h3><p>From LMIROS leads + sales (Zoho + Telegram bot). <b>Fills in once that account's leads also flow into LMIROS</b> with a matching website — same as Flexifund.</p></div>
+  </div>
+
+  <h2><span class="n">②</span> Requirements</h2>
+  <p class="sub">What to gather before we start.</p>
+  <table>
+    <thead><tr><th>#</th><th>Requirement</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td><b>Customer ID</b> (10 digits)</td><td>Top-right in Google Ads, e.g. <code>123-456-7890</code></td></tr>
+      <tr><td>2</td><td><b>Website slug</b> it drives</td><td>The value in Zoho's <b>“Website”</b> column for this account's leads (for per-website ROAS). Unsure? Use a placeholder, refine later.</td></tr>
+      <tr><td>3</td><td><b>Owning Gmail</b></td><td>e.g. <code>admin@enquirymail.com</code> — you sign in as this once.</td></tr>
+      <tr><td>4</td><td>Gmail allowed on the OAuth app</td><td><span class="pill">once per Gmail</span> Add it as a <b>Test user</b> in Google Cloud if sign-in is blocked.</td></tr>
+      <tr><td>5</td><td>OAuth client · dev token · encryption key</td><td><span class="pill">already done</span> Shared globally — nothing to do.</td></tr>
+    </tbody>
+  </table>
+  <div class="warn">⚠️ <b>Two hard rules:</b> it must be a <b>Google Ads</b> account (Meta/TikTok not wired yet), and the Gmail you sign in with <b>must actually have access</b> to it in ads.google.com — otherwise it can't authorize LMIROS to read it.</div>
+
+  <h2><span class="n">③</span> The process — 4 steps</h2>
+  <div class="card me"><span class="who me">I do</span><h3>1 · Register the account</h3><p><code>npm run seed:ad-account -- google &lt;CUSTOMER_ID&gt; &lt;website_slug&gt; default "Account Name"</code> — creates the row.</p></div>
+  <div class="card you"><span class="who you">You do</span><h3>2 · Sign in as the owning Gmail</h3><p>I send you a sign-in URL. Open it → <b>sign in as the Gmail that owns the account</b> → <b>Allow</b> → you land on a “can't be reached” page → copy the <code>code=…</code> from the address bar → send it to me.</p></div>
+  <div class="card me"><span class="who me">I do</span><h3>3 · Attach its login</h3><p><code>npm run gads:set-token -- &lt;CUSTOMER_ID&gt; &lt;code&gt;</code> — encrypts that account's token and stores it on the row (never printed).</p></div>
+  <div class="card me"><span class="who me">I do</span><h3>4 · Pull its metrics</h3><p><code>npm run gads:sync</code> — fetches 90 days. Done.</p></div>
+
+  <h2><span class="n">④</span> What you'll see — identical to Flexifund</h2>
+  <ul>
+    <li><b>/admin/ad-accounts</b> — new row: Spend · Impr · Clicks · CTR · Avg CPC · Conv · Last synced.</li>
+    <li><b>Click the name → detail page</b> — KPI cards + per-campaign breakdown + daily breakdown, with its own date filter.</li>
+    <li><b>/admin/spend</b> — its own clickable row.</li>
+    <li><b>/roas</b> — included in Website / Campaign / Platform breakdowns (revenue + Quality% once its leads/sales are in LMIROS).</li>
+    <li><b>Auto-refreshes daily</b> via the cron — its login lives encrypted in the shared database, no per-account setup.</li>
+  </ul>
+
+  <div class="tip">💡 <b>Adding several accounts under the same Gmail?</b> You only sign in once per Gmail (step 2). After that, each new account is just steps 1, 3, 4 — register, attach the same login, sync.</div>
+
+  <footer>LMIROS · onboarding checklist — Google Ads accounts.</footer>
+</div>
+</body>
+</html>

@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "rejected_leads_lead_id_uq" ON "rejected_leads" USING btree ("lead_id");
