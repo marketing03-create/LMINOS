@@ -21,7 +21,8 @@ function LoginForm() {
   const [loading, setLoading] = useState(false);
   const searchParams = useSearchParams();
   const error = searchParams.get("error");
-  const redirect = searchParams.get("redirect") ?? "/dashboard";
+  // "/" sends the user to the right home for their role (admin vs streamer).
+  const redirect = searchParams.get("redirect") ?? "/";
 
   async function signInWithGoogle() {
     setLoading(true);

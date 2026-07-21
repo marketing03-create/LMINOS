@@ -4,7 +4,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = request.nextUrl;
   const code = searchParams.get("code");
-  const next = searchParams.get("next") ?? "/dashboard";
+  // Default to "/", which resolves the landing page from the user's role.
+  const next = searchParams.get("next") ?? "/";
 
   if (code) {
     const supabase = await createSupabaseServerClient();
