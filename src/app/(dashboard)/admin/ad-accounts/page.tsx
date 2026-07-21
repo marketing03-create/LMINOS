@@ -40,7 +40,7 @@ export default async function AdminAdAccountsPage({
   const { rows, byPlatform, error } = await load(choice.range);
 
   return (
-    <div className="p-8 max-w-6xl">
+    <div className="p-4 sm:p-8 max-w-6xl">
       <header className="mb-6 flex items-end justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Ad accounts</h1>
@@ -56,6 +56,12 @@ export default async function AdminAdAccountsPage({
             className="inline-flex items-center rounded-md bg-zinc-100 dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 px-3 py-1.5 text-sm font-medium whitespace-nowrap"
           >
             Bulk import CSV
+          </Link>
+          <Link
+            href="/admin/ad-accounts/add-gmail"
+            className="inline-flex items-center rounded-md bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 text-sm font-medium whitespace-nowrap"
+          >
+            + Add Gmail
           </Link>
           <Link
             href="/admin/ad-accounts/authorize"
@@ -97,8 +103,8 @@ export default async function AdminAdAccountsPage({
         </div>
       )}
 
-      <div className="border border-zinc-200 dark:border-zinc-800 rounded-xl bg-white dark:bg-zinc-950 overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="border border-zinc-200 dark:border-zinc-800 rounded-xl bg-white dark:bg-zinc-950 overflow-x-auto">
+        <table className="w-full text-sm min-w-[860px]">
           <thead className="bg-zinc-50 dark:bg-zinc-900 text-zinc-500 text-left">
             <tr>
               <Th>Account</Th>

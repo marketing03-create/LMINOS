@@ -42,7 +42,9 @@ async function load(): Promise<{
       .from(adProposals)
       .innerJoin(adAccounts, eq(adAccounts.id, adProposals.adAccountId))
       .where(eq(adProposals.status, "pending"))
-      .orderBy(asc(adAccounts.displayName), desc(adProposals.createdAt));
+      // Newest analysis first, so the account you just analyzed lands on top
+      // (not buried alphabetically).
+      .orderBy(desc(adProposals.createdAt));
 
     const recent = await db
       .select({
@@ -80,7 +82,7 @@ export default async function AdsProposalsPage() {
   const aiConfigured = !!process.env.AI_GATEWAY_API_KEY;
 
   return (
-    <div className="p-8 max-w-5xl">
+    <div className="p-4 sm:p-8 max-w-5xl">
       <header className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight">Ads Proposals</h1>
         <p className="mt-1 text-sm text-zinc-500">

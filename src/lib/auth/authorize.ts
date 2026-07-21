@@ -16,7 +16,8 @@ export type Role =
   | "marketing_manager"
   | "team_lead"
   | "sales_agent"
-  | "viewer";
+  | "viewer"
+  | "live_streamer";
 
 export type AuthOk = { ok: true; userId: string | null; role: Role };
 export type AuthFail = { ok: false; status: 401 | 403; error: string };
@@ -64,3 +65,39 @@ export async function requireRole(roles: Role[]): Promise<AuthResult> {
 
 /** Roles allowed to manage config + spend money (the common admin gate). */
 export const ADMIN_ROLES: Role[] = ["hq_admin", "marketing_manager"];
+
+export type SessionUser = {
+  userId: string | null;
+  email: string | null;
+  role: Role;
+};
+
+/**
+ * Resolve the current user's id + email + role WITHOUT a network round trip to
+ * the auth server: getClaims verifies the session JWT locally (like the layout
+ * + proxy), then one indexed lookup gets the role. Returns null when there's no
+ * active session. Used by the dashboard layout + pages to render role-aware UI
+ * and gate the live-streamer experience. Mutating APIs keep requireRole().
+ */
+export async function getSessionUser(): Promise<SessionUser | null> {
+  if (devBypass()) {
+    return { userId: null, email: "dev@stub.local", role: "hq_admin" };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data } = await supabase.auth.getClaims();
+  const claims = data?.claims;
+  if (!claims) return null;
+
+  const userId = typeof claims.sub === "string" ? claims.sub : null;
+  const email = typeof claims.email === "string" ? claims.email : null;
+  if (!userId) return null;
+
+  const row = await db.query.users.findFirst({
+    where: eq(users.id, userId),
+    columns: { role: true, isActive: true },
+  });
+  if (!row || !row.isActive) return null;
+
+  return { userId, email, role: row.role as Role };
+}

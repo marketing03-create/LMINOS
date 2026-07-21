@@ -199,12 +199,12 @@ export function AdsBlueprintsClient({
       <div className="border border-zinc-200 dark:border-zinc-800 rounded-xl bg-white dark:bg-zinc-950 p-4 space-y-3">
         <div className="text-sm font-semibold">Draft a new account</div>
         <div className="flex flex-wrap items-end gap-3">
-          <label className="block">
+          <label className="block min-w-0 w-full sm:w-auto">
             <div className="text-xs font-medium mb-1">Website</div>
             <select
               value={websiteId}
               onChange={(e) => setWebsiteId(e.target.value)}
-              className={inputCls}
+              className={`${inputCls} w-full`}
             >
               {websites.length === 0 && <option value="">No websites</option>}
               {websites.map((w) => (

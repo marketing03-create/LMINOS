@@ -7,7 +7,12 @@
  */
 import { z } from "zod";
 
-export const DEFAULT_SCREENSHOT_MODEL = "anthropic/claude-opus-4-8";
+// Reading numbers off a screenshot is simple vision (near-OCR), so it uses the
+// FASTEST model — much quicker + cheaper than the analyst's Opus, and the human
+// review step (current → new, editable) catches any misread before it saves.
+// Override via env SCREENSHOT_MODEL for more accuracy if ever needed (e.g.
+// anthropic/claude-sonnet-5, or ...opus-4-8 for max accuracy).
+export const DEFAULT_SCREENSHOT_MODEL = "anthropic/claude-haiku-4-5";
 
 /** DB metric columns on tiktok_live_sessions, split by how the connector treats them. */
 export const AUTO_COLUMNS = [
@@ -27,6 +32,12 @@ export const MANUAL_COLUMNS = [
   "serviceBioViews",
   "interestedViewers",
   "diamonds",
+  // Streamer/CS-entered only — never read from a screenshot (no such TikTok
+  // metric), so they are intentionally absent from SCREENSHOT_TO_COLUMN below.
+  // Total Leads = the deduped unique-lead count CS tracks (one per phone number,
+  // so DM + WhatsApp contact of the same person counts once).
+  "totalLeads",
+  "filteredLeads",
 ] as const;
 export type MetricColumn =
   | (typeof AUTO_COLUMNS)[number]
@@ -184,7 +195,34 @@ export function mergeExtractions(
     }
   });
 
-  return [...dated.values(), ...undated];
+  const datedGroups = [...dated.values()];
+
+  // If exactly ONE dated live is in this batch, fold any undated summary (the
+  // LIVE-Centre "Congratulations" screen — Direct messages / Service bio views /
+  // Interested viewers) straight into it, so the reviewer sees ONE table with
+  // those under "New extras". The dated screens are the more precise source, so
+  // on any overlap the dated value wins (the undated value is recorded as a
+  // conflict, never overwritten). With 0 or ≥2 dated lives we can't know which
+  // live an undated screen belongs to, so it stays a "needs attach" group.
+  if (datedGroups.length === 1 && undated.length > 0) {
+    const g = datedGroups[0];
+    for (const u of undated) {
+      if (g.handle == null) g.handle = u.handle;
+      if (g.startTime == null) g.startTime = u.startTime;
+      if (g.durationMinutes == null) g.durationMinutes = u.durationMinutes;
+      for (const t of u.sourceTabs) g.sourceTabs.push(t);
+      for (const [col, val] of Object.entries(u.values) as [MetricColumn, number][]) {
+        if (g.values[col] == null) g.values[col] = val;
+        else if (g.values[col] !== val)
+          g.conflicts.push(
+            `${col}: ${g.values[col]} vs ${val} (kept the dated screenshot's value)`
+          );
+      }
+    }
+    return [g];
+  }
+
+  return [...datedGroups, ...undated];
 }
 
 export const SCREENSHOT_SYSTEM = `You read ONE screenshot of TikTok's LIVE analytics for a Malaysian creator and extract the numbers EXACTLY as shown. All times are Malaysia time (UTC+8).

@@ -12,7 +12,7 @@
 import { randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import { leads, users } from "@/db/schema";
+import { leads, removedUsers, users } from "@/db/schema";
 import { extractAgentName } from "./parse";
 
 /** Deterministic synthetic email for a Zoho-sourced agent. */
@@ -47,10 +47,18 @@ export async function syncAgentsFromLeads(): Promise<AgentSyncResult> {
     if (name) names.add(name);
   }
 
+  // Removed agents are suppressed so this seeder can't resurrect them either.
+  const suppressed = new Set(
+    (await db.select({ email: removedUsers.email }).from(removedUsers)).map((r) =>
+      r.email.toLowerCase()
+    )
+  );
+
   let created = 0;
   let existing = 0;
   for (const name of names) {
     const email = agentEmail(name);
+    if (suppressed.has(email.toLowerCase())) continue;
     const found = await db.query.users.findFirst({
       where: sql`lower(${users.email}) = ${email}`,
       columns: { id: true },

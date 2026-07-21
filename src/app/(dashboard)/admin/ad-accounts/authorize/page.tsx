@@ -72,7 +72,7 @@ export default async function AuthorizeGmailsPage() {
   const { groups, attention, error } = await load();
 
   return (
-    <div className="p-8 max-w-3xl">
+    <div className="p-4 sm:p-8 max-w-3xl">
       <Link
         href="/admin/ad-accounts"
         className="text-sm text-blue-600 dark:text-blue-400 hover:underline"

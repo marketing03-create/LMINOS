@@ -69,7 +69,7 @@ export default async function RejectedDetail({
   if (!detail && !error) notFound();
 
   return (
-    <div className="p-8 max-w-3xl">
+    <div className="p-4 sm:p-8 max-w-3xl">
       <header className="mb-6">
         <Link href="/rejected" className="text-sm text-zinc-500 hover:underline">
           ← Rejected pool

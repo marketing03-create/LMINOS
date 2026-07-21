@@ -51,7 +51,7 @@ export default async function LeadsPage() {
   const { rows, error } = await fetchLeads();
 
   return (
-    <div className="p-8 max-w-7xl">
+    <div className="p-4 sm:p-8 max-w-7xl">
       <header className="mb-6 flex items-baseline justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Leads</h1>
@@ -71,8 +71,8 @@ export default async function LeadsPage() {
         </div>
       )}
 
-      <div className="border border-zinc-200 dark:border-zinc-800 rounded-xl bg-white dark:bg-zinc-950 overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="border border-zinc-200 dark:border-zinc-800 rounded-xl bg-white dark:bg-zinc-950 overflow-x-auto">
+        <table className="w-full text-sm min-w-[720px]">
           <thead className="bg-zinc-50 dark:bg-zinc-900 text-zinc-500">
             <tr className="text-left">
               <Th>Submitted</Th>

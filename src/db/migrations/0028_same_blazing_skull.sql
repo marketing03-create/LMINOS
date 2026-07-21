@@ -1,0 +1,1 @@
+ALTER TYPE "public"."ad_proposal_type" ADD VALUE 'monitor_term';

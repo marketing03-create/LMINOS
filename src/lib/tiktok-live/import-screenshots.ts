@@ -3,8 +3,15 @@
  * merged-by-live groups → matched to existing sessions by date → a review
  * payload the importer UI renders (no DB write happens here).
  */
-import { extractFromImages, type UploadedImage } from "./screenshot-extract";
-import { mergeExtractions, type MergedGroup } from "./screenshot-extract-core";
+import {
+  extractFromImages,
+  type UploadedImage,
+} from "./screenshot-extract";
+import {
+  mergeExtractions,
+  type MergedGroup,
+  type ScreenshotExtraction,
+} from "./screenshot-extract-core";
 import { matchSessions, type MatchSession } from "./match-session-core";
 import { sessionsForMatching, type MatchCandidate } from "./queries";
 
@@ -18,13 +25,16 @@ export type ReviewPayload = {
   sessions: MatchCandidate[];
 };
 
-export async function buildReviewPayload(
-  images: UploadedImage[]
+/** Build the review payload from already-extracted images (lets the caller
+ * persist the raw images + extractions for the audit trail in between). */
+export async function buildReviewFromExtractions(
+  extractions: ScreenshotExtraction[],
+  accountIds?: string[]
 ): Promise<ReviewPayload> {
-  const extractions = await extractFromImages(images);
   const groups = mergeExtractions(extractions);
 
-  const candidates = await sessionsForMatching();
+  // A live streamer only matches against their own handles' sessions.
+  const candidates = await sessionsForMatching(500, accountIds);
   const sessions: MatchSession[] = candidates.map((c) => ({
     sessionId: c.sessionId,
     accountId: c.accountId,
@@ -55,4 +65,13 @@ export async function buildReviewPayload(
     }),
     sessions: candidates,
   };
+}
+
+/** Convenience: extract images then build the review (no persistence). */
+export async function buildReviewPayload(
+  images: UploadedImage[],
+  accountIds?: string[]
+): Promise<ReviewPayload> {
+  const extractions = await extractFromImages(images);
+  return buildReviewFromExtractions(extractions, accountIds);
 }

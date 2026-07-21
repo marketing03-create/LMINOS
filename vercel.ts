@@ -25,6 +25,12 @@ export const config: VercelConfig = {
       path: "/api/cron/sla-scan",
       schedule: "0 0 * * *", // daily at midnight UTC
     },
+    {
+      // "Did a streamer forget to upload their live results?" — 10:00 Malaysia
+      // time (UTC+8) = 02:00 UTC. Checks yesterday's lives for missing leads.
+      path: "/api/cron/tiktok-missing-results",
+      schedule: "0 2 * * *",
+    },
   ],
 
   // ─── Pro-tier schedule (uncomment AFTER upgrading) ─────────────────────

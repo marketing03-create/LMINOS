@@ -2,6 +2,9 @@ import { NextResponse, type NextRequest } from "next/server";
 import { cronAuthorized } from "@/lib/auth/cron";
 import { syncGoogleAdsKeywords } from "@/lib/google-ads/sync-keywords";
 
+// Keyword + search-term pull across all accounts — allow the max window.
+export const maxDuration = 300;
+
 /**
  * Pull Google Ads keyword + search-term performance into LMIROS.
  * Trigger via cron-job.org with `Authorization: Bearer ${CRON_SECRET}` (daily).

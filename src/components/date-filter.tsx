@@ -55,7 +55,7 @@ export function DateFilter({
         </Link>
       ))}
 
-      <form method="get" action={basePath} className="flex items-center gap-1.5">
+      <form method="get" action={basePath} className="flex flex-wrap items-center gap-1.5">
         {entries.map(([k, v]) => (
           <input key={k} type="hidden" name={k} value={v} />
         ))}
@@ -63,7 +63,7 @@ export function DateFilter({
           type="date"
           name="start"
           defaultValue={choice.startStr}
-          className={inputCls}
+          className={`${inputCls} min-w-0`}
           aria-label="Start date"
         />
         <span className="text-zinc-400">→</span>
@@ -71,7 +71,7 @@ export function DateFilter({
           type="date"
           name="end"
           defaultValue={choice.endStr}
-          className={inputCls}
+          className={`${inputCls} min-w-0`}
           aria-label="End date"
         />
         <button type="submit" className={chip(choice.mode === "custom")}>

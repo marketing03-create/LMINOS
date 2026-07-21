@@ -29,7 +29,12 @@ function LoginForm() {
     const redirectTo = `${window.location.origin}/auth/callback?next=${redirect}`;
     await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo },
+      options: {
+        redirectTo,
+        // Always show the Google account chooser so a signed-out user can pick a
+        // different account (instead of Google silently re-using the last one).
+        queryParams: { prompt: "select_account" },
+      },
     });
   }
 

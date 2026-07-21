@@ -36,7 +36,7 @@ export default async function WebsiteDetailPage({
   const summary = summaries.find((s) => s.id === site.id);
 
   return (
-    <div className="p-8 max-w-6xl">
+    <div className="p-4 sm:p-8 max-w-6xl">
       <header className="mb-6 flex items-end justify-between gap-4 flex-wrap">
         <div>
           <Link href={`/admin/websites?${qs}`} className="text-xs text-zinc-500 hover:underline">

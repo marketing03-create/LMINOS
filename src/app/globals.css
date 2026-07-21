@@ -1,8 +1,20 @@
 @import "tailwindcss";
 
+/* Manual theme switching — `dark:` utilities follow the .dark class on <html>,
+   set before paint by the inline script in layout.tsx and by the sidebar
+   appearance toggle (Light / Auto / Dark). */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
-  --background: #ffffff;
+  --background: #fafafa;
   --foreground: #171717;
+  color-scheme: light;
+}
+
+.dark {
+  --background: #0a0a0a;
+  --foreground: #ededed;
+  color-scheme: dark;
 }
 
 @theme inline {
@@ -12,15 +24,58 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont,
+    "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  text-rendering: optimizeLegibility;
+}
+
+/* Never let the page itself scroll sideways — wide content (tables, charts)
+   must scroll inside its own container, not swing the whole page and reveal
+   the background behind it. `clip` (not `hidden`) so sticky headers still work. */
+html,
+body {
+  overflow-x: clip;
+}
+
+::selection {
+  background: rgb(59 130 246 / 0.22);
+}
+
+/* Slim, unobtrusive scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(161 161 170 / 0.45) transparent;
+}
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgb(161 161 170 / 0.45);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(161 161 170 / 0.7);
+}
+
+:focus-visible {
+  outline: 2px solid rgb(59 130 246 / 0.6);
+  outline-offset: 2px;
+}
+
+/* Flash a table row when arriving via #session-<id> (the post-save redirect from
+   the upload page). Applied to the cells so it also paints the sticky first
+   column. */
+.session-flash > td {
+  background-color: rgb(254 243 199); /* amber-100 */
+  transition: background-color 0.3s ease;
+}
+.dark .session-flash > td {
+  background-color: rgb(69 26 3);
 }

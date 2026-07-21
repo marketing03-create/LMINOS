@@ -72,7 +72,7 @@ export default async function AdsBlueprintsPage() {
     : null;
 
   return (
-    <div className="p-8 max-w-5xl">
+    <div className="p-4 sm:p-8 max-w-5xl">
       <header className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight">Account Builder</h1>
         <p className="mt-1 text-sm text-zinc-500">

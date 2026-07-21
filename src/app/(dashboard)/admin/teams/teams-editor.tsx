@@ -60,8 +60,8 @@ export function TeamsEditor({ rows }: { rows: TeamRow[] }) {
         {err && <span className="text-xs text-red-500">{err}</span>}
       </form>
 
-      <div className="border border-zinc-200 dark:border-zinc-800 rounded-xl bg-white dark:bg-zinc-950 overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="border border-zinc-200 dark:border-zinc-800 rounded-xl bg-white dark:bg-zinc-950 overflow-x-auto">
+        <table className="w-full text-sm min-w-[520px]">
           <thead className="bg-zinc-50 dark:bg-zinc-900 text-zinc-500 text-left">
             <tr>
               <Th>Name</Th>

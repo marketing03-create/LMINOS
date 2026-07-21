@@ -26,7 +26,7 @@ export default async function EditAdAccountPage({
   if (!acct) notFound();
 
   return (
-    <div className="p-8 max-w-2xl">
+    <div className="p-4 sm:p-8 max-w-2xl">
       <Link
         href="/admin/ad-accounts"
         className="text-sm text-blue-600 dark:text-blue-400 hover:underline"

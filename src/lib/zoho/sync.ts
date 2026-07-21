@@ -15,7 +15,7 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import { brands, campaigns, leads, rejectedLeads, salesRecords, users } from "@/db/schema";
+import { brands, campaigns, leads, rejectedLeads, removedUsers, salesRecords, users } from "@/db/schema";
 import { agentEmail } from "./agents";
 import { fetchAllZohoRecords } from "./client";
 import { checkEligibility, type EligibilityReason } from "./eligibility";
@@ -122,6 +122,15 @@ async function loadAgentMap(): Promise<Map<string, string>> {
   return map;
 }
 
+/**
+ * Lowercased emails an admin has removed. Auto-provisioning skips these so a
+ * removed agent isn't resurrected on the next sync (the Users-page bug).
+ */
+async function loadSuppressedEmails(): Promise<Set<string>> {
+  const rows = await db.select({ email: removedUsers.email }).from(removedUsers);
+  return new Set(rows.map((r) => r.email.toLowerCase()));
+}
+
 /** externalCampaignId → campaigns.id, for attributing leads to campaigns. */
 async function loadCampaignMap(): Promise<Map<string, string>> {
   const all = await db
@@ -138,9 +147,10 @@ async function loadCampaignMap(): Promise<Map<string, string>> {
  * agent in Zoho and they appear in LMIROS automatically on the next sync.
  * Newly-created agents are added to the in-memory map for the rest of the run.
  */
-async function ensureAgentId(
+export async function ensureAgentId(
   assignedToRaw: string | null,
-  agentMap: Map<string, string>
+  agentMap: Map<string, string>,
+  suppressed: Set<string>
 ): Promise<string | null> {
   const name = extractAgentName(assignedToRaw);
   if (!name) return null;
@@ -149,6 +159,9 @@ async function ensureAgentId(
   if (existing) return existing;
 
   const email = agentEmail(name);
+  // Admin removed this agent — don't resurrect them. Their leads stay
+  // unassigned (matches the removal semantics), until an admin re-adds them.
+  if (suppressed.has(email.toLowerCase())) return null;
   const found = await db.query.users.findFirst({
     where: sql`lower(${users.email}) = ${email}`,
     columns: { id: true },
@@ -228,10 +241,12 @@ export async function syncZoho(): Promise<ZohoSyncResult> {
   const brandOf = (website: string | null) =>
     brandCache.get((website ?? "default").toLowerCase())!;
 
-  // 2b. Ensure all distinct agents exist; build name→id map.
+  // 2b. Ensure all distinct agents exist; build name→id map. Removed agents are
+  // suppressed so the sync can't resurrect them.
   const agentMap = await loadAgentMap();
+  const suppressed = await loadSuppressedEmails();
   for (const raw of new Set(parsed.map((p) => p.assignedToName))) {
-    await ensureAgentId(raw, agentMap);
+    await ensureAgentId(raw, agentMap, suppressed);
   }
   const agentOf = (raw: string | null) => {
     const name = extractAgentName(raw);

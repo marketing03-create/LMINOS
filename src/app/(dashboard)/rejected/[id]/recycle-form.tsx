@@ -57,11 +57,11 @@ export function RecycleForm({ rejectedId }: { rejectedId: string }) {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <select
           value={overrideLoanType}
           onChange={(e) => setOverride(e.target.value)}
-          className="h-9 px-2 rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-sm"
+          className="min-w-0 h-9 px-2 rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-sm"
         >
           <option value="">Keep original loan type</option>
           <option value="personal">Reallocate → Personal</option>

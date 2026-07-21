@@ -53,7 +53,7 @@ export function RejectLeadForm({ leadId }: { leadId: string }) {
       <select
         value={reason}
         onChange={(e) => setReason(e.target.value)}
-        className="h-10 px-3 rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-sm"
+        className="w-full min-w-0 h-10 px-3 rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-sm"
       >
         <option value="">Reject reason…</option>
         {REASONS.map((r) => (
@@ -67,7 +67,7 @@ export function RejectLeadForm({ leadId }: { leadId: string }) {
         value={notes}
         onChange={(e) => setNotes(e.target.value)}
         placeholder="Notes (optional)"
-        className="h-10 px-3 rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-sm"
+        className="w-full min-w-0 h-10 px-3 rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-sm"
       />
       <div className="md:col-span-2 flex items-center gap-3">
         <button

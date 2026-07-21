@@ -132,14 +132,51 @@ describe("mergeExtractions", () => {
     });
   });
 
-  it("keeps an undated screenshot (LIVE Centre) as a separate needs-attach group", () => {
+  it("folds an undated summary into the sole dated live (one table)", () => {
     const groups = mergeExtractions([
       ext({ date: "2026-06-10", tab: "viewership", totalViews: 775 }),
-      ext({ date: null, tab: "congratulations", directMessages: 26, serviceBioViews: 45 }),
+      ext({
+        date: null,
+        tab: "congratulations",
+        directMessages: 26,
+        serviceBioViews: 45,
+        interestedViewers: 0,
+      }),
     ]);
-    expect(groups).toHaveLength(2);
+    // Exactly one dated live → the undated extras merge in; no separate card.
+    expect(groups).toHaveLength(1);
+    expect(groups[0].needsAttach).toBe(false);
+    expect(groups[0].sourceTabs).toContain("congratulations");
+    expect(groups[0].values).toMatchObject({
+      totalViews: 775,
+      directMessages: 26,
+      serviceBioViews: 45,
+      interestedViewers: 0,
+    });
+  });
+
+  it("keeps the dated value on overlap when folding an undated summary", () => {
+    const groups = mergeExtractions([
+      ext({ date: "2026-06-10", tab: "viewership", totalViews: 775, newFollowers: 20 }),
+      // LIVE-Centre summary rounds Views to 1000 and repeats followers.
+      ext({ date: null, tab: "congratulations", totalViews: 1000, newFollowers: 20, directMessages: 31 }),
+    ]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].values.totalViews).toBe(775); // dated wins over the rounded summary
+    expect(groups[0].values.directMessages).toBe(31); // unique extra still added
+    expect(groups[0].conflicts.join(" ")).toContain("totalViews");
+  });
+
+  it("keeps an undated screenshot separate when there are TWO dated lives", () => {
+    const groups = mergeExtractions([
+      ext({ date: "2026-06-10", tab: "viewership", totalViews: 775 }),
+      ext({ date: "2026-06-11", tab: "viewership", totalViews: 900 }),
+      ext({ date: null, tab: "congratulations", directMessages: 26 }),
+    ]);
+    // Ambiguous which live the summary belongs to → stays a needs-attach group.
+    expect(groups).toHaveLength(3);
     const undated = groups.find((g) => g.needsAttach);
-    expect(undated?.values).toMatchObject({ directMessages: 26, serviceBioViews: 45 });
+    expect(undated?.values).toMatchObject({ directMessages: 26 });
     expect(undated?.date).toBeNull();
   });
 

@@ -32,7 +32,9 @@ export async function extractOneImage(
   img: UploadedImage
 ): Promise<ScreenshotExtraction> {
   const env = requireKey();
-  const model = env.ADS_ANALYST_MODEL ?? DEFAULT_SCREENSHOT_MODEL;
+  // Dedicated fast model for screenshot OCR — independent of the ads analyst so
+  // that stays on Opus while this stays fast. Images already read in parallel.
+  const model = env.SCREENSHOT_MODEL ?? DEFAULT_SCREENSHOT_MODEL;
   const { object } = await generateObject({
     model,
     schema: ScreenshotExtractionSchema,
@@ -46,7 +48,8 @@ export async function extractOneImage(
         ],
       },
     ],
-    maxOutputTokens: 1500,
+    // The output is a tiny JSON (~15 fields) — a smaller cap finishes sooner.
+    maxOutputTokens: 1024,
   });
   return object;
 }

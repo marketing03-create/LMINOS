@@ -2,23 +2,19 @@ import { desc, eq } from "drizzle-orm";
 import { NextResponse, type NextRequest } from "next/server";
 import { db } from "@/db/client";
 import { leads, rejectedLeads } from "@/db/schema";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { ADMIN_ROLES, requireRole } from "@/lib/auth/authorize";
 
 /**
  * CSV export of resale-eligible leads. Admin-only.
  *
  * Returns a CSV with the original lead's phone/name/email + snapshot
  * attribution + rejection metadata. Suitable for selling out-of-coverage
- * leads to other companies (per plan).
+ * leads to other companies (per plan). Role-gated — this exports raw customer
+ * PII, so only admins may pull it (never a viewer/agent/streamer).
  */
 export async function GET(_request: NextRequest) {
-  if (process.env.LMIROS_DEV_BYPASS_AUTH !== "true") {
-    const supabase = await createSupabaseServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return new NextResponse("unauthorized", { status: 401 });
-  }
+  const auth = await requireRole(ADMIN_ROLES);
+  if (!auth.ok) return new NextResponse(auth.error, { status: auth.status });
 
   const rows = await db
     .select({

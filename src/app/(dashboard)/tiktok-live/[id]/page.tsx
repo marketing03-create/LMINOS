@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { sessionDetail } from "@/lib/tiktok-live/queries";
-import { fmtInt } from "@/lib/roas/metrics";
-import { ManualMetricsForm } from "./manual-metrics-form";
+import { sessionDetail, streamerAccountIds } from "@/lib/tiktok-live/queries";
+import { getSessionUser } from "@/lib/auth/authorize";
+import { SessionMetricsCard } from "./manual-metrics-form";
+import { ProductSelect } from "./product-select";
+import { ProductBadges } from "@/components/product-badges";
 
 function fmtDuration(sec: number): string {
   if (!sec) return "—";
@@ -17,10 +19,15 @@ export default async function TikTokSessionPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  // Scope streamers to their own handles — a session that isn't theirs 404s.
+  const me = await getSessionUser();
+  const isStreamer = me?.role === "live_streamer";
+  const scope =
+    isStreamer && me?.userId ? await streamerAccountIds(me.userId) : undefined;
   let data: Awaited<ReturnType<typeof sessionDetail>> | null = null;
   let error: string | null = null;
   try {
-    data = await sessionDetail(id);
+    data = await sessionDetail(id, scope);
   } catch (err) {
     error = err instanceof Error ? err.message : String(err);
   }
@@ -29,7 +36,7 @@ export default async function TikTokSessionPage({
   const leads = data?.leads ?? [];
 
   return (
-    <div className="p-8 max-w-5xl">
+    <div className="p-4 sm:p-8 max-w-5xl">
       <Link href="/tiktok-live" className="text-sm text-zinc-500 hover:underline">
         ← TikTok Live
       </Link>
@@ -53,29 +60,32 @@ export default async function TikTokSessionPage({
                 : "—"}{" "}
               · {fmtDuration(s.durationSeconds)}
             </p>
+            {s.products && s.products.length > 0 && (
+              <div className="mt-2">
+                <ProductBadges products={s.products} />
+              </div>
+            )}
           </header>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3 mb-8">
-            <Kpi label="Leads" value={fmtInt(s.keywordLeads)} big />
-            <Kpi label="Peak viewers" value={fmtInt(s.peakViewers)} />
-            <Kpi label="Avg viewers" value={fmtInt(s.avgViewers)} />
-            <Kpi label="Views" value={fmtInt(s.totalViews)} />
-            <Kpi label="New followers" value={fmtInt(s.newFollowers ?? 0)} />
-            <Kpi label="Likes" value={fmtInt(s.totalLikes)} />
-            <Kpi label="Comments" value={fmtInt(s.totalComments)} />
-            <Kpi label="Shares" value={fmtInt(s.totalShares)} />
+          {/* Product / service first — what this live promoted. */}
+          <div className="mb-6">
+            <ProductSelect sessionId={s.id} initial={s.products ?? []} />
           </div>
 
-          <p className="-mt-4 mb-8 text-xs text-zinc-400">
-            Peak / Avg viewers = people watching at the same time. Views = total
-            entries during the live. Captured live by our own connector, so totals
-            can run a few % under TikTok&apos;s own final tally.
-          </p>
-
+          {/* Every metric is editable — check each against your screenshots. */}
           <div className="mb-8">
-            <ManualMetricsForm
+            <SessionMetricsCard
               sessionId={s.id}
+              isStreamer={isStreamer}
               initial={{
+                totalViews: s.totalViews,
+                peakViewers: s.peakViewers,
+                avgViewers: s.avgViewers,
+                newFollowers: s.newFollowers,
+                totalLikes: s.totalLikes,
+                totalComments: s.totalComments,
+                totalShares: s.totalShares,
+                durationMinutes: Math.round(s.durationSeconds / 60),
                 uniqueViewers: s.uniqueViewers,
                 activeViewers: s.activeViewers,
                 avgWatchSeconds: s.avgWatchSeconds,
@@ -83,83 +93,82 @@ export default async function TikTokSessionPage({
                 serviceBioViews: s.serviceBioViews,
                 interestedViewers: s.interestedViewers,
                 diamonds: s.diamonds,
+                totalLeads: s.totalLeads,
+                filteredLeads: s.filteredLeads,
+                keywordLeads: s.keywordLeads,
               }}
             />
           </div>
 
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-zinc-500">
-            Lead worklist — viewers who commented a keyword ({leads.length})
-          </h2>
-          <div className="border border-zinc-200 dark:border-zinc-800 rounded-xl bg-white dark:bg-zinc-950 overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-zinc-50 dark:bg-zinc-900 text-zinc-500 text-left">
-                <tr>
-                  <Th>Viewer</Th>
-                  <Th>Keyword</Th>
-                  <Th>Comment</Th>
-                  <Th>When</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {leads.length === 0 && (
-                  <tr>
-                    <td colSpan={4} className="px-4 py-10 text-center text-zinc-500">
-                      No keyword leads captured for this live.
-                    </td>
-                  </tr>
-                )}
-                {leads.map((l, i) => (
-                  <tr key={i} className="border-t border-zinc-100 dark:border-zinc-900">
-                    <Td>
-                      <a
-                        href={`https://www.tiktok.com/@${l.username}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="font-mono text-xs text-blue-600 dark:text-blue-400 hover:underline"
-                      >
-                        @{l.username}
-                      </a>
-                      {l.displayName && (
-                        <span className="ml-2 text-xs text-zinc-500">{l.displayName}</span>
-                      )}
-                    </Td>
-                    <Td>
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400">
-                        {l.keyword}
-                      </span>
-                    </Td>
-                    <Td className="max-w-[320px] truncate text-zinc-600 dark:text-zinc-300">
-                      {l.commentText ?? "—"}
-                    </Td>
-                    <Td className="text-xs text-zinc-500 tabular-nums whitespace-nowrap">
-                      {l.commentedAt
-                        ? new Date(l.commentedAt).toLocaleString("en-MY", { hour12: false })
-                        : "—"}
-                    </Td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <p className="mt-3 text-xs text-zinc-500">
-            Tip: click a viewer to open their TikTok profile, then PM them your WhatsApp link.
-          </p>
+          {/* The keyword-comment worklist is an ADMIN follow-up tool — hidden
+              from streamers, who use this page only to verify their live numbers. */}
+          {!isStreamer && (
+            <>
+              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-zinc-500">
+                Lead worklist — viewers who commented a keyword ({leads.length})
+              </h2>
+              <div className="border border-zinc-200 dark:border-zinc-800 rounded-xl bg-white dark:bg-zinc-950 overflow-x-auto">
+                <table className="w-full text-sm min-w-[520px]">
+                  <thead className="bg-zinc-50 dark:bg-zinc-900 text-zinc-500 text-left">
+                    <tr>
+                      <Th>Viewer</Th>
+                      <Th>Keyword</Th>
+                      <Th>Comment</Th>
+                      <Th>When</Th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {leads.length === 0 && (
+                      <tr>
+                        <td colSpan={4} className="px-4 py-10 text-center text-zinc-500">
+                          No keyword leads captured for this live.
+                        </td>
+                      </tr>
+                    )}
+                    {leads.map((l, i) => (
+                      <tr key={i} className="border-t border-zinc-100 dark:border-zinc-900">
+                        <Td>
+                          <a
+                            href={`https://www.tiktok.com/@${l.username}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="font-mono text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                          >
+                            @{l.username}
+                          </a>
+                          {l.displayName && (
+                            <span className="ml-2 text-xs text-zinc-500">{l.displayName}</span>
+                          )}
+                        </Td>
+                        <Td>
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400">
+                            {l.keyword}
+                          </span>
+                        </Td>
+                        <Td className="max-w-[320px] truncate text-zinc-600 dark:text-zinc-300">
+                          {l.commentText ?? "—"}
+                        </Td>
+                        <Td className="text-xs text-zinc-500 tabular-nums whitespace-nowrap">
+                          {l.commentedAt
+                            ? new Date(l.commentedAt).toLocaleString("en-MY", { hour12: false })
+                            : "—"}
+                        </Td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="mt-3 text-xs text-zinc-500">
+                Tip: click a viewer to open their TikTok profile, then PM them your WhatsApp link.
+              </p>
+            </>
+          )}
         </>
       )}
     </div>
   );
 }
 
-function Kpi({ label, value, big }: { label: string; value: string; big?: boolean }) {
-  return (
-    <div className="border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 bg-white dark:bg-zinc-950">
-      <div className="text-xs uppercase tracking-wider text-zinc-500">{label}</div>
-      <div className={`mt-1 ${big ? "text-2xl" : "text-xl"} font-semibold tabular-nums`}>
-        {value}
-      </div>
-    </div>
-  );
-}
 function Th({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
     <th className={`px-4 py-2.5 font-medium text-xs uppercase tracking-wider ${className}`}>

@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Sensitive migration exports (encrypted OAuth tokens) — never commit
+docs/integrations/*.SECRET.json
+*.SECRET.json

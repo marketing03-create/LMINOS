@@ -102,7 +102,7 @@ export default async function AuditLogPage({
   const { rows, total, eventTypes, error } = await load(filter);
 
   return (
-    <div className="p-8 max-w-7xl">
+    <div className="p-4 sm:p-8 max-w-7xl">
       <header className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight">Audit log</h1>
         <p className="mt-1 text-sm text-zinc-500">
@@ -125,12 +125,12 @@ export default async function AuditLogPage({
           name="q"
           defaultValue={filter.q}
           placeholder="Entity id contains…"
-          className="h-9 px-3 rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-sm md:col-span-2"
+          className="w-full min-w-0 h-9 px-3 rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-sm md:col-span-2"
         />
         <select
           name="event"
           defaultValue={filter.event ?? ""}
-          className="h-9 px-3 rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-sm"
+          className="w-full min-w-0 h-9 px-3 rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-sm"
         >
           <option value="">All events</option>
           {eventTypes.map((e) => (
@@ -142,7 +142,7 @@ export default async function AuditLogPage({
         <select
           name="entity"
           defaultValue={filter.entity ?? ""}
-          className="h-9 px-3 rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-sm"
+          className="w-full min-w-0 h-9 px-3 rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-sm"
         >
           <option value="">All entities</option>
           <option value="lead">lead</option>
@@ -154,7 +154,7 @@ export default async function AuditLogPage({
         <select
           name="days"
           defaultValue={String(filter.days ?? 7)}
-          className="h-9 px-3 rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-sm"
+          className="w-full min-w-0 h-9 px-3 rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-sm"
         >
           <option value="1">Last 24h</option>
           <option value="7">Last 7 days</option>

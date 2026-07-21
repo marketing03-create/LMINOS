@@ -69,7 +69,8 @@ export function WebsiteDetailClient({
 
       {/* Ad accounts */}
       <Card title="Ad accounts" subtitle="Accounts driving traffic to this website. Suspend the old one and add a replacement — history stays, ROAS is continuous.">
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto">
+        <table className="w-full text-sm min-w-[560px]">
           <thead className="text-zinc-500 text-left">
             <tr>
               <Th>Account</Th>
@@ -119,6 +120,7 @@ export function WebsiteDetailClient({
             ))}
           </tbody>
         </table>
+        </div>
       </Card>
 
       {/* Agent pool */}
@@ -258,7 +260,7 @@ function AccountActions({
           <select
             value={replaceWith}
             onChange={(e) => setReplaceWith(e.target.value)}
-            className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-2 py-1 text-xs"
+            className="max-w-full min-w-0 rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-2 py-1 text-xs"
           >
             <option value="">replace with…</option>
             {others.map((o) => (
@@ -305,7 +307,7 @@ function AddAgent({
       <select
         value={userId}
         onChange={(e) => setUserId(e.target.value)}
-        className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-3 py-2 text-sm"
+        className="max-w-full min-w-0 rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-3 py-2 text-sm"
       >
         <option value="">Add an agent…</option>
         {addable.map((a) => (

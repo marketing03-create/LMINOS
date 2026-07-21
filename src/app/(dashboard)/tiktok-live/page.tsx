@@ -1,16 +1,42 @@
 import Link from "next/link";
 import { rangeFromParams } from "@/lib/ads/account-metrics";
 import {
-  tiktokLiveKpis,
+  streamerAccountIds,
+  tiktokAccountsForPicker,
   tiktokLiveSessionList,
-  tiktokLiveTrend,
   type SessionRow,
-  type TikTokKpis,
-  type TrendPoint,
 } from "@/lib/tiktok-live/queries";
+import { getSessionUser } from "@/lib/auth/authorize";
 import { fmtInt } from "@/lib/roas/metrics";
-import { DateFilter } from "@/components/date-filter";
-import { TikTokCharts } from "./tiktok-charts";
+import { CompactDateFilter } from "@/components/compact-date-filter";
+import { ProductBadges } from "@/components/product-badges";
+import { HelpTip } from "@/components/help-tip";
+import { METRIC_HELP } from "@/lib/tiktok-live/metric-help";
+import { SessionHighlighter } from "./session-highlighter";
+import { HandleFilter } from "./handle-filter";
+import { StreamerHomeFeed } from "./streamer-home-feed";
+
+/** Per-column explanations, shown in a “?” beside each header. */
+const HELP: Record<string, string> = {
+  Duration: METRIC_HELP.duration,
+  Views: METRIC_HELP.views,
+  Peak: METRIC_HELP.peak,
+  Avg: METRIC_HELP.avg,
+  Followers: METRIC_HELP.followers,
+  Likes: METRIC_HELP.likes,
+  Comments: METRIC_HELP.comments,
+  Shares: METRIC_HELP.shares,
+  Unique: METRIC_HELP.unique,
+  Active: METRIC_HELP.active,
+  Watch: METRIC_HELP.watch,
+  DMs: METRIC_HELP.dms,
+  BioViews: METRIC_HELP.bioViews,
+  Interested: METRIC_HELP.interested,
+  Diamonds: METRIC_HELP.diamonds,
+  PMLeads: METRIC_HELP.commentLeads,
+  TotalLeads: METRIC_HELP.totalLeads,
+  FilteredLeads: METRIC_HELP.filteredLeads,
+};
 
 function fmtDuration(sec: number): string {
   if (!sec) return "—";
@@ -27,42 +53,94 @@ function fmtN(v: number | null): string {
 export default async function TikTokLivePage({
   searchParams,
 }: {
-  searchParams: Promise<{ range?: string; start?: string; end?: string }>;
+  searchParams: Promise<{
+    range?: string;
+    start?: string;
+    end?: string;
+    handle?: string;
+  }>;
 }) {
   const sp = await searchParams;
   const choice = rangeFromParams(sp);
 
-  let kpis: TikTokKpis | null = null;
+  // A live streamer only sees the handle(s) assigned to them; admins see all and
+  // can narrow to one streamer with the ?handle picker.
+  const me = await getSessionUser();
+  const isStreamer = me?.role === "live_streamer";
+  const selectedHandle = typeof sp.handle === "string" ? sp.handle : "all";
+  const importHref = isStreamer
+    ? "/tiktok-live/import"
+    : "/admin/tiktok/screenshots";
+
+  let scope: string[] | undefined;
+  let handles: { id: string; handle: string }[] = [];
+  if (isStreamer && me?.userId) {
+    scope = await streamerAccountIds(me.userId);
+  } else {
+    try {
+      handles = await tiktokAccountsForPicker();
+    } catch {
+      // picker just won't show if the handle list can't load
+    }
+    scope = selectedHandle !== "all" ? [selectedHandle] : undefined;
+  }
+
+  // Date params to carry across the streamer picker (and vice-versa).
+  const preserve: Record<string, string> = {};
+  if (sp.range) preserve.range = sp.range;
+  if (sp.start) preserve.start = sp.start;
+  if (sp.end) preserve.end = sp.end;
+
   let sessions: SessionRow[] = [];
-  let trend: TrendPoint[] = [];
   let error: string | null = null;
   try {
-    kpis = await tiktokLiveKpis(choice.range);
-    sessions = await tiktokLiveSessionList(choice.range);
-    trend = await tiktokLiveTrend(choice.range);
+    sessions = await tiktokLiveSessionList(choice.range, 200, scope);
   } catch (err) {
     error = err instanceof Error ? err.message : String(err);
   }
 
   return (
-    <div className="p-8 max-w-6xl">
-      <header className="mb-6 flex items-end justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">TikTok Live</h1>
-          <p className="mt-1 text-sm text-zinc-500">
-            LIVE session performance — viewers, likes, comments, shares per stream.
-          </p>
-        </div>
-        <div className="flex items-center gap-3 flex-wrap">
-          <Link
-            href="/admin/tiktok/screenshots"
-            className="shrink-0 inline-flex items-center rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-2 text-sm font-medium hover:bg-zinc-100 dark:hover:bg-zinc-900"
-          >
-            Import LIVE screenshots →
-          </Link>
-          <DateFilter basePath="/tiktok-live" choice={choice} />
-        </div>
-      </header>
+    <div className="p-4 sm:p-8 max-w-6xl">
+      <SessionHighlighter />
+      {isStreamer ? (
+        /* Mobile-first: the date filter sits right-most on its own row. */
+        <header className="mb-5 flex flex-wrap items-center justify-end gap-3">
+          <CompactDateFilter basePath="/tiktok-live" choice={choice} />
+        </header>
+      ) : (
+        <header className="mb-6 flex items-end justify-between gap-4 flex-wrap">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">TikTok Live</h1>
+            <p className="mt-1 text-sm text-zinc-500">
+              LIVE session performance — viewers, likes, comments, shares per stream.
+            </p>
+          </div>
+          <div className="flex items-center gap-3 flex-wrap">
+            {handles.length > 0 && (
+              <HandleFilter handles={handles} value={selectedHandle} preserve={preserve} />
+            )}
+            <Link
+              href={importHref}
+              className="shrink-0 inline-flex items-center rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-2 text-sm font-medium hover:bg-zinc-100 dark:hover:bg-zinc-900"
+            >
+              Import LIVE screenshots →
+            </Link>
+            <Link
+              href="/tiktok-live/import"
+              className="shrink-0 inline-flex items-center rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-2 text-sm font-medium hover:bg-zinc-100 dark:hover:bg-zinc-900"
+            >
+              Manual Input
+            </Link>
+            <CompactDateFilter
+              basePath="/tiktok-live"
+              choice={choice}
+              extraParams={
+                selectedHandle !== "all" ? { handle: selectedHandle } : undefined
+              }
+            />
+          </div>
+        </header>
+      )}
 
       {error && (
         <div className="mb-6 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
@@ -70,77 +148,70 @@ export default async function TikTokLivePage({
         </div>
       )}
 
-      {kpis && (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-8">
-          <Kpi label="Sessions" value={fmtInt(kpis.sessions)} />
-          <Kpi label="Leads" value={fmtInt(kpis.leads)} />
-          <Kpi label="Total views" value={fmtInt(kpis.totalViews)} />
-          <Kpi label="New followers" value={fmtInt(kpis.newFollowers)} />
-          <Kpi label="Avg peak viewers" value={fmtInt(kpis.avgPeakViewers)} />
-          <Kpi label="Likes" value={fmtInt(kpis.totalLikes)} />
-          <Kpi label="Comments" value={fmtInt(kpis.totalComments)} />
-          <Kpi label="Shares" value={fmtInt(kpis.totalShares)} />
-          <Kpi label="Live hours" value={kpis.liveHours.toString()} />
+      {/* Streamers get the Instagram-style card feed; admins keep the wide table. */}
+      {isStreamer && !error && <StreamerHomeFeed sessions={sessions} />}
+
+      {!isStreamer && sessions.length === 0 && !error && (
+        <div className="mb-8 border border-zinc-200 dark:border-zinc-800 rounded-xl p-10 text-center text-zinc-500">
+          No live sessions in this period.{" "}
+          Register handles on{" "}
+          <Link href="/admin/tiktok" className="underline">
+            TikTok Live admin
+          </Link>{" "}
+          and connect a vendor to start pulling data.
         </div>
       )}
 
-      {trend.length > 0 ? (
-        <div className="mb-8">
-          <TikTokCharts data={trend} />
-        </div>
-      ) : (
-        !error && (
-          <div className="mb-8 border border-zinc-200 dark:border-zinc-800 rounded-xl p-10 text-center text-zinc-500">
-            No live sessions in this period. Register handles on{" "}
-            <a href="/admin/tiktok" className="underline">
-              TikTok Live admin
-            </a>{" "}
-            and connect a vendor to start pulling data.
-          </div>
-        )
-      )}
-
-      {sessions.length > 0 && (
-        <div className="border border-zinc-200 dark:border-zinc-800 rounded-xl bg-white dark:bg-zinc-950 overflow-x-auto">
-          <table className="w-full text-sm">
+      {!isStreamer && sessions.length > 0 && (
+        <div className="border border-zinc-200 dark:border-zinc-800 rounded-xl bg-white dark:bg-zinc-950 overflow-auto max-h-[70vh]">
+          <table className="w-full text-[11px] sm:text-sm">
             <thead className="bg-zinc-50 dark:bg-zinc-900 text-zinc-500 text-left">
               <tr>
-                <Th>When</Th>
+                <Th className="sticky left-0 z-30">When</Th>
                 <Th>Handle</Th>
                 <Th>Title</Th>
-                <Th className="text-right">Duration</Th>
-                <Th className="text-right">Views</Th>
-                <Th className="text-right">Peak</Th>
-                <Th className="text-right">Avg</Th>
-                <Th className="text-right">Followers</Th>
-                <Th className="text-right">Likes</Th>
-                <Th className="text-right">Comments</Th>
-                <Th className="text-right">Shares</Th>
-                <Th className="text-right">Unique</Th>
-                <Th className="text-right">Active</Th>
-                <Th className="text-right">Watch</Th>
-                <Th className="text-right">DMs</Th>
-                <Th className="text-right">Bio views</Th>
-                <Th className="text-right">Interested</Th>
-                <Th className="text-right">Diamonds</Th>
-                <Th className="text-right">Leads</Th>
+                <Th>Product</Th>
+                <Th className="text-right" help={HELP.Duration}>Duration</Th>
+                <Th className="text-right" help={HELP.Views}>Views</Th>
+                <Th className="text-right" help={HELP.Peak}>Peak</Th>
+                <Th className="text-right" help={HELP.Avg}>Avg</Th>
+                <Th className="text-right" help={HELP.Followers}>Followers</Th>
+                <Th className="text-right" help={HELP.Likes}>Likes</Th>
+                <Th className="text-right" help={HELP.Comments}>Comments</Th>
+                <Th className="text-right" help={HELP.Shares}>Shares</Th>
+                <Th className="text-right" help={HELP.Unique}>Unique</Th>
+                <Th className="text-right" help={HELP.Active}>Active</Th>
+                <Th className="text-right" help={HELP.Watch}>Watch</Th>
+                <Th className="text-right" help={HELP.DMs}>DMs</Th>
+                <Th className="text-right" help={HELP.BioViews}>Bio views</Th>
+                <Th className="text-right" help={HELP.Interested}>Interested</Th>
+                <Th className="text-right" help={HELP.Diamonds}>Diamonds</Th>
+                <Th className="text-right" help={HELP.TotalLeads}>Total leads</Th>
+                <Th className="text-right" help={HELP.FilteredLeads}>Filtered leads</Th>
               </tr>
             </thead>
             <tbody>
               {sessions.map((s) => (
                 <tr
                   key={s.id}
-                  className="border-t border-zinc-100 dark:border-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-900/50"
+                  id={`session-${s.id}`}
+                  className="group scroll-mt-24 border-t border-zinc-100 dark:border-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-900/50"
                 >
-                  <Td className="text-xs text-zinc-500 tabular-nums whitespace-nowrap">
-                    <Link href={`/tiktok-live/${s.id}`} className="hover:underline">
+                  <Td className="sticky left-0 z-10 bg-white dark:bg-zinc-950 group-hover:bg-zinc-50 dark:group-hover:bg-zinc-900/50 text-[10px] sm:text-xs text-zinc-500 tabular-nums whitespace-nowrap">
+                    <Link
+                      href={`/tiktok-live/${s.id}`}
+                      className="underline underline-offset-2 decoration-zinc-300 dark:decoration-zinc-600 hover:text-blue-600 dark:hover:text-blue-400 hover:decoration-blue-400"
+                    >
                       {s.startedAt
                         ? new Date(s.startedAt).toLocaleString("en-MY", { hour12: false })
                         : "—"}
                     </Link>
                   </Td>
-                  <Td className="font-mono text-xs">@{s.handle}</Td>
-                  <Td className="max-w-[220px] truncate">{s.title ?? "—"}</Td>
+                  <Td className="font-mono text-[10px] sm:text-xs">@{s.handle}</Td>
+                  <Td className="max-w-[110px] sm:max-w-[220px] truncate">{s.title ?? "—"}</Td>
+                  <Td className="whitespace-nowrap">
+                    <ProductBadges products={s.products} />
+                  </Td>
                   <Td className="text-right tabular-nums">{fmtDuration(s.durationSeconds)}</Td>
                   <Td className="text-right tabular-nums">{fmtInt(s.totalViews)}</Td>
                   <Td className="text-right tabular-nums text-zinc-500">{fmtInt(s.peakViewers)}</Td>
@@ -158,11 +229,8 @@ export default async function TikTokLivePage({
                   <Td className="text-right tabular-nums text-zinc-500">{fmtN(s.serviceBioViews)}</Td>
                   <Td className="text-right tabular-nums text-zinc-500">{fmtN(s.interestedViewers)}</Td>
                   <Td className="text-right tabular-nums text-zinc-500">{fmtN(s.diamonds)}</Td>
-                  <Td className="text-right tabular-nums font-medium">
-                    <Link href={`/tiktok-live/${s.id}`} className="text-blue-600 dark:text-blue-400 hover:underline">
-                      {fmtInt(s.keywordLeads)}
-                    </Link>
-                  </Td>
+                  <Td className="text-right tabular-nums text-indigo-600 dark:text-indigo-400 font-semibold">{fmtN(s.totalLeads)}</Td>
+                  <Td className="text-right tabular-nums text-zinc-500">{fmtN(s.filteredLeads)}</Td>
                 </tr>
               ))}
             </tbody>
@@ -170,34 +238,34 @@ export default async function TikTokLivePage({
         </div>
       )}
 
-      {sessions.length > 0 && (
-        <p className="mt-3 text-xs text-zinc-400">
-          Views = total entries during the live (TikTok&apos;s &ldquo;Views&rdquo;). Peak / Avg ={" "}
-          people watching at the same time. Captured live by our own connector, so totals run a few
-          % under TikTok&apos;s own final tally. The last columns (Unique, Active, Watch, DMs, Bio
-          views, Interested, Diamonds) are TikTok-backend numbers — they read &ldquo;—&rdquo; until
-          you enter them on a session&apos;s page (Save numbers) or via the screenshot import.
-        </p>
-      )}
     </div>
   );
 }
 
-function Kpi({ label, value }: { label: string; value: string }) {
+function Th({
+  children,
+  className = "",
+  help,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  help?: string;
+}) {
   return (
-    <div className="border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 bg-white dark:bg-zinc-950">
-      <div className="text-xs uppercase tracking-wider text-zinc-500">{label}</div>
-      <div className="mt-1 text-xl font-semibold tabular-nums">{value}</div>
-    </div>
-  );
-}
-function Th({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return (
-    <th className={`px-4 py-2.5 font-medium text-xs uppercase tracking-wider ${className}`}>
-      {children}
+    <th
+      className={`sticky top-0 z-20 bg-zinc-50 dark:bg-zinc-900 px-2 sm:px-4 py-1.5 sm:py-2.5 font-medium text-[10px] sm:text-xs uppercase tracking-wider whitespace-nowrap ${className}`}
+    >
+      {help ? (
+        <span className="inline-flex items-center gap-1 align-middle">
+          <span>{children}</span>
+          <HelpTip text={help} label={typeof children === "string" ? children : undefined} />
+        </span>
+      ) : (
+        children
+      )}
     </th>
   );
 }
 function Td({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <td className={`px-4 py-2.5 ${className}`}>{children}</td>;
+  return <td className={`px-2 sm:px-4 py-1.5 sm:py-2.5 ${className}`}>{children}</td>;
 }

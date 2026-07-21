@@ -1,0 +1,1 @@
+ALTER TABLE "tiktok_live_sessions" ADD COLUMN "total_leads" integer;

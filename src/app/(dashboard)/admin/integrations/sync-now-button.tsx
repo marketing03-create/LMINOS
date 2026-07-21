@@ -59,7 +59,9 @@ export function SyncNowButton({ variant = "sheets" }: { variant?: Variant }) {
         );
       } else if (variant === "google") {
         setMsg(
-          `${json.accounts ?? 0} accounts · ${json.rowsUpserted ?? 0} rows synced${
+          `${json.accounts ?? 0} accounts · ${json.rowsUpserted ?? 0} spend · ${
+            json.keywords?.keywordRows ?? 0
+          } keywords · ${json.keywords?.searchTermRows ?? 0} search terms${
             json.errors?.length ? ` · ${json.errors.length} errors` : ""
           }`
         );

@@ -89,7 +89,7 @@ async function main() {
     } catch (err) {
       console.error("watch error:", err instanceof Error ? err.message : err);
     }
-    await sleep(60_000);
+    await sleep(5 * 60_000);
   }
 }
 

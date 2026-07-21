@@ -9,10 +9,19 @@ const PUBLIC_PREFIXES = [
   "/auth", // Supabase OAuth callback
   "/_next",
   "/favicon",
+  // PWA assets the OS fetches WITHOUT a session (home-screen install/launch) —
+  // must be reachable unauthenticated or "Add to Home Screen" can't read them.
+  "/manifest.webmanifest",
+  "/apple-icon",
+  "/icon",
 ];
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  // Expose the current path to server components (the dashboard layout reads it
+  // to gate the restricted live-streamer role to its own pages). Cheap, no DB.
+  request.headers.set("x-lmiros-pathname", pathname);
 
   // Dev-only bypass so the UI shell can be previewed without Supabase.
   // Ignored in production so a leaked env can never open prod.
@@ -50,23 +59,26 @@ export async function proxy(request: NextRequest) {
     }
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // getClaims verifies the session JWT locally (no auth-server round trip on
+  // every request, unlike getUser) and still refreshes expired sessions.
+  const { data } = await supabase.auth.getClaims();
+  const claims = data?.claims;
 
-  if (!user) {
+  if (!claims) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.searchParams.set("redirect", pathname);
     return NextResponse.redirect(url);
   }
 
+  const email = typeof claims.email === "string" ? claims.email : undefined;
+
   // Optional email-domain allowlist
   const allowed = process.env.AUTH_ALLOWED_DOMAINS?.split(",")
     .map((s) => s.trim().toLowerCase())
     .filter(Boolean);
-  if (allowed && allowed.length > 0 && user.email) {
-    const domain = user.email.split("@")[1]?.toLowerCase();
+  if (allowed && allowed.length > 0 && email) {
+    const domain = email.split("@")[1]?.toLowerCase();
     if (!domain || !allowed.includes(domain)) {
       const url = request.nextUrl.clone();
       url.pathname = "/login";

@@ -16,6 +16,10 @@ export const adProposalTypeEnum = pgEnum("ad_proposal_type", [
   "pause_keyword",
   "adjust_budget",
   "new_ad_copy",
+  // A relevant-but-underperforming term to WATCH (keep running), not exclude —
+  // the experienced-marketer call when a term has cost/clicks but no conversions
+  // yet still shows real loan intent.
+  "monitor_term",
 ]);
 
 export const adProposalStatusEnum = pgEnum("ad_proposal_status", [
@@ -73,6 +77,63 @@ export const adBuildStepStatusEnum = pgEnum("ad_build_step_status", [
   "failed",
   "skipped",
   "reverted",
+]);
+
+// AI Search Terms Analyzer. Per-term classification + negative-keyword
+// recommendation the AI produces; a human reviews/edits/approves before any
+// negative reaches Google. Values are UPPERCASE to match the AI's JSON output
+// verbatim (no case mapping between the model, the schema, and the DB).
+export const searchTermDecisionEnum = pgEnum("search_term_decision", [
+  "KEEP",
+  "MONITOR",
+  "EXCLUDE",
+]);
+
+export const searchTermReviewStatusEnum = pgEnum("search_term_review_status", [
+  "PENDING_REVIEW",
+  "APPROVED",
+  "REJECTED",
+  "EDITED",
+  "APPLIED",
+  "APPLY_FAILED",
+]);
+
+export const negKwMatchTypeEnum = pgEnum("neg_kw_match_type", [
+  "EXACT",
+  "PHRASE",
+  "BROAD",
+  "NONE",
+]);
+
+export const negKwLevelEnum = pgEnum("neg_kw_level", [
+  "AD_GROUP",
+  "CAMPAIGN",
+  "SHARED_LIST",
+  "ACCOUNT",
+  "NONE",
+]);
+
+export const searchTermRiskEnum = pgEnum("search_term_risk", [
+  "LOW",
+  "MEDIUM",
+  "HIGH",
+]);
+
+export const recommendationTypeEnum = pgEnum("recommendation_type", [
+  "NEGATIVE_KEYWORD",
+  "POSITIVE_KEYWORD",
+  "NEW_AD_GROUP",
+  "LANDING_PAGE",
+  "AD_COPY",
+  "MONITOR_ONLY",
+]);
+
+// How a campaign/account should treat searches for named competitors. Configured
+// per account (or per campaign) in campaign_analysis_settings; the analyzer obeys it.
+export const competitorStrategyEnum = pgEnum("competitor_strategy", [
+  "EXCLUDE_ALL",
+  "MONITOR",
+  "ALLOW",
 ]);
 
 export const loanTypeEnum = pgEnum("loan_type", [
@@ -155,6 +216,10 @@ export const userRoleEnum = pgEnum("user_role", [
   "team_lead",
   "sales_agent",
   "viewer",
+  // A TikTok streamer: a restricted login that only sees + uploads results for
+  // the TikTok handle(s) assigned to them (Feature U). No access to leads,
+  // ROAS, ad spend, or other handles.
+  "live_streamer",
 ]);
 
 export const notificationTypeEnum = pgEnum("notification_type", [

@@ -58,7 +58,7 @@ export default async function AdAccountDetailPage({
   const cpc = tot.clicks > 0 ? tot.spend / tot.clicks : null;
 
   return (
-    <div className="p-8 max-w-5xl">
+    <div className="p-4 sm:p-8 max-w-5xl">
       <Link
         href="/admin/ad-accounts"
         className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
@@ -98,8 +98,8 @@ export default async function AdAccountDetailPage({
       <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-zinc-500">
         Daily breakdown
       </h2>
-      <div className="border border-zinc-200 dark:border-zinc-800 rounded-xl bg-white dark:bg-zinc-950 overflow-hidden mb-8">
-        <table className="w-full text-sm">
+      <div className="border border-zinc-200 dark:border-zinc-800 rounded-xl bg-white dark:bg-zinc-950 overflow-x-auto mb-8">
+        <table className="w-full text-sm min-w-[760px]">
           <thead className="bg-zinc-50 dark:bg-zinc-900 text-zinc-500 text-left">
             <tr>
               <Th>Date</Th>
@@ -142,8 +142,8 @@ export default async function AdAccountDetailPage({
       <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-zinc-500">
         Campaigns
       </h2>
-      <div className="border border-zinc-200 dark:border-zinc-800 rounded-xl bg-white dark:bg-zinc-950 overflow-hidden mb-8">
-        <table className="w-full text-sm">
+      <div className="border border-zinc-200 dark:border-zinc-800 rounded-xl bg-white dark:bg-zinc-950 overflow-x-auto mb-8">
+        <table className="w-full text-sm min-w-[760px]">
           <thead className="bg-zinc-50 dark:bg-zinc-900 text-zinc-500 text-left">
             <tr>
               <Th>Campaign</Th>
@@ -178,8 +178,8 @@ export default async function AdAccountDetailPage({
       <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-zinc-500">
         Top keywords
       </h2>
-      <div className="border border-zinc-200 dark:border-zinc-800 rounded-xl bg-white dark:bg-zinc-950 overflow-hidden mb-8">
-        <table className="w-full text-sm">
+      <div className="border border-zinc-200 dark:border-zinc-800 rounded-xl bg-white dark:bg-zinc-950 overflow-x-auto mb-8">
+        <table className="w-full text-sm min-w-[720px]">
           <thead className="bg-zinc-50 dark:bg-zinc-900 text-zinc-500 text-left">
             <tr>
               <Th>Keyword</Th>
@@ -227,8 +227,8 @@ export default async function AdAccountDetailPage({
         Prime negative-keyword candidates: real queries that cost money but
         converted nothing in this period.
       </p>
-      <div className="border border-amber-200 dark:border-amber-900/50 rounded-xl bg-white dark:bg-zinc-950 overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="border border-amber-200 dark:border-amber-900/50 rounded-xl bg-white dark:bg-zinc-950 overflow-x-auto">
+        <table className="w-full text-sm min-w-[720px]">
           <thead className="bg-zinc-50 dark:bg-zinc-900 text-zinc-500 text-left">
             <tr>
               <Th>Search term</Th>

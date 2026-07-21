@@ -14,7 +14,9 @@ import {
   WebcastEvent,
 } from "tiktok-live-connector";
 import { persistLiveCapture } from "./store";
+import { signConnectionOptions } from "./sign";
 import { LiveTally, type LiveSummary } from "./tally";
+import { notifyLiveStarted } from "@/lib/notifications/live-alert";
 
 // Minimal event surface — avoids fighting the library's strict event-map types.
 interface Emitter {
@@ -53,7 +55,7 @@ export async function captureLive(
 ): Promise<CaptureResult> {
   const log = opts.log ?? (() => {});
   const uniqueId = handle.replace(/^@+/, "");
-  const conn = new TikTokLiveConnection(uniqueId);
+  const conn = new TikTokLiveConnection(uniqueId, signConnectionOptions());
 
   try {
     await conn.connect();
@@ -69,6 +71,20 @@ export async function captureLive(
   const createSec = num(roomData.create_time);
   const liveStartedAt = createSec > 0 ? new Date(createSec * 1000) : new Date();
   const liveTitle = str(roomData.title) || null;
+
+  // Stable per-live key for the idempotent upsert. Prefer the live's START
+  // INSTANT (create_time) — it is IDENTICAL across a mid-live reconnect, so if
+  // the socket drops and the 5-min poll re-captures the rest of the same live,
+  // both attempts land on ONE row (merged via GREATEST) instead of duplicating.
+  // `conn.roomId` alone was NOT reliable: it can be blank on one connect and
+  // populated on the next, producing two keys for the same live (the observed
+  // duplicate). Fall back to roomId / connect-time only when create_time is
+  // unavailable.
+  const externalSessionId =
+    createSec > 0
+      ? `live-${createSec}`
+      : str(conn.roomId) || `room-${liveStartedAt.getTime()}`;
+
   const tally = new LiveTally(opts.keywords, liveStartedAt);
   const em = conn as unknown as Emitter;
   log(
@@ -98,6 +114,15 @@ export async function captureLive(
   });
   em.on(WebcastEvent.SHARE, () => tally.onShare());
   em.on(WebcastEvent.FOLLOW, () => tally.onFollow());
+
+  // Fire the "went live" alert (in-app pop-out + Telegram) once we're connected.
+  // Fire-and-forget so it never delays event handling or fails the capture.
+  void notifyLiveStarted({
+    handle: uniqueId,
+    // Same stable per-live key → a mid-live reconnect won't double-fire the alert.
+    roomId: externalSessionId,
+    title: liveTitle,
+  }).catch(() => {});
 
   // Resolve when the stream ends (or the socket drops).
   await new Promise<void>((resolve) => {
@@ -129,7 +154,6 @@ export async function captureLive(
 
   const endedAt = new Date();
   const summary = tally.summary(endedAt);
-  const externalSessionId = str(conn.roomId) || `room-${liveStartedAt.getTime()}`;
   const { sessionId, leadCount } = await persistLiveCapture({
     accountId: opts.accountId,
     externalSessionId,

@@ -23,3 +23,11 @@ primary_region = "sin"   # Singapore
 # which is fine, but one is enough for ~1k leads/day).
 [deploy]
   min_machines_running = 1
+
+# Always bring the machine back — even on a clean exit. The worker deliberately
+# recycles itself every ~6h (process.exit) to shed any silent connector stall;
+# without this policy Fly treats that clean exit as "done" and the machine stays
+# stopped (exactly what happened 3–6 Jul). "always" makes the recycle work as
+# intended: exit -> Fly restarts it with a fresh connection.
+[[restart]]
+  policy = "always"

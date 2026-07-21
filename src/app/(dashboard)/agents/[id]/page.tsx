@@ -113,7 +113,7 @@ export default async function AgentDetailPage({
   if (!agent && !error) notFound();
 
   return (
-    <div className="p-8 max-w-5xl">
+    <div className="p-4 sm:p-8 max-w-5xl">
       {error && (
         <div className="mb-6 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
           {error}
@@ -181,8 +181,8 @@ export default async function AgentDetailPage({
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-zinc-500">
             Recent sales (credited as closer)
           </h2>
-          <div className="border border-zinc-200 dark:border-zinc-800 rounded-xl bg-white dark:bg-zinc-950 overflow-hidden">
-            <table className="w-full text-sm">
+          <div className="border border-zinc-200 dark:border-zinc-800 rounded-xl bg-white dark:bg-zinc-950 overflow-x-auto">
+            <table className="w-full text-sm min-w-[520px]">
               <tbody>
                 {agent.recentSales.length === 0 ? (
                   <tr>

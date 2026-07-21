@@ -1,6 +1,7 @@
 import { boolean, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { brands } from "./brands";
 import { id, timestamps } from "./columns";
+import { users } from "./users";
 import { websites } from "./websites";
 
 /**
@@ -21,6 +22,12 @@ export const tiktokAccounts = pgTable("tiktok_accounts", {
   leadKeywords: text("lead_keywords").array(),
   brandId: uuid("brand_id").references(() => brands.id, { onDelete: "set null" }),
   websiteId: uuid("website_id").references(() => websites.id, {
+    onDelete: "set null",
+  }),
+  // The live-streamer user in charge of this handle (Feature U). A streamer
+  // login only sees/uploads sessions for handles assigned to them. Nullable =
+  // no streamer assigned (admins manage it either way).
+  assignedStreamerId: uuid("assigned_streamer_id").references(() => users.id, {
     onDelete: "set null",
   }),
   isActive: boolean("is_active").notNull().default(true),

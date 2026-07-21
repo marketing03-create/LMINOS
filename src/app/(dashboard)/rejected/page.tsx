@@ -101,7 +101,7 @@ export default async function RejectedPoolPage({
   const { rows, counts, byReason, error } = await loadRows(tab);
 
   return (
-    <div className="p-8 max-w-7xl">
+    <div className="p-4 sm:p-8 max-w-7xl">
       <header className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight">Rejected pool</h1>
         <p className="mt-1 text-sm text-zinc-500">
@@ -147,8 +147,8 @@ export default async function RejectedPoolPage({
         </div>
       )}
 
-      <div className="border border-zinc-200 dark:border-zinc-800 rounded-xl bg-white dark:bg-zinc-950 overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="border border-zinc-200 dark:border-zinc-800 rounded-xl bg-white dark:bg-zinc-950 overflow-x-auto">
+        <table className="w-full text-sm min-w-[680px]">
           <thead className="bg-zinc-50 dark:bg-zinc-900 text-zinc-500 text-left">
             <tr>
               <Th>Rejected at</Th>

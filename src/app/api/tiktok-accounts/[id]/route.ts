@@ -19,6 +19,7 @@ export async function PATCH(
     isActive?: boolean;
     notes?: string | null;
     leadKeywords?: string | string[] | null;
+    assignedStreamerId?: string | null;
   } | null;
   if (!body) {
     return NextResponse.json({ ok: false, error: "invalid body" }, { status: 400 });
@@ -29,6 +30,12 @@ export async function PATCH(
     set.displayName = body.displayName.trim();
   if (typeof body.isActive === "boolean") set.isActive = body.isActive;
   if ("notes" in body) set.notes = (body.notes ?? "").toString().trim() || null;
+  if ("assignedStreamerId" in body) {
+    // The live-streamer user who owns this handle (Feature U). "" / null clears.
+    const v = body.assignedStreamerId;
+    set.assignedStreamerId =
+      typeof v === "string" && v.trim() ? v.trim() : null;
+  }
   if ("leadKeywords" in body) {
     // Accept a comma-separated string or an array → normalized lowercase list.
     const raw = Array.isArray(body.leadKeywords)

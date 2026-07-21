@@ -36,6 +36,16 @@ describe("matchSessions", () => {
     expect(r.bestMatchSessionId).toBe("s2"); // 21:00 MYT is closest to 20:30
   });
 
+  it("matches on month+day when the AI mis-inferred the YEAR (2024 vs 2026)", () => {
+    // TikTok analytics shows "10 Jun" with no year, so the AI can read it as
+    // 2024 while the live was actually 2026 — must still auto-match on 06-10.
+    const [r] = matchSessions({
+      groups: [{ key: "g", date: "2024-06-10", handle: "adminain1", startTime: "12:55" }],
+      sessions,
+    });
+    expect(r.bestMatchSessionId).toBe("s1");
+  });
+
   it("returns no match when no session exists on that date", () => {
     const [r] = matchSessions({
       groups: [{ key: "g", date: "2026-01-01", handle: "adminain1", startTime: "10:00" }],

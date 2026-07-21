@@ -120,6 +120,97 @@
       "when": 1781202110339,
       "tag": "0016_whole_fat_cobra",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1783007989374,
+      "tag": "0017_watery_kat_farrell",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1783059408060,
+      "tag": "0018_adorable_ghost_rider",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1783074728575,
+      "tag": "0019_fluffy_queen_noir",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1783315402289,
+      "tag": "0020_spicy_shen",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1783321827947,
+      "tag": "0021_messy_bullseye",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1783405987973,
+      "tag": "0022_fearless_dark_beast",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1783408343579,
+      "tag": "0023_bitter_wonder_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1783409630765,
+      "tag": "0024_tense_quentin_quire",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1783488859586,
+      "tag": "0025_glamorous_kat_farrell",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1783493413693,
+      "tag": "0026_lyrical_green_goblin",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1784104112008,
+      "tag": "0027_shallow_pretty_boy",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1784184484008,
+      "tag": "0028_same_blazing_skull",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1784526359667,
+      "tag": "0029_dark_nomad",
+      "breakpoints": true
     }
   ]
 }

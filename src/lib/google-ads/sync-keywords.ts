@@ -44,7 +44,7 @@ function dedupe<T>(arr: T[], key: (t: T) => string): T[] {
 }
 
 export async function syncGoogleAdsKeywords(
-  opts: { days?: number } = {}
+  opts: { days?: number; concurrency?: number } = {}
 ): Promise<KeywordSyncResult> {
   const started = Date.now();
   // Hard-cap the window so a sync can NEVER pull enough data to overflow a small
@@ -68,7 +68,7 @@ export async function syncGoogleAdsKeywords(
   let searchTermRows = 0;
   const errors: { account: string; error: string }[] = [];
 
-  for (const acct of accounts) {
+  async function syncAccount(acct: (typeof accounts)[number]) {
     try {
       let accessToken: string | undefined;
       if (acct.accessTokenEncrypted) {
@@ -184,6 +184,21 @@ export async function syncGoogleAdsKeywords(
       });
     }
   }
+
+  // Run accounts with LIMITED CONCURRENCY so the whole sync finishes well within
+  // the serverless time limit. Sequential-per-account was ~440s for 90 accounts,
+  // which overran the 300s cap and silently stalled the daily keyword cron (so
+  // keyword + wasted-spend data went stale and new accounts stayed empty).
+  const concurrency = Math.max(1, opts.concurrency ?? 8);
+  let cursor = 0;
+  async function worker() {
+    while (cursor < accounts.length) {
+      await syncAccount(accounts[cursor++]);
+    }
+  }
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, accounts.length) }, () => worker())
+  );
 
   // Retention: prune search_terms older than the window so the table stays
   // bounded (safe to run every sync; keeps the DB small for the free plan).

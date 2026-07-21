@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -10,10 +11,23 @@ export type TikTokRow = {
   isActive: boolean;
   leadKeywords: string[] | null;
   lastSyncedAt: string | Date | null;
+  assignedStreamerId: string | null;
   sessions: number;
 };
 
-export function TikTokAdmin({ rows }: { rows: TikTokRow[] }) {
+export type StreamerOption = {
+  id: string;
+  email: string;
+  fullName: string | null;
+};
+
+export function TikTokAdmin({
+  rows,
+  streamers,
+}: {
+  rows: TikTokRow[];
+  streamers: StreamerOption[];
+}) {
   const router = useRouter();
   const [handle, setHandle] = useState("");
   const [displayName, setDisplayName] = useState("");
@@ -97,6 +111,7 @@ export function TikTokAdmin({ rows }: { rows: TikTokRow[] }) {
             <tr>
               <Th>Handle</Th>
               <Th>Name</Th>
+              <Th>Streamer</Th>
               <Th>Lead keywords</Th>
               <Th className="text-right">Sessions</Th>
               <Th>Last synced</Th>
@@ -107,15 +122,34 @@ export function TikTokAdmin({ rows }: { rows: TikTokRow[] }) {
           <tbody>
             {rows.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-10 text-center text-zinc-500">
+                <td colSpan={8} className="px-4 py-10 text-center text-zinc-500">
                   No handles tracked yet. Add one above.
                 </td>
               </tr>
             )}
             {rows.map((r) => (
               <tr key={r.id} className="border-t border-zinc-100 dark:border-zinc-900">
-                <Td className="font-mono">@{r.handle}</Td>
+                <Td className="font-mono">
+                  <Link
+                    href={`/admin/tiktok/${r.id}`}
+                    className="text-blue-600 dark:text-blue-400 hover:underline"
+                  >
+                    @{r.handle}
+                  </Link>
+                </Td>
                 <Td>{r.displayName}</Td>
+                <Td>
+                  <StreamerCell
+                    value={r.assignedStreamerId}
+                    streamers={streamers}
+                    busy={busy}
+                    onSave={(val) =>
+                      call(`/api/tiktok-accounts/${r.id}`, "PATCH", {
+                        assignedStreamerId: val,
+                      })
+                    }
+                  />
+                </Td>
                 <Td>
                   <KeywordsCell
                     initial={(r.leadKeywords ?? []).join(", ")}
@@ -173,6 +207,41 @@ export function TikTokAdmin({ rows }: { rows: TikTokRow[] }) {
         </table>
       </div>
     </div>
+  );
+}
+
+function StreamerCell({
+  value,
+  streamers,
+  busy,
+  onSave,
+}: {
+  value: string | null;
+  streamers: StreamerOption[];
+  busy: boolean;
+  onSave: (val: string | null) => void;
+}) {
+  if (streamers.length === 0) {
+    return (
+      <span className="text-xs text-zinc-400">
+        No streamer logins yet
+      </span>
+    );
+  }
+  return (
+    <select
+      value={value ?? ""}
+      disabled={busy}
+      onChange={(e) => onSave(e.target.value || null)}
+      className="w-40 rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-2 py-1 text-xs disabled:opacity-50"
+    >
+      <option value="">— none —</option>
+      {streamers.map((s) => (
+        <option key={s.id} value={s.id}>
+          {s.fullName ? `${s.fullName} (${s.email})` : s.email}
+        </option>
+      ))}
+    </select>
   );
 }
 

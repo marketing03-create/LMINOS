@@ -1,8 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { ADMIN_ROLES, requireRole } from "@/lib/auth/authorize";
 import { serverEnv } from "@/lib/env";
-import { buildReviewPayload } from "@/lib/tiktok-live/import-screenshots";
-import type { UploadedImage } from "@/lib/tiktok-live/screenshot-extract";
+import { buildReviewFromExtractions } from "@/lib/tiktok-live/import-screenshots";
+import { streamerAccountIds } from "@/lib/tiktok-live/queries";
+import {
+  extractFromImages,
+  type UploadedImage,
+} from "@/lib/tiktok-live/screenshot-extract";
+import { storeUploadedScreenshots } from "@/lib/tiktok-live/screenshot-store";
 
 // Claude vision per image; allow time for a few uploads.
 export const maxDuration = 120;
@@ -14,8 +19,14 @@ export const maxDuration = 120;
  * confirms). Dark (503) until AI_GATEWAY_API_KEY is set.
  */
 export async function POST(request: NextRequest) {
-  const auth = await requireRole(ADMIN_ROLES);
+  const auth = await requireRole([...ADMIN_ROLES, "live_streamer"]);
   if (!auth.ok) return new NextResponse(auth.error, { status: auth.status });
+
+  // Streamers only ever match against their own handles' sessions.
+  const scope =
+    auth.role === "live_streamer" && auth.userId
+      ? await streamerAccountIds(auth.userId)
+      : undefined;
 
   if (!serverEnv().AI_GATEWAY_API_KEY) {
     return NextResponse.json(
@@ -50,7 +61,15 @@ export async function POST(request: NextRequest) {
   );
 
   try {
-    const payload = await buildReviewPayload(images);
+    const extractions = await extractFromImages(images);
+    // Persist the raw images + what Claude read, BEFORE the admin can edit —
+    // the anti-fraud audit trail (best-effort, never blocks the read).
+    await storeUploadedScreenshots({
+      images,
+      extractions,
+      uploaderUserId: auth.userId ?? null,
+    });
+    const payload = await buildReviewFromExtractions(extractions, scope);
     return NextResponse.json({ ok: true, ...payload });
   } catch (err) {
     return NextResponse.json(

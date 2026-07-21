@@ -4,7 +4,7 @@
  * (accountId, externalSessionId) and (sessionId, username) — re-capturing the
  * same room updates in place. Shared by the connector, CLI, and worker.
  */
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { tiktokLiveLeads, tiktokLiveSessions } from "@/db/schema";
 import type { LiveLead, LiveSummary } from "./tally";
@@ -17,7 +17,29 @@ export async function persistLiveCapture(input: {
   leads: LiveLead[];
   raw?: unknown;
 }): Promise<{ sessionId: string; leadCount: number }> {
-  const { accountId, externalSessionId, title, summary, leads, raw } = input;
+  const { accountId, title, summary, leads, raw } = input;
+  let externalSessionId = input.externalSessionId;
+
+  // Belt-and-suspenders dedup: guarantee ONE row per physical live even if a
+  // mid-live reconnect somehow lands under a different externalSessionId. The
+  // live's START INSTANT is invariant across reconnects, so if a
+  // connector-captured session with the same account + exact start already
+  // exists, reuse ITS id — the upsert then MERGES into it instead of inserting a
+  // second row. (Manual "past live" rows are excluded so they're never touched.)
+  if (summary.startedAt) {
+    const [existing] = await db
+      .select({ ext: tiktokLiveSessions.externalSessionId })
+      .from(tiktokLiveSessions)
+      .where(
+        and(
+          eq(tiktokLiveSessions.accountId, accountId),
+          eq(tiktokLiveSessions.startedAt, summary.startedAt),
+          sql`(${tiktokLiveSessions.rawPayload}->>'manual') is null`
+        )
+      )
+      .limit(1);
+    if (existing) externalSessionId = existing.ext;
+  }
 
   const [row] = await db
     .insert(tiktokLiveSessions)

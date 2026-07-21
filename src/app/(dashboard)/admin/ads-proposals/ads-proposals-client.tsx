@@ -36,7 +36,15 @@ const TYPE_LABEL: Record<string, string> = {
   pause_keyword: "Pause keyword",
   adjust_budget: "Adjust budget",
   new_ad_copy: "New ad copy",
+  monitor_term: "Monitor — keep watching",
 };
+
+// Monitor stands out from the "action" proposals — it's a watch, not a cut.
+function typeChipCls(type: string): string {
+  return type === "monitor_term"
+    ? "bg-sky-100 dark:bg-sky-950/40 text-sky-700 dark:text-sky-400"
+    : "bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300";
+}
 
 export function AdsProposalsClient({
   pending,
@@ -55,16 +63,28 @@ export function AdsProposalsClient({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [pinnedAccountId, setPinnedAccountId] = useState<string | null>(null);
 
   const groups = useMemo(() => {
-    const m = new Map<string, ProposalRow[]>();
+    const m = new Map<string, { accountId: string; rows: ProposalRow[] }>();
     for (const p of pending) {
-      const arr = m.get(p.accountName) ?? [];
-      arr.push(p);
-      m.set(p.accountName, arr);
+      const g = m.get(p.accountName) ?? { accountId: p.adAccountId, rows: [] };
+      g.rows.push(p);
+      m.set(p.accountName, g);
     }
-    return [...m.entries()];
-  }, [pending]);
+    const entries = [...m.entries()];
+    // Keep the account you just analyzed pinned to the very top for this session
+    // (it stays put until you reopen the tab). Server order is newest-first, so
+    // this only matters right after an analyze.
+    if (pinnedAccountId) {
+      entries.sort((a, b) => {
+        const ap = a[1].accountId === pinnedAccountId ? 0 : 1;
+        const bp = b[1].accountId === pinnedAccountId ? 0 : 1;
+        return ap - bp;
+      });
+    }
+    return entries;
+  }, [pending, pinnedAccountId]);
 
   async function analyze() {
     if (!accountId) return;
@@ -87,6 +107,8 @@ export function AdsProposalsClient({
           ? `Generated ${json.count} proposal(s) — see below.`
           : "No changes worth proposing for this period."
       );
+      // Pin this account's results to the top so they stay in view.
+      setPinnedAccountId(accountId);
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -134,12 +156,12 @@ export function AdsProposalsClient({
 
       {/* Analyze control */}
       <div className="border border-zinc-200 dark:border-zinc-800 rounded-xl bg-white dark:bg-zinc-950 p-4 flex flex-wrap items-end gap-3">
-        <label className="block">
+        <label className="block min-w-0 w-full sm:w-auto">
           <div className="text-xs font-medium mb-1">Account to analyze</div>
           <select
             value={accountId}
             onChange={(e) => setAccountId(e.target.value)}
-            className={inputCls}
+            className={`${inputCls} w-full`}
           >
             {accounts.length === 0 && <option value="">No Google accounts</option>}
             {accounts.map((a) => (
@@ -166,19 +188,23 @@ export function AdsProposalsClient({
           <b>Analyze account</b> to generate recommendations.
         </div>
       ) : (
-        groups.map(([accountName, rows]) => (
+        groups.map(([accountName, g]) => (
           <div key={accountName} className="space-y-3">
             <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500">
-              {accountName} · {rows.length} pending
+              {accountName} · {g.rows.length} pending
             </h2>
-            {rows.map((p) => (
+            {g.rows.map((p) => (
               <div
                 key={p.id}
                 className="border border-zinc-200 dark:border-zinc-800 rounded-xl bg-white dark:bg-zinc-950 p-4"
               >
                 <div className="flex items-start justify-between gap-4 flex-wrap">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300">
+                    <span
+                      className={`text-xs font-medium px-2 py-0.5 rounded-full ${typeChipCls(
+                        p.type
+                      )}`}
+                    >
                       {TYPE_LABEL[p.type] ?? p.type}
                     </span>
                     <RiskBadge risk={p.riskTier} />

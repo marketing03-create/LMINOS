@@ -32,6 +32,15 @@ const serverSchema = z.object({
   // Gateway; the model defaults to anthropic/claude-opus-4-8 in code.
   AI_GATEWAY_API_KEY: z.string().min(1).optional(),
   ADS_ANALYST_MODEL: z.string().min(1).optional(),
+  // Screenshot reading (Feature Q) is simple OCR-style vision — it uses the
+  // FASTEST model (defaults to anthropic/claude-haiku-4-5 in code), independent
+  // of the heavier ADS_ANALYST_MODEL. Set anthropic/claude-sonnet-5 (or opus)
+  // for more accuracy if a misread ever slips past the review step.
+  SCREENSHOT_MODEL: z.string().min(1).optional(),
+  // EulerStream sign-server key for the TikTok connector (Fly worker). Steadier
+  // connections + higher rate limits than the free signer → fewer silent drops.
+  // Optional: unset = free signer (previous behaviour).
+  EULER_SIGN_API_KEY: z.string().min(1).optional(),
 
   // AI Google Ads Account Builder (Feature R). The live build stays DARK until
   // Google grants Basic (write) access AND this flag is "true" — otherwise the
@@ -40,6 +49,13 @@ const serverSchema = z.object({
   ADS_PLANNER_MODEL: z.string().min(1).optional(),
   ADS_AUTOMATION_ENABLED: z.string().min(1).optional(),
   ADS_DAILY_BUDGET_CAP_MYR: z.string().min(1).optional(),
+
+  // AI Search Terms Analyzer. Reuses AI_GATEWAY_API_KEY (the AI dark switch) and
+  // ADS_AUTOMATION_ENABLED (the write gate). Model defaults to sonnet-5 in code
+  // (fast + cheap for bulk classification); SEARCH_TERMS_MAX_TERMS caps how many
+  // terms one bounded, in-request analysis pulls so it fits the 300s limit.
+  SEARCH_TERMS_MODEL: z.string().min(1).optional(),
+  SEARCH_TERMS_MAX_TERMS: z.string().min(1).optional(),
 
   TELEGRAM_BOT_TOKEN: z.string().min(1).optional(),
   TELEGRAM_DEV_CHAT_ID: z.string().min(1).optional(),

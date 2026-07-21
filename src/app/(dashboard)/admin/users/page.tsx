@@ -1,5 +1,7 @@
 import { asc, eq } from "drizzle-orm";
+import { getSessionUser } from "@/lib/auth/authorize";
 import { UsersEditor, type UserRow } from "./users-editor";
+import { AddUser } from "./add-user";
 
 async function load(): Promise<{
   rows: UserRow[];
@@ -52,16 +54,21 @@ async function load(): Promise<{
 
 export default async function AdminUsersPage() {
   const { rows, teams, error } = await load();
+  const me = await getSessionUser();
 
   return (
-    <div className="p-8 max-w-6xl">
+    <div className="p-4 sm:p-8 max-w-6xl">
       <header className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight">Users</h1>
         <p className="mt-1 text-sm text-zinc-500">
-          Auto-created on first Google sign-in. Edit role &amp; team inline below
-          — changes save immediately.
+          Add someone here, or they&apos;re auto-created on their first Google
+          sign-in. Edit role &amp; team inline below — changes save immediately.
         </p>
       </header>
+
+      <div className="mb-6">
+        <AddUser teams={teams} />
+      </div>
 
       {error && (
         <div className="mb-6 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
@@ -69,7 +76,7 @@ export default async function AdminUsersPage() {
         </div>
       )}
 
-      <UsersEditor rows={rows} teams={teams} />
+      <UsersEditor rows={rows} teams={teams} currentUserId={me?.userId ?? null} />
     </div>
   );
 }

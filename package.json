@@ -35,6 +35,8 @@
     "gads:sync": "tsx --env-file=.env.local src/scripts/google-ads-sync.ts",
     "gads:sync-keywords": "tsx --env-file=.env.local src/scripts/google-ads-sync-keywords.ts",
     "gads:sync-hourly": "tsx --env-file=.env.local src/scripts/google-ads-sync-hourly.ts",
+    "gads:diagnose": "tsx --env-file=.env.local src/scripts/gads-diagnose.ts",
+    "gads:find": "tsx --env-file=.env.local src/scripts/gads-find-account.ts",
     "ads:analyze": "tsx --env-file=.env.local src/scripts/ads-analyze.ts",
     "tiktok:sync": "tsx --env-file=.env.local src/scripts/tiktok-live-sync.ts",
     "tiktok:live": "tsx --env-file=.env.local src/scripts/tiktok-live-capture.ts",
@@ -42,7 +44,8 @@
     "test:conversion": "tsx --env-file=.env.local src/scripts/test-conversion.ts",
     "test:tiktok": "tsx --env-file=.env.local src/scripts/test-tiktok-live.ts",
     "test:whatsapp-sale": "tsx --env-file=.env.local src/scripts/test-whatsapp-sale.ts",
-    "test:forward-only": "tsx --env-file=.env.local src/scripts/test-forward-only.ts"
+    "test:forward-only": "tsx --env-file=.env.local src/scripts/test-forward-only.ts",
+    "test:removed-user": "tsx --env-file=.env.local src/scripts/test-removed-user.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.3",
