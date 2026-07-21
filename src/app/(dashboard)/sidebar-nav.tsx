@@ -5,8 +5,7 @@ import { usePathname } from "next/navigation";
 
 // LMIROS is TikTok-only: leads, sales, websites and Google Ads moved to Adrify.
 const OPERATIONS = [
-  { href: "/tiktok-live", label: "TikTok Live" },
-  { href: "/how-it-works", label: "How It Works" },
+  { href: "/tiktok-live", label: "TikTok Live" },
 ];
 
 const ADMIN = [
