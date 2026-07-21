@@ -1,5 +1,10 @@
 import { z } from "zod";
 
+/**
+ * LMIROS is TikTok-Live-only. The Zoho / Google Sheets / Google Ads / Meta /
+ * Redis-queue variables left with those features (they live in Adrify now) —
+ * migration 0030. Anything unset here is safe to delete from Vercel too.
+ */
 const serverSchema = z.object({
   DATABASE_URL: z.string().url(),
   DATABASE_URL_POOLED: z.string().url().optional(),
@@ -8,62 +13,29 @@ const serverSchema = z.object({
   NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
 
-  REDIS_URL: z.string().min(1),
-  UPSTASH_REDIS_REST_URL: z.string().url().optional(),
-  UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
-
+  // Screenshot uploads are stored in Supabase Storage; tokens for the TikTok
+  // connector are not encrypted here, but ENCRYPTION_KEY stays available for
+  // any future at-rest secret.
   ENCRYPTION_KEY: z.string().min(1),
 
-  WEBHOOK_SECRET_WEBSITE: z.string().min(1).optional(),
-  META_APP_SECRET: z.string().min(1).optional(),
-  META_VERIFY_TOKEN: z.string().min(1).optional(),
-  GOOGLE_ADS_WEBHOOK_TOKEN: z.string().min(1).optional(),
-  TIKTOK_WEBHOOK_SECRET: z.string().min(1).optional(),
-
-  // TikTok LIVE managed-vendor integration (Feature O). No official TikTok live
-  // API, so a vendor (e.g. Apify) supplies finished-session summaries.
-  TIKTOK_LIVE_PROVIDER: z.string().min(1).optional(), // "apify" | "mock" | unset(no-op)
+  // TikTok LIVE capture. No official TikTok API for live-room metrics, so a
+  // managed vendor may supply finished-session summaries; the self-hosted
+  // connector on Fly.io works without one.
+  TIKTOK_LIVE_PROVIDER: z.string().min(1).optional(), // "apify" | "mock" | unset
   TIKTOK_LIVE_API_KEY: z.string().min(1).optional(),
   TIKTOK_LIVE_ACTOR_ID: z.string().min(1).optional(),
-
-  GOOGLE_SERVICE_ACCOUNT_JSON_B64: z.string().min(1).optional(),
-
-  // AI Google Ads analyst (Feature L). Key + spend cap live in the Vercel AI
-  // Gateway; the model defaults to anthropic/claude-opus-4-8 in code.
-  AI_GATEWAY_API_KEY: z.string().min(1).optional(),
-  ADS_ANALYST_MODEL: z.string().min(1).optional(),
-  // Screenshot reading (Feature Q) is simple OCR-style vision — it uses the
-  // FASTEST model (defaults to anthropic/claude-haiku-4-5 in code), independent
-  // of the heavier ADS_ANALYST_MODEL. Set anthropic/claude-sonnet-5 (or opus)
-  // for more accuracy if a misread ever slips past the review step.
-  SCREENSHOT_MODEL: z.string().min(1).optional(),
-  // EulerStream sign-server key for the TikTok connector (Fly worker). Steadier
-  // connections + higher rate limits than the free signer → fewer silent drops.
-  // Optional: unset = free signer (previous behaviour).
+  // EulerStream sign-server key for the connector — steadier connections and
+  // higher rate limits than the free signer. Unset = free signer.
   EULER_SIGN_API_KEY: z.string().min(1).optional(),
 
-  // AI Google Ads Account Builder (Feature R). The live build stays DARK until
-  // Google grants Basic (write) access AND this flag is "true" — otherwise the
-  // apply layer is forced to validate-only (dry-run). Budget cap (MYR/day) is a
-  // server-enforced guardrail the AI/blueprint can never exceed.
-  ADS_PLANNER_MODEL: z.string().min(1).optional(),
-  ADS_AUTOMATION_ENABLED: z.string().min(1).optional(),
-  ADS_DAILY_BUDGET_CAP_MYR: z.string().min(1).optional(),
+  // Reading a streamer's uploaded LIVE screenshots into metrics (Vercel AI
+  // Gateway). Unset = streamers type their numbers in by hand.
+  AI_GATEWAY_API_KEY: z.string().min(1).optional(),
+  SCREENSHOT_MODEL: z.string().min(1).optional(),
 
-  // AI Search Terms Analyzer. Reuses AI_GATEWAY_API_KEY (the AI dark switch) and
-  // ADS_AUTOMATION_ENABLED (the write gate). Model defaults to sonnet-5 in code
-  // (fast + cheap for bulk classification); SEARCH_TERMS_MAX_TERMS caps how many
-  // terms one bounded, in-request analysis pulls so it fits the 300s limit.
-  SEARCH_TERMS_MODEL: z.string().min(1).optional(),
-  SEARCH_TERMS_MAX_TERMS: z.string().min(1).optional(),
-
+  // Telegram bot: streamer reminders + admin capture alerts. Users pair with
+  // `/start <their email>`.
   TELEGRAM_BOT_TOKEN: z.string().min(1).optional(),
-  TELEGRAM_DEV_CHAT_ID: z.string().min(1).optional(),
-
-  RESEND_API_KEY: z.string().min(1).optional(),
-  EMAIL_FROM: z.string().email().optional(),
-
-  SENTRY_DSN: z.string().url().optional(),
 
   AUTH_ALLOWED_DOMAINS: z.string().optional(),
 });

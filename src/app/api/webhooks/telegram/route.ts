@@ -5,13 +5,15 @@ import { users } from "@/db/schema";
 import { writeAudit } from "@/lib/audit/write";
 import { getBot } from "@/lib/telegram/bot";
 import { escapeMd } from "@/lib/telegram/send";
-import { parseSaleCommand, recordConversion } from "@/lib/telegram/conversions";
 
 /**
  * Telegram bot webhook handler. Commands:
- *   /start <email>         — pair this chat to a LMIROS user
- *   /sale <phone> <amount> — record a closed deal (aliases: /close /won /deal)
- *   /help                  — usage
+ *   /start <email> — pair this chat to a LMIROS user
+ *   /help          — usage
+ *
+ * Pairing is what lets a live streamer receive their morning "lives still need
+ * numbers" reminder, and admins the TikTok capture alerts. (The old /sale
+ * conversion command left with the leads/sales features.)
  *
  * Telegram sends a verification secret in the X-Telegram-Bot-Api-Secret-Token
  * header iff `secret_token` was set when registering the webhook; we enforce it.
@@ -56,30 +58,10 @@ export async function POST(request: NextRequest) {
       [
         "LMIROS bot commands:",
         "/start your.email@company.com — link your account",
-        "/sale <phone> <amount> — record a closed deal, e.g. /sale 0123456789 25000",
-        "  (works for WhatsApp customers too — if there's no lead yet, one is created and credited to you)",
+        "  (links this chat so you get your TikTok Live reminders here)",
       ].join("\n")
     );
     return NextResponse.json({ ok: true, handled: "help" });
-  }
-
-  // ── /sale (+ aliases) — record a conversion ──
-  if (/^\/(sale|close|won|deal)\b/i.test(text)) {
-    const parsed = parseSaleCommand(text);
-    if (!parsed) {
-      await reply(
-        chatId,
-        "Format: /sale <phone> <amount>  —  e.g. /sale 0123456789 25000"
-      );
-      return NextResponse.json({ ok: true, handled: "sale_badformat" });
-    }
-    const result = await recordConversion({
-      senderChatId: String(chatId),
-      phone: parsed.phone,
-      amount: parsed.amount,
-    });
-    await reply(chatId, result.message);
-    return NextResponse.json({ ok: true, handled: "sale", success: result.ok });
   }
 
   // ── /start <email> — pairing ──

@@ -38,7 +38,6 @@ export async function POST(request: NextRequest) {
     email?: string;
     fullName?: string | null;
     role?: string;
-    teamId?: string | null;
   } | null;
   if (!body) {
     return NextResponse.json({ ok: false, error: "invalid body" }, { status: 400 });
@@ -59,7 +58,6 @@ export async function POST(request: NextRequest) {
     typeof body.fullName === "string" && body.fullName.trim() !== ""
       ? body.fullName.trim().slice(0, 120)
       : null;
-  const teamId = body.teamId ? body.teamId : null;
 
   // Already a user? (email is unique)
   const existing = await db.query.users.findFirst({
@@ -97,10 +95,10 @@ export async function POST(request: NextRequest) {
   // default 'viewer' if it already fired for this id).
   await db
     .insert(users)
-    .values({ id: uid, email, fullName, role, teamId, isActive: true })
+    .values({ id: uid, email, fullName, role, isActive: true })
     .onConflictDoUpdate({
       target: users.id,
-      set: { email, fullName, role, teamId, isActive: true },
+      set: { email, fullName, role, isActive: true },
     });
 
   // Re-adding an email that was previously removed is an explicit re-invite —
@@ -112,7 +110,7 @@ export async function POST(request: NextRequest) {
     eventType: "user.created",
     entityType: "user",
     entityId: uid,
-    after: { email, role, teamId, fullName },
+    after: { email, role, fullName },
   });
 
   return NextResponse.json({ ok: true, id: uid });

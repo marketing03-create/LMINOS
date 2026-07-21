@@ -27,7 +27,6 @@ export async function POST(
   const { id } = await params;
   const body = (await request.json().catch(() => null)) as {
     role?: string;
-    teamId?: string | null;
     isActive?: boolean;
     fullName?: string | null;
   } | null;
@@ -37,7 +36,6 @@ export async function POST(
 
   const set: {
     role?: Role;
-    teamId?: string | null;
     isActive?: boolean;
     fullName?: string | null;
   } = {};
@@ -46,9 +44,6 @@ export async function POST(
       return NextResponse.json({ ok: false, error: "invalid role" }, { status: 400 });
     }
     set.role = body.role as Role;
-  }
-  if (body.teamId !== undefined) {
-    set.teamId = body.teamId === "" || body.teamId === null ? null : body.teamId;
   }
   if (body.isActive !== undefined) set.isActive = !!body.isActive;
   if (body.fullName !== undefined) {

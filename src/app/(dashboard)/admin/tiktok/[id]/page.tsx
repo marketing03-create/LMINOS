@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { rangeFromParams } from "@/lib/ads/account-metrics";
+import { rangeFromParams } from "@/lib/date-range";
 import {
   tiktokAccountHeader,
   tiktokAccountsForPicker,

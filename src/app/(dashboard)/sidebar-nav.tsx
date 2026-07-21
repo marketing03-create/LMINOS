@@ -3,23 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+// LMIROS is TikTok-only: leads, sales, websites and Google Ads moved to Adrify.
 const OPERATIONS = [
-  { href: "/dashboard", label: "Overview" },
-  { href: "/leads", label: "Leads" },
-  { href: "/sales", label: "Sales" },
-  { href: "/rejected", label: "Rejected pool" },
   { href: "/tiktok-live", label: "TikTok Live" },
-  { href: "/agents", label: "Agents" },
   { href: "/how-it-works", label: "How It Works" },
 ];
 
 const ADMIN = [
-  { href: "/admin/websites", label: "Websites" },
   { href: "/admin/tiktok", label: "TikTok Live" },
-  { href: "/admin/ad-accounts", label: "Ad accounts" },
-  { href: "/admin/ads-proposals", label: "Ads Proposals" },
-  { href: "/admin/search-terms", label: "Search Terms AI" },
-  { href: "/admin/ads-blueprints", label: "Account Builder" },
   { href: "/admin/users", label: "Users" },
   { href: "/admin/integrations", label: "Integrations" },
   { href: "/admin/audit", label: "Audit log" },

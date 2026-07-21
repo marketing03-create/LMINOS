@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { RangeChoice } from "@/lib/ads/account-metrics";
+import type { RangeChoice } from "@/lib/date-range";
 
 /**
  * Date-range filter: quick presets (7d/30d/90d/All) as links + a custom

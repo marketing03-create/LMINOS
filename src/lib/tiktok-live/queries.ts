@@ -6,7 +6,7 @@
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { tiktokAccounts, tiktokLiveSessions } from "@/db/schema";
-import type { DateRange } from "@/lib/roas/aggregate";
+import type { DateRange } from "@/lib/date-range";
 
 const at = sql`coalesce(${tiktokLiveSessions.startedAt}, ${tiktokLiveSessions.createdAt})`;
 function inRange(range: DateRange) {

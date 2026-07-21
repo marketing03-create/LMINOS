@@ -3,18 +3,14 @@ import { canAccessPath, homeForRole, isAdminRole } from "./access";
 import type { Role } from "./authorize";
 
 describe("page access policy (default-deny)", () => {
+  // Admin-only surfaces. LMIROS is TikTok-only now, so this is the admin
+  // TikTok view plus the shared admin tooling.
   const SENSITIVE = [
-    "/dashboard",
-    "/leads",
-    "/leads/123",
-    "/sales",
-    "/roas",
-    "/rejected",
-    "/agents",
+    "/admin/tiktok",
+    "/admin/tiktok/all",
     "/admin/users",
-    "/admin/ad-accounts",
     "/admin/integrations",
-    "/trends",
+    "/admin/audit",
   ];
 
   it("admins see everything", () => {
@@ -23,6 +19,7 @@ describe("page access policy (default-deny)", () => {
         expect(canAccessPath(role, p)).toBe(true);
       }
       expect(isAdminRole(role)).toBe(true);
+      expect(homeForRole(role)).toBe("/admin/tiktok");
     }
   });
 

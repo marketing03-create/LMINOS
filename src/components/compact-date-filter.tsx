@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import type { RangeChoice } from "@/lib/ads/account-metrics";
+import type { RangeChoice } from "@/lib/date-range";
 
 /**
  * Compact, Google-Ads-style date filter: a single button showing the current

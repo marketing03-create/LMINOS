@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { ADMIN_ROLES, requireRole } from "@/lib/auth/authorize";
-import { rangeFromParams } from "@/lib/ads/account-metrics";
+import { rangeFromParams } from "@/lib/date-range";
 import { tiktokLiveSessionList } from "@/lib/tiktok-live/queries";
 
 /**

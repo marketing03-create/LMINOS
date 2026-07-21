@@ -19,15 +19,11 @@ export const config: VercelConfig = {
   //   (b) trigger /api/cron/* from an external scheduler (cron-job.org etc.)
   //       passing `Authorization: Bearer ${CRON_SECRET}`.
   //
-  // For now: one daily run of sla-scan so the cron infra is wired up.
   crons: [
     {
-      path: "/api/cron/sla-scan",
-      schedule: "0 0 * * *", // daily at midnight UTC
-    },
-    {
-      // "Did a streamer forget to upload their live results?" — 10:00 Malaysia
-      // time (UTC+8) = 02:00 UTC. Checks yesterday's lives for missing leads.
+      // "Did a streamer forget to fill in their live metrics?" — 10:00 Malaysia
+      // time (UTC+8) = 02:00 UTC. Reminds each streamer in-app (+ Telegram if
+      // paired) until every live has its numbers.
       path: "/api/cron/tiktok-missing-results",
       schedule: "0 2 * * *",
     },

@@ -24,10 +24,11 @@ export const NO_ACCESS_PATH = "/no-access";
 
 export function accessForRole(role: Role): Access {
   switch (role) {
-    // Admins run the company — full access.
+    // Admins run the company — full access. Home is the TikTok Live admin view
+    // now that leads/sales/ads (and the old /dashboard Overview) live in Adrify.
     case "hq_admin":
     case "marketing_manager":
-      return { allowed: "all", home: "/dashboard" };
+      return { allowed: "all", home: "/admin/tiktok" };
     // A live streamer only ever sees + uploads their own TikTok Live.
     case "live_streamer":
       return { allowed: [NO_ACCESS_PATH, "/tiktok-live"], home: "/tiktok-live" };

@@ -8,32 +8,22 @@ export type UserRow = {
   email: string;
   fullName: string | null;
   role: string;
-  teamId: string | null;
   isActive: boolean;
-  dailyCapacity: number;
   telegramPaired: boolean;
 };
-type Team = { id: string; name: string };
 
-const ROLES = [
-  "hq_admin",
-  "marketing_manager",
-  "team_lead",
-  "sales_agent",
-  "viewer",
-  "live_streamer",
-];
+// LMIROS is TikTok-only now: an account is either an admin or a live streamer.
+// (team_lead / sales_agent left with the leads/sales features.)
+const ROLES = ["hq_admin", "marketing_manager", "live_streamer", "viewer"];
 
 const selectCls =
   "rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-2 py-1 text-xs text-zinc-900 dark:text-zinc-100";
 
 export function UsersEditor({
   rows,
-  teams,
   currentUserId,
 }: {
   rows: UserRow[];
-  teams: Team[];
   currentUserId: string | null;
 }) {
   return (
@@ -44,7 +34,6 @@ export function UsersEditor({
             <Th>Email</Th>
             <Th>Name</Th>
             <Th>Role</Th>
-            <Th>Team</Th>
             <Th>Active</Th>
             <Th>Telegram</Th>
             <Th></Th>
@@ -53,13 +42,13 @@ export function UsersEditor({
         <tbody>
           {rows.length === 0 && (
             <tr>
-              <td colSpan={7} className="px-4 py-10 text-center text-zinc-500">
+              <td colSpan={6} className="px-4 py-10 text-center text-zinc-500">
                 No users yet.
               </td>
             </tr>
           )}
           {rows.map((r) => (
-            <Row key={r.id} r={r} teams={teams} isSelf={r.id === currentUserId} />
+            <Row key={r.id} r={r} isSelf={r.id === currentUserId} />
           ))}
         </tbody>
       </table>
@@ -67,21 +56,17 @@ export function UsersEditor({
   );
 }
 
-function Row({ r, teams, isSelf }: { r: UserRow; teams: Team[]; isSelf: boolean }) {
+function Row({ r, isSelf }: { r: UserRow; isSelf: boolean }) {
   const router = useRouter();
   const [fullName, setFullName] = useState(r.fullName ?? "");
   const [role, setRole] = useState(r.role);
-  const [teamId, setTeamId] = useState(r.teamId ?? "");
   const [active, setActive] = useState(r.isActive);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   const nameOrig = r.fullName ?? "";
   const dirty =
-    fullName.trim() !== nameOrig ||
-    role !== r.role ||
-    teamId !== (r.teamId ?? "") ||
-    active !== r.isActive;
+    fullName.trim() !== nameOrig || role !== r.role || active !== r.isActive;
 
   async function save() {
     setBusy(true);
@@ -93,7 +78,6 @@ function Row({ r, teams, isSelf }: { r: UserRow; teams: Team[]; isSelf: boolean 
         body: JSON.stringify({
           fullName: fullName.trim(),
           role,
-          teamId: teamId || null,
           isActive: active,
         }),
       });
@@ -147,16 +131,6 @@ function Row({ r, teams, isSelf }: { r: UserRow; teams: Team[]; isSelf: boolean 
           {ROLES.map((x) => (
             <option key={x} value={x}>
               {x}
-            </option>
-          ))}
-        </select>
-      </td>
-      <td className="px-4 py-2.5">
-        <select value={teamId} onChange={(e) => setTeamId(e.target.value)} className={selectCls}>
-          <option value="">— none —</option>
-          {teams.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.name}
             </option>
           ))}
         </select>

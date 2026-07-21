@@ -1,25 +1,19 @@
-import { asc, eq } from "drizzle-orm";
+import { asc } from "drizzle-orm";
 import { getSessionUser } from "@/lib/auth/authorize";
 import { UsersEditor, type UserRow } from "./users-editor";
 import { AddUser } from "./add-user";
 
-async function load(): Promise<{
-  rows: UserRow[];
-  teams: { id: string; name: string }[];
-  error: string | null;
-}> {
+async function load(): Promise<{ rows: UserRow[]; error: string | null }> {
   try {
     const { db } = await import("@/db/client");
-    const { users, teams } = await import("@/db/schema");
+    const { users } = await import("@/db/schema");
     const list = (await db
       .select({
         id: users.id,
         email: users.email,
         fullName: users.fullName,
         role: users.role,
-        teamId: users.teamId,
         isActive: users.isActive,
-        dailyCapacity: users.dailyCapacity,
         telegramChatId: users.telegramChatId,
       })
       .from(users)
@@ -27,33 +21,24 @@ async function load(): Promise<{
       Omit<UserRow, "telegramPaired"> & { telegramChatId: string | null }
     >;
 
-    const teamList = await db
-      .select({ id: teams.id, name: teams.name })
-      .from(teams)
-      .orderBy(asc(teams.name));
-
     return {
       rows: list.map((r) => ({
         id: r.id,
         email: r.email,
         fullName: r.fullName,
         role: r.role,
-        teamId: r.teamId,
         isActive: r.isActive,
-        dailyCapacity: r.dailyCapacity,
         telegramPaired: !!r.telegramChatId,
       })),
-      teams: teamList,
       error: null,
     };
   } catch (err) {
-    return { rows: [], teams: [], error: err instanceof Error ? err.message : String(err) };
+    return { rows: [], error: err instanceof Error ? err.message : String(err) };
   }
-  void eq;
 }
 
 export default async function AdminUsersPage() {
-  const { rows, teams, error } = await load();
+  const { rows, error } = await load();
   const me = await getSessionUser();
 
   return (
@@ -62,12 +47,14 @@ export default async function AdminUsersPage() {
         <h1 className="text-2xl font-semibold tracking-tight">Users</h1>
         <p className="mt-1 text-sm text-zinc-500">
           Add someone here, or they&apos;re auto-created on their first Google
-          sign-in. Edit role &amp; team inline below — changes save immediately.
+          sign-in. Edit their role inline below — changes save immediately.
+          Give a <b>Live Streamer</b> a TikTok handle on the TikTok Live admin
+          page.
         </p>
       </header>
 
       <div className="mb-6">
-        <AddUser teams={teams} />
+        <AddUser />
       </div>
 
       {error && (
@@ -76,7 +63,7 @@ export default async function AdminUsersPage() {
         </div>
       )}
 
-      <UsersEditor rows={rows} teams={teams} currentUserId={me?.userId ?? null} />
+      <UsersEditor rows={rows} currentUserId={me?.userId ?? null} />
     </div>
   );
 }

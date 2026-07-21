@@ -3,35 +3,24 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-type Variant = "sheets" | "zoho" | "tiktok" | "google";
+/**
+ * Pull TikTok Live data on demand. (The Sheets / Zoho / Google Ads variants left
+ * with the leads/sales/ads features — those live in Adrify now.)
+ */
+type Variant = "tiktok";
 
 const CONFIG: Record<
   Variant,
   { endpoint: string; label: string; busyLabel: string }
 > = {
-  sheets: {
-    endpoint: "/api/sales/sync",
-    label: "Sync Google Sheets now",
-    busyLabel: "Syncing…",
-  },
-  zoho: {
-    endpoint: "/api/zoho/sync",
-    label: "Sync Zoho now",
-    busyLabel: "Syncing Zoho…",
-  },
   tiktok: {
     endpoint: "/api/tiktok-live/sync",
     label: "Sync TikTok Live now",
     busyLabel: "Syncing TikTok…",
   },
-  google: {
-    endpoint: "/api/google-ads/sync",
-    label: "Sync Google Ads now",
-    busyLabel: "Syncing Google Ads…",
-  },
 };
 
-export function SyncNowButton({ variant = "sheets" }: { variant?: Variant }) {
+export function SyncNowButton({ variant = "tiktok" }: { variant?: Variant }) {
   const router = useRouter();
   const cfg = CONFIG[variant];
   const [busy, setBusy] = useState(false);
@@ -45,28 +34,12 @@ export function SyncNowButton({ variant = "sheets" }: { variant?: Variant }) {
       const json = await res.json();
       if (!res.ok) {
         setMsg(`HTTP ${res.status}: ${json.error ?? "failed"}`);
-      } else if (variant === "zoho") {
-        setMsg(
-          `Fetched ${json.fetched ?? 0} · leads ${json.leadsUpserted ?? 0} · sales ${
-            json.salesUpserted ?? 0
-          }${json.errors?.length ? ` · ${json.errors.length} errors` : ""}`
-        );
-      } else if (variant === "tiktok") {
+      } else {
         setMsg(
           `Provider ${json.provider ?? "none"} · ${json.accounts ?? 0} handles · ${
             json.sessions ?? 0
           } sessions${json.errors?.length ? ` · ${json.errors.length} errors` : ""}`
         );
-      } else if (variant === "google") {
-        setMsg(
-          `${json.accounts ?? 0} accounts · ${json.rowsUpserted ?? 0} spend · ${
-            json.keywords?.keywordRows ?? 0
-          } keywords · ${json.keywords?.searchTermRows ?? 0} search terms${
-            json.errors?.length ? ` · ${json.errors.length} errors` : ""
-          }`
-        );
-      } else {
-        setMsg(`Synced ${json.results?.length ?? 0} tab(s).`);
       }
       if (res.ok) router.refresh();
     } catch (err) {

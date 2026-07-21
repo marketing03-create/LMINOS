@@ -17,13 +17,12 @@ const ROLES = [
 const inputCls =
   "rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-2.5 py-1.5 text-sm text-zinc-900 dark:text-zinc-100";
 
-export function AddUser({ teams }: { teams: { id: string; name: string }[] }) {
+export function AddUser() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
   const [role, setRole] = useState("viewer");
-  const [teamId, setTeamId] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   // After a successful add: the ready-to-send invite message (+ copied flag).
@@ -34,7 +33,6 @@ export function AddUser({ teams }: { teams: { id: string; name: string }[] }) {
     setEmail("");
     setFullName("");
     setRole("viewer");
-    setTeamId("");
     setErr(null);
   }
 
@@ -49,7 +47,6 @@ export function AddUser({ teams }: { teams: { id: string; name: string }[] }) {
           email: email.trim(),
           fullName: fullName.trim() || null,
           role,
-          teamId: teamId || null,
         }),
       });
       const json = await res.json().catch(() => ({}));
@@ -168,17 +165,6 @@ export function AddUser({ teams }: { teams: { id: string; name: string }[] }) {
             {ROLES.map((x) => (
               <option key={x} value={x}>
                 {x}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="block">
-          <div className="text-xs font-medium mb-1">Team</div>
-          <select value={teamId} onChange={(e) => setTeamId(e.target.value)} className={inputCls}>
-            <option value="">— none —</option>
-            {teams.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
               </option>
             ))}
           </select>

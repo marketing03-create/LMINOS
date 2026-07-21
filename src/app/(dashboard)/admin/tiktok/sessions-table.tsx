@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { fmtInt } from "@/lib/roas/metrics";
+import { fmtInt } from "@/lib/date-range";
 import type { SessionRow } from "@/lib/tiktok-live/queries";
 import { ProductBadges } from "@/components/product-badges";
 import { HelpTip } from "@/components/help-tip";

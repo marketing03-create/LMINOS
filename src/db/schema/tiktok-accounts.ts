@@ -1,15 +1,15 @@
 import { boolean, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
-import { brands } from "./brands";
 import { id, timestamps } from "./columns";
 import { users } from "./users";
-import { websites } from "./websites";
 
 /**
  * A TikTok creator handle whose LIVE sessions LMIROS tracks. There's no official
- * TikTok API for live-room metrics, so a managed vendor (Apify / EnsembleData /
- * tik.tools) monitors the handle server-side and exposes finished sessions; the
- * cron sync pulls them into `tiktok_live_sessions`. brandId/websiteId are
- * nullable for a future linkage pass (V1 = raw metrics only).
+ * TikTok API for live-room metrics, so a self-hosted connector (and optionally a
+ * managed vendor) monitors the handle and exposes finished sessions; the sync
+ * pulls them into `tiktok_live_sessions`.
+ *
+ * The old `brand_id` / `website_id` columns were placeholders for a linkage that
+ * never shipped, and their targets moved to Adrify — dropped in migration 0030.
  */
 export const tiktokAccounts = pgTable("tiktok_accounts", {
   id: id(),
@@ -20,10 +20,6 @@ export const tiktokAccounts = pgTable("tiktok_accounts", {
   // counted as a lead (e.g. ["lend","loan","pinjaman","apply"]). Null/empty →
   // the connector falls back to a sensible default list.
   leadKeywords: text("lead_keywords").array(),
-  brandId: uuid("brand_id").references(() => brands.id, { onDelete: "set null" }),
-  websiteId: uuid("website_id").references(() => websites.id, {
-    onDelete: "set null",
-  }),
   // The live-streamer user in charge of this handle (Feature U). A streamer
   // login only sees/uploads sessions for handles assigned to them. Nullable =
   // no streamer assigned (admins manage it either way).

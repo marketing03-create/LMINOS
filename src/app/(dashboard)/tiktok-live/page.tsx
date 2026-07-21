@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { rangeFromParams } from "@/lib/ads/account-metrics";
+import { rangeFromParams } from "@/lib/date-range";
 import {
   streamerAccountIds,
   tiktokAccountsForPicker,
@@ -7,7 +7,7 @@ import {
   type SessionRow,
 } from "@/lib/tiktok-live/queries";
 import { getSessionUser } from "@/lib/auth/authorize";
-import { fmtInt } from "@/lib/roas/metrics";
+import { fmtInt } from "@/lib/date-range";
 import { CompactDateFilter } from "@/components/compact-date-filter";
 import { ProductBadges } from "@/components/product-badges";
 import { HelpTip } from "@/components/help-tip";
