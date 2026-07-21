@@ -19,6 +19,12 @@ export const config: VercelConfig = {
   //   (b) trigger /api/cron/* from an external scheduler (cron-job.org etc.)
   //       passing `Authorization: Bearer ${CRON_SECRET}`.
   //
+  // /dashboard was the Overview page, which left with the leads/sales features.
+  // Old bookmarks and cached links still point there, so bounce them to "/",
+  // which picks the right home for the signed-in user's role. Temporary, not
+  // permanent — browsers cache a 308 forever, and we may want the path back.
+  redirects: [{ source: "/dashboard", destination: "/", permanent: false }],
+
   crons: [
     {
       // "Did a streamer forget to fill in their live metrics?" — 10:00 Malaysia
