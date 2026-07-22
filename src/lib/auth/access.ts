@@ -39,11 +39,29 @@ export function accessForRole(role: Role): Access {
   }
 }
 
-/** True if `role` may view `pathname`. */
+/**
+ * True if `role` may view `pathname`.
+ *
+ * The allow-list is matched on exact path or path-prefix, which means the input
+ * has to be a already-normalised pathname. Callers pass one (the proxy reads
+ * `request.nextUrl.pathname`, which browsers and Next.js both normalise), but
+ * this is the last gate before company data renders, so it re-checks rather than
+ * trusting: "/tiktok-live/../admin/tiktok/all" starts with "/tiktok-live/" and
+ * would otherwise pass. Anything not a plain absolute path is denied outright.
+ */
 export function canAccessPath(role: Role, pathname: string): boolean {
   const a = accessForRole(role);
   if (a.allowed === "all") return true;
+  if (!isPlainPath(pathname)) return false;
   return a.allowed.some((p) => pathname === p || pathname.startsWith(p + "/"));
+}
+
+/** An absolute path with no traversal, query, fragment or encoded separators. */
+function isPlainPath(pathname: string): boolean {
+  if (!pathname.startsWith("/")) return false;
+  if (pathname.includes("?") || pathname.includes("#")) return false;
+  if (/%2e|%2f|\\/i.test(pathname)) return false; // encoded "." / "/" or backslash
+  return !pathname.split("/").some((seg) => seg === "." || seg === "..");
 }
 
 /** The landing page for a role (used for the logo link + redirect target). */

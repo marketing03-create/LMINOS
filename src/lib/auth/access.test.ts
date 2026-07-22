@@ -50,4 +50,58 @@ describe("page access policy (default-deny)", () => {
     // "/tiktok-live" must NOT accidentally allow "/tiktok-liveXYZ".
     expect(canAccessPath("live_streamer", "/tiktok-liveee")).toBe(false);
   });
+
+  // The Overview carries every streamer's numbers side by side, so it is the
+  // most sensitive page in the app: a live_streamer reaching it would see their
+  // colleagues' performance. Pinned explicitly rather than relying on the
+  // SENSITIVE list, and covering the sub-paths its own links generate.
+  describe("the Overview is admin-only", () => {
+    const OVERVIEW = "/admin/tiktok/all";
+    const NON_ADMIN: Role[] = [
+      "live_streamer",
+      "team_lead",
+      "sales_agent",
+      "viewer",
+    ];
+
+    it("no non-admin role can reach it", () => {
+      for (const role of NON_ADMIN) {
+        expect(canAccessPath(role, OVERVIEW)).toBe(false);
+      }
+    });
+
+    it("both admin roles can, and land there by default", () => {
+      for (const role of ["hq_admin", "marketing_manager"] as Role[]) {
+        expect(canAccessPath(role, OVERVIEW)).toBe(true);
+        expect(homeForRole(role)).toBe(OVERVIEW);
+      }
+    });
+
+    it("a denied role is sent somewhere it is actually allowed", () => {
+      // Otherwise the redirect in the dashboard layout would bounce forever.
+      for (const role of NON_ADMIN) {
+        const home = homeForRole(role);
+        expect(canAccessPath(role, home)).toBe(true);
+      }
+    });
+
+    it("the drill-down pages behind it are admin-only too", () => {
+      for (const role of NON_ADMIN) {
+        expect(canAccessPath(role, "/admin/tiktok/some-account-id")).toBe(false);
+        expect(canAccessPath(role, "/admin/tiktok/history")).toBe(false);
+        expect(canAccessPath(role, "/admin/tiktok/screenshots")).toBe(false);
+      }
+    });
+
+    it("cannot be reached by dressing the path up as an allowed one", () => {
+      for (const p of [
+        "/admin/tiktok/all/../../tiktok-live",
+        "/tiktok-live/../admin/tiktok/all",
+        "/admin/tiktok/all?streamer=all",
+        "/ADMIN/TIKTOK/ALL",
+      ]) {
+        expect(canAccessPath("live_streamer", p)).toBe(false);
+      }
+    });
+  });
 });
