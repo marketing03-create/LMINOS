@@ -57,10 +57,13 @@ export function OverviewFilters({
   return (
     <div className="sticky top-14 z-30 -mx-4 mb-6 border-b border-zinc-200 bg-white/95 px-4 py-3 backdrop-blur sm:-mx-8 sm:px-8 lg:top-0 dark:border-zinc-800 dark:bg-zinc-950/95">
       <div className="flex flex-wrap items-center gap-2">
+        {/* align="start": this is the leftmost control, so the panel must open
+            rightwards into the page. Right-aligned it runs off the side. */}
         <CompactDateFilter
           basePath={BASE}
           choice={choice}
           extraParams={{ streamer, agg }}
+          align="start"
         />
 
         {/* The actual dates, next to the control that sets them. The filter

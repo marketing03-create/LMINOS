@@ -18,11 +18,19 @@ export function CompactDateFilter({
   basePath,
   choice,
   extraParams,
+  align = "end",
 }: {
   basePath: string;
   choice: RangeChoice;
   /** Extra query params to keep on every navigation (e.g. a selected handle). */
   extraParams?: Record<string, string>;
+  /**
+   * Which edge the dropdown lines up with. "end" (default) suits a filter sitting
+   * at the right of a header — the panel opens leftwards into the page. Use
+   * "start" when the filter is the LEFTMOST control, or the panel opens off the
+   * side of the screen and gets clipped.
+   */
+  align?: "start" | "end";
 }) {
   const router = useRouter();
   const ref = useRef<HTMLDivElement>(null);
@@ -111,7 +119,11 @@ export function CompactDateFilter({
       </button>
 
       {open && today && (
-        <div className="absolute left-0 sm:left-auto sm:right-0 top-full z-30 mt-2 w-[260px] max-w-[calc(100vw-1.5rem)] rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 shadow-lg p-2">
+        <div
+          className={`absolute top-full z-40 mt-2 w-[260px] max-w-[calc(100vw-1.5rem)] rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 shadow-lg p-2 ${
+            align === "start" ? "left-0" : "left-0 sm:left-auto sm:right-0"
+          }`}
+        >
           <div className="grid grid-cols-2 gap-1">
             {presetsFor(today, choice).map((p) => (
               <button
