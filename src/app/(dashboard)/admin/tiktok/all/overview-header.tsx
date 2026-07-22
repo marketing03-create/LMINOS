@@ -24,22 +24,7 @@ const round2 = (n: number) => Math.round(n * 100) / 100;
  * hours sit on 100%, so "1,013 leads" next to "210h streamed" invites a
  * leads-per-hour figure that is wrong by about 4×.
  */
-export function OverviewHeader({
-  sessions,
-  rangeLabel,
-  startStr,
-  endStr,
-  scopeLabel,
-  handleCount,
-}: {
-  sessions: AnalysisSession[];
-  rangeLabel: string;
-  startStr?: string;
-  endStr?: string;
-  /** "All streamers" or "@handle". */
-  scopeLabel: string;
-  handleCount: number;
-}) {
+export function OverviewHeader({ sessions }: { sessions: AnalysisSession[] }) {
   const k = summaryCards(sessions);
   const { withLeads, withoutLeads } = handlesWithLeads(sessions);
 
@@ -59,67 +44,36 @@ export function OverviewHeader({
 
   const followers = sessions.reduce((t, s) => t + (s.newFollowers ?? 0), 0);
   const followerLives = sessions.filter((s) => s.newFollowers != null).length;
-  const period = startStr && endStr ? `${startStr} → ${endStr}` : rangeLabel;
 
   return (
     <>
-      {/* ── Scope & coverage ribbon ─────────────────────────────────────── */}
-      <div className="mb-6 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900/50">
-        <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1">
-          <Slot label="Period">
-            <span className="font-medium text-zinc-900 dark:text-zinc-100">
-              {rangeLabel}
-            </span>
-            <span className="ml-2 text-xs text-zinc-500">{period}</span>
-          </Slot>
-          <Slot label="Streamer">
-            <span className="font-medium text-zinc-900 dark:text-zinc-100">
-              {scopeLabel}
-            </span>
-            {handleCount > 1 && (
-              <span className="ml-1.5 text-xs text-zinc-500">
-                ({handleCount} handles)
-              </span>
-            )}
-          </Slot>
-          <Slot label="Volume">
-            <span
-              className={
-                k.sessions < 5
-                  ? "font-medium text-amber-600 dark:text-amber-400"
-                  : "font-medium text-zinc-900 dark:text-zinc-100"
-              }
-            >
-              {nf(k.sessions)} live{k.sessions === 1 ? "" : "s"} · {k.liveHours}h
-              streamed
-            </span>
-            {k.sessions > 0 && k.sessions < 5 && (
-              <span className="ml-1.5 text-xs text-amber-600 dark:text-amber-400">
-                — too few to read much into
-              </span>
-            )}
-          </Slot>
-        </div>
-
-        {/* The honesty line. Computed from the rows, never hard-coded. */}
-        {withoutLeads.length > 0 && withLeads.length > 0 && (
-          <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
-            Lead numbers on this page come from{" "}
-            {withLeads.map((h) => `@${h}`).join(", ")} only.{" "}
-            {withoutLeads
-              .map((w) => `@${w.handle} streamed ${w.lives} live${w.lives === 1 ? "" : "s"}`)
-              .join(", ")}{" "}
-            with no leads entered, so every lead figure below describes{" "}
-            {withLeads.length === 1 ? "one streamer" : "some streamers"}, not all.
-          </p>
-        )}
-        {withLeads.length === 0 && k.sessions > 0 && (
-          <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
-            No lead numbers have been entered for any live in this period, so the
-            lead cards below are empty. Reach and timing still work.
-          </p>
-        )}
-      </div>
+      {/* The scope ribbon that used to sit here is gone: the period, the
+          streamer and the live count were each already stated by the filter bar
+          or the Lives card. Only the coverage warning was unique, so it stays —
+          moved to sit directly above the cards it qualifies. */}
+      {withoutLeads.length > 0 && withLeads.length > 0 && (
+        <Notice>
+          Lead numbers on this page come from{" "}
+          {withLeads.map((h) => `@${h}`).join(", ")} only.{" "}
+          {withoutLeads
+            .map((w) => `@${w.handle} streamed ${w.lives} live${w.lives === 1 ? "" : "s"}`)
+            .join(", ")}{" "}
+          with no leads entered, so every lead figure below describes{" "}
+          {withLeads.length === 1 ? "one streamer" : "some streamers"}, not all.
+        </Notice>
+      )}
+      {withLeads.length === 0 && k.sessions > 0 && (
+        <Notice>
+          No lead numbers have been entered for any live in this period, so the
+          lead cards below are empty. Reach and timing still work.
+        </Notice>
+      )}
+      {k.sessions > 0 && k.sessions < 5 && (
+        <Notice>
+          Only {nf(k.sessions)} live{k.sessions === 1 ? "" : "s"} in this window —
+          too few to read much into. Try a wider date range.
+        </Notice>
+      )}
 
       {/* ── Outcome cards ───────────────────────────────────────────────── */}
       <div className="mb-1 flex items-baseline justify-between">
@@ -224,14 +178,12 @@ export function OverviewHeader({
   );
 }
 
-function Slot({ label, children }: { label: string; children: React.ReactNode }) {
+/** An amber caveat about the numbers immediately below it. */
+function Notice({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex items-baseline gap-2">
-      <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
-        {label}
-      </span>
-      <span className="text-sm">{children}</span>
-    </div>
+    <p className="mb-4 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
+      {children}
+    </p>
   );
 }
 

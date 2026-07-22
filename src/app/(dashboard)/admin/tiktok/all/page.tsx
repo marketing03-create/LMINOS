@@ -88,19 +88,11 @@ export default async function AdminTikTokOverviewPage({
     <div className="max-w-6xl p-4 sm:p-8">
       <SessionHighlighter />
 
-      <header className="mb-4 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Overview</h1>
-          <p className="mt-1 text-sm text-zinc-500">
-            Every TikTok Live number in one place.
-          </p>
-        </div>
-        <a
-          href={`/api/tiktok-live/export?${exportQs.toString()}`}
-          className="inline-flex items-center rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-900"
-        >
-          Export CSV
-        </a>
+      <header className="mb-4">
+        <h1 className="text-2xl font-semibold tracking-tight">Overview</h1>
+        <p className="mt-1 text-sm text-zinc-500">
+          Every TikTok Live number in one place.
+        </p>
       </header>
 
       <OverviewFilters
@@ -108,6 +100,7 @@ export default async function AdminTikTokOverviewPage({
         handles={handles}
         streamer={streamer}
         agg={agg}
+        exportHref={`/api/tiktok-live/export?${exportQs.toString()}`}
       />
 
       {error && (
@@ -123,14 +116,7 @@ export default async function AdminTikTokOverviewPage({
         </div>
       ) : (
         <>
-          <OverviewHeader
-            sessions={slim}
-            rangeLabel={choice.label}
-            startStr={choice.startStr}
-            endStr={choice.endStr}
-            scopeLabel={scopeLabel}
-            handleCount={new Set(slim.map((s) => s.handle)).size}
-          />
+          <OverviewHeader sessions={slim} />
 
           <OverviewCharts
             sessions={slim}

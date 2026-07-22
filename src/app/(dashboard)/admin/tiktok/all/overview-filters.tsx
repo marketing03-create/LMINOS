@@ -26,12 +26,15 @@ export function OverviewFilters({
   handles,
   streamer,
   agg,
+  exportHref,
 }: {
   choice: RangeChoice;
   handles: { id: string; handle: string }[];
   /** Selected account id, or "all". */
   streamer: string;
   agg: Agg;
+  /** CSV export for exactly the range + streamer currently shown. */
+  exportHref: string;
 }) {
   const router = useRouter();
 
@@ -59,6 +62,13 @@ export function OverviewFilters({
           choice={choice}
           extraParams={{ streamer, agg }}
         />
+
+        {/* The actual dates, next to the control that sets them. The filter
+            button only says "30 days"; this is what those 30 days ARE, so the
+            numbers below are never read against the wrong window. */}
+        <span className="whitespace-nowrap text-xs tabular-nums text-zinc-500">
+          {choice.startStr} → {choice.endStr}
+        </span>
 
         <select
           value={streamer}
@@ -90,6 +100,15 @@ export function OverviewFilters({
           </select>
           <HelpTip text={METRIC_HELP.combineBy} label="What does Combine by do?" />
         </label>
+
+        {/* ml-auto so it sits at the far end on desktop and simply wraps to the
+            end of the row on mobile. */}
+        <a
+          href={exportHref}
+          className="ml-auto inline-flex shrink-0 items-center rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-900"
+        >
+          Export CSV
+        </a>
       </div>
 
       {/* The contract, stated once, so nobody wonders why the cards didn't move. */}
