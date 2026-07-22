@@ -8,6 +8,8 @@
  * never drags an average down to zero.
  */
 
+import { filterTikTokProducts } from "./products";
+
 export type Agg = "SUM" | "AVG" | "MIN" | "MAX" | "COUNT" | "MEDIAN";
 
 export const AGGREGATIONS: readonly Agg[] = [
@@ -24,18 +26,31 @@ export const AGG_LABEL: Record<Agg, string> = {
   AVG: "Average",
   MIN: "Minimum",
   MAX: "Maximum",
-  COUNT: "Count of lives",
+  // "with a value" matters: aggregate() counts only lives that RECORDED the
+  // metric, which on a 19%-filled field is far fewer than the lives in the bucket.
+  COUNT: "Count of lives with a value",
   MEDIAN: "Median",
 };
 
 /** The slim per-live shape the cards + charts need (safe to pass to the client). */
 export type AnalysisSession = {
+  /** Session id + owning handle — the Overview links rows and groups by streamer. */
+  id: string;
+  accountId: string;
+  handle: string;
   startedAt: string | null; // ISO
   durationSeconds: number | null;
   totalViews: number | null;
   peakViewers: number | null;
+  avgViewers: number | null;
   avgWatchSeconds: number | null;
   directMessages: number | null;
+  serviceBioViews: number | null;
+  uniqueViewers: number | null;
+  newFollowers: number | null;
+  totalLikes: number | null;
+  totalComments: number | null;
+  keywordLeads: number | null;
   products: string[] | null;
   totalLeads: number | null;
   filteredLeads: number | null;
@@ -95,7 +110,13 @@ export type SeriesDef = {
   name: string;
   get: (s: AnalysisSession) => number | null;
 };
-/** One point/bar: its label, how many lives it covers, and a value per series. */
+/**
+ * One point/bar: its label, how many lives it covers, and a value per series.
+ * Also carries `<key>_n` per series — how many lives actually CONTRIBUTED a value
+ * to that series. `n` counts every live in the bucket whether or not it had the
+ * metric recorded, so on a 19%-filled field the two differ wildly; a tooltip that
+ * shows `n` beside a value built from `<key>_n` lives overstates its own evidence.
+ */
 export type ChartRow = { label: string; n: number } & Record<
   string,
   string | number | null
@@ -139,28 +160,45 @@ export function buildChart(
     .map(([label, g]) => {
       const row: ChartRow = { label, n: g.n };
       for (const def of series) {
-        row[def.key] = aggregate(g.vals.get(def.key) ?? [], agg);
+        const vals = g.vals.get(def.key) ?? [];
+        row[def.key] = aggregate(vals, agg);
+        row[`${def.key}_n`] = vals.length;
       }
       return row;
     });
 }
 
 // ── Bucket functions ──
-const byDate = (s: AnalysisSession): Bucket[] | null =>
+export const byDate = (s: AnalysisSession): Bucket[] | null =>
   s.startedAt
     ? [{ label: mytDate(s.startedAt), sort: new Date(s.startedAt).getTime() }]
     : null;
 
-const byHour = (s: AnalysisSession): Bucket[] | null => {
+export const byHour = (s: AnalysisSession): Bucket[] | null => {
   if (!s.startedAt) return null;
   const h = mytHour(s.startedAt);
   return [{ label: hourLabel(h), sort: h }];
 };
 
-const byProduct = (s: AnalysisSession): Bucket[] | null => {
-  const tags = (s.products ?? []).map((p) => p.trim()).filter(Boolean);
+/**
+ * ONE bucket per live, labelled with its whole product COMBINATION.
+ *
+ * This used to return a bucket per tag, and `buildChart` credits a session to
+ * every bucket it lands in — so a live tagged "KK" + "Koperasi" had its leads
+ * counted under BOTH bars and the chart totalled to twice the real figure. Every
+ * tagged live here carries exactly that pair, so the shipped chart double-booked
+ * all of them. Bucketing by combination makes each live count once, which is what
+ * makes SUM legitimate and the bars add up to the period total.
+ *
+ * `filterTikTokProducts` returns the canonical TIKTOK_PRODUCTS order, so
+ * "KK + Koperasi" can never split into two bars by tag order. Reads only
+ * `products`; the legacy single-value `product` column is frozen and would
+ * fabricate single-tag rows that don't exist.
+ */
+export const byProduct = (s: AnalysisSession): Bucket[] | null => {
+  const tags = filterTikTokProducts(s.products ?? []);
   if (tags.length === 0) return [{ label: "Untagged", sort: 9_999 }];
-  return tags.map((t) => ({ label: t, sort: 0 }));
+  return [{ label: tags.join(" + "), sort: -tags.length }];
 };
 
 // ── Series ──
@@ -231,13 +269,25 @@ export type Summary = {
   sessions: number;
   totalLeads: number;
   filteredLeads: number;
-  /** Filtered ÷ Total, as a percentage. Null when there are no leads yet. */
+  /**
+   * Filtered ÷ Total over PAIRED lives only, as a percentage. Null when fewer
+   * than MIN_PAIRED lives have both numbers.
+   */
   qualityRate: number | null;
   totalViews: number;
   avgPeakViewers: number | null;
   liveHours: number;
   livesWithLeads: number;
+  /** Lives with Filtered Leads entered — the `filteredLeads` sum's own sample. */
+  livesWithFiltered: number;
+  /** Lives where BOTH lead numbers were entered — the quality rate's real sample. */
+  livesWithBoth: number;
+  pairedTotal: number;
+  pairedFiltered: number;
 };
+
+/** Below this many paired lives, a quality percentage is noise, so we show "—". */
+export const MIN_PAIRED = 5;
 
 /**
  * Every headline card, computed from the SAME (date-filtered) rows the charts
@@ -247,16 +297,33 @@ export function summaryCards(sessions: AnalysisSession[]): Summary {
   let totalLeads = 0;
   let filteredLeads = 0;
   let livesWithLeads = 0;
+  let livesWithFiltered = 0;
   let totalViews = 0;
   let durationSec = 0;
   const peaks: number[] = [];
+  // The quality rate's own sample: only lives with BOTH numbers entered.
+  let livesWithBoth = 0;
+  let pairedTotal = 0;
+  let pairedFiltered = 0;
 
   for (const s of sessions) {
     if (s.totalLeads != null) {
       totalLeads += s.totalLeads;
       livesWithLeads += 1;
     }
-    if (s.filteredLeads != null) filteredLeads += s.filteredLeads;
+    if (s.filteredLeads != null) {
+      filteredLeads += s.filteredLeads;
+      livesWithFiltered += 1;
+    }
+    // Pair the two before dividing. Accumulating them independently and then
+    // dividing lets a live with Filtered entered but Total blank raise the
+    // numerator against a denominator it never contributed to — which can push
+    // the rate past 100%. There IS such a live in production today.
+    if (s.totalLeads != null && s.filteredLeads != null) {
+      livesWithBoth += 1;
+      pairedTotal += s.totalLeads;
+      pairedFiltered += s.filteredLeads;
+    }
     if (s.totalViews != null) totalViews += s.totalViews;
     if (s.durationSeconds != null) durationSec += s.durationSeconds;
     if (s.peakViewers != null) peaks.push(s.peakViewers);
@@ -266,7 +333,10 @@ export function summaryCards(sessions: AnalysisSession[]): Summary {
     sessions: sessions.length,
     totalLeads,
     filteredLeads,
-    qualityRate: totalLeads > 0 ? round1((filteredLeads / totalLeads) * 100) : null,
+    qualityRate:
+      livesWithBoth >= MIN_PAIRED && pairedTotal > 0
+        ? round1((pairedFiltered / pairedTotal) * 100)
+        : null,
     totalViews,
     avgPeakViewers:
       peaks.length > 0
@@ -274,5 +344,9 @@ export function summaryCards(sessions: AnalysisSession[]): Summary {
         : null,
     liveHours: round1(durationSec / 3600),
     livesWithLeads,
+    livesWithFiltered,
+    livesWithBoth,
+    pairedTotal,
+    pairedFiltered,
   };
 }

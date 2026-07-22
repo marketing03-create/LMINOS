@@ -14,13 +14,24 @@ import {
   type AnalysisSession,
 } from "./live-analysis-core";
 
+let seq = 0;
 const mk = (over: Partial<AnalysisSession>): AnalysisSession => ({
+  id: `s${++seq}`,
+  accountId: "acct-1",
+  handle: "adminain111",
   startedAt: "2026-07-14T12:00:00Z", // 8pm MYT, Tue
   durationSeconds: 3600,
   totalViews: 500,
   peakViewers: 50,
+  avgViewers: 30,
   avgWatchSeconds: 60,
   directMessages: 20,
+  serviceBioViews: 15,
+  uniqueViewers: 300,
+  newFollowers: 5,
+  totalLikes: 900,
+  totalComments: 120,
+  keywordLeads: 8,
   products: ["KK"],
   totalLeads: 10,
   filteredLeads: 4,
@@ -152,7 +163,9 @@ describe("watchByDate / dmsByDate", () => {
 });
 
 describe("leadsByProduct", () => {
-  it("counts a multi-product live toward every tag; Untagged sorts last", () => {
+  it("buckets a multi-product live ONCE, under its combination", () => {
+    // Regression: this used to emit a bucket per tag, so buildChart credited the
+    // same 12 leads to both "KK" and "Koperasi" and the bars totalled double.
     const rows = leadsByProduct(
       [
         mk({ products: ["KK", "Koperasi"], totalLeads: 12, filteredLeads: 6 }),
@@ -161,12 +174,26 @@ describe("leadsByProduct", () => {
       ],
       "SUM"
     );
-    const kk = rows.find((r) => r.label === "KK");
-    expect(kk?.totalLeads).toBe(20);
-    expect(kk?.filteredLeads).toBe(8);
-    expect(kk?.n).toBe(2);
-    expect(rows.find((r) => r.label === "Koperasi")?.totalLeads).toBe(12);
+    expect(rows.find((r) => r.label === "KK + Koperasi")?.totalLeads).toBe(12);
+    expect(rows.find((r) => r.label === "KK")?.totalLeads).toBe(8);
+    expect(rows.find((r) => r.label === "Koperasi")).toBeUndefined();
+    // Every live counted exactly once, so the bars add up to the period total.
+    const plotted = rows.reduce((t, r) => t + ((r.totalLeads as number) ?? 0), 0);
+    expect(plotted).toBe(23);
     expect(rows[rows.length - 1].label).toBe("Untagged");
+  });
+
+  it("tag ORDER cannot split one combination into two bars", () => {
+    const rows = leadsByProduct(
+      [
+        mk({ products: ["KK", "Koperasi"], totalLeads: 5, filteredLeads: 1 }),
+        mk({ products: ["Koperasi", "KK"], totalLeads: 7, filteredLeads: 2 }),
+      ],
+      "SUM"
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].label).toBe("KK + Koperasi");
+    expect(rows[0].totalLeads).toBe(12);
   });
 
   it("busiest product comes first", () => {
@@ -179,6 +206,18 @@ describe("leadsByProduct", () => {
       "SUM"
     );
     expect(rows[0].label).toBe("KK");
+  });
+
+  it("reports how many lives actually contributed each series", () => {
+    const rows = leadsByProduct(
+      [
+        mk({ products: ["KK"], totalLeads: 10 }),
+        mk({ products: ["KK"], totalLeads: null }),
+      ],
+      "SUM"
+    );
+    expect(rows[0].n).toBe(2); // two lives in the bucket…
+    expect(rows[0].totalLeads_n).toBe(1); // …but only one had the number
   });
 });
 
@@ -214,11 +253,48 @@ describe("summaryCards", () => {
     const s = summaryCards([
       mk({ totalLeads: 200, filteredLeads: 100 }),
       mk({ totalLeads: 168, filteredLeads: 55 }),
+      mk({ totalLeads: 0, filteredLeads: 0 }),
+      mk({ totalLeads: 0, filteredLeads: 0 }),
+      mk({ totalLeads: 0, filteredLeads: 0 }),
     ]);
     expect(s.totalLeads).toBe(368);
     expect(s.filteredLeads).toBe(155);
     expect(s.qualityRate).toBe(42.1); // matches the spec's worked example
-    expect(s.livesWithLeads).toBe(2);
+    expect(s.livesWithLeads).toBe(5);
+  });
+
+  it("a live with Filtered but no Total cannot inflate the quality rate", () => {
+    // The production bug: filtered was summed independently of total, so this
+    // row added 500 to the numerator against a denominator it never joined —
+    // pushing the rate over 100%. There is one such live in the real data.
+    const paired = [
+      mk({ totalLeads: 100, filteredLeads: 40 }),
+      mk({ totalLeads: 100, filteredLeads: 40 }),
+      mk({ totalLeads: 100, filteredLeads: 40 }),
+      mk({ totalLeads: 100, filteredLeads: 40 }),
+      mk({ totalLeads: 100, filteredLeads: 40 }),
+    ];
+    const clean = summaryCards(paired);
+    const polluted = summaryCards([
+      ...paired,
+      mk({ totalLeads: null, filteredLeads: 500 }),
+    ]);
+    expect(clean.qualityRate).toBe(40);
+    expect(polluted.qualityRate).toBe(40); // unmoved
+    expect(polluted.qualityRate!).toBeLessThanOrEqual(100);
+    // …though the headline sum still reports every recorded figure.
+    expect(polluted.filteredLeads).toBe(700);
+    expect(polluted.livesWithBoth).toBe(5);
+  });
+
+  it("too few paired lives → null rather than a percentage off 2 lives", () => {
+    const s = summaryCards([
+      mk({ totalLeads: 200, filteredLeads: 100 }),
+      mk({ totalLeads: 168, filteredLeads: 55 }),
+    ]);
+    expect(s.livesWithBoth).toBe(2);
+    expect(s.qualityRate).toBeNull();
+    expect(s.totalLeads).toBe(368); // the totals are still reported
   });
 
   it("computes the reach + time cards from the same rows", () => {

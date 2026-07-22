@@ -1,11 +1,41 @@
 import type { SessionRow } from "@/lib/tiktok-live/queries";
 import {
+  MIN_PAIRED,
   summaryCards,
   type AnalysisSession,
 } from "@/lib/tiktok-live/live-analysis-core";
 import { HelpTip } from "@/components/help-tip";
 import { METRIC_HELP } from "@/lib/tiktok-live/metric-help";
 import { LiveAnalysisCharts } from "./live-analysis-charts";
+
+/**
+ * SessionRow → the slim, serialisable shape the cards + charts share. One place,
+ * so the per-streamer page and the Overview can never drift apart on which
+ * columns they read.
+ */
+export function toAnalysisSession(s: SessionRow): AnalysisSession {
+  return {
+    id: s.id,
+    accountId: s.accountId,
+    handle: s.handle,
+    startedAt: s.startedAt ? new Date(s.startedAt).toISOString() : null,
+    durationSeconds: s.durationSeconds,
+    totalViews: s.totalViews,
+    peakViewers: s.peakViewers,
+    avgViewers: s.avgViewers,
+    avgWatchSeconds: s.avgWatchSeconds,
+    directMessages: s.directMessages,
+    serviceBioViews: s.serviceBioViews,
+    uniqueViewers: s.uniqueViewers,
+    newFollowers: s.newFollowers,
+    totalLikes: s.totalLikes,
+    totalComments: s.totalComments,
+    keywordLeads: s.keywordLeads,
+    products: s.products,
+    totalLeads: s.totalLeads,
+    filteredLeads: s.filteredLeads,
+  };
+}
 
 /**
  * Admin data analysis: ONE headline card row + the charts, both computed from
@@ -29,17 +59,7 @@ export function LiveAnalysis({
 }) {
   // Slim + serialisable, so the client can re-aggregate instantly with no
   // further server round trips.
-  const slim: AnalysisSession[] = sessions.map((s) => ({
-    startedAt: s.startedAt ? new Date(s.startedAt).toISOString() : null,
-    durationSeconds: s.durationSeconds,
-    totalViews: s.totalViews,
-    peakViewers: s.peakViewers,
-    avgWatchSeconds: s.avgWatchSeconds,
-    directMessages: s.directMessages,
-    products: s.products,
-    totalLeads: s.totalLeads,
-    filteredLeads: s.filteredLeads,
-  }));
+  const slim: AnalysisSession[] = sessions.map(toAnalysisSession);
   const k = summaryCards(slim);
   const nf = (n: number) => n.toLocaleString("en-MY");
   const period = startStr && endStr ? `${startStr} → ${endStr}` : rangeLabel;
@@ -58,9 +78,13 @@ export function LiveAnalysis({
           </span>
           <span className="text-xs text-zinc-500">{period}</span>
         </div>
+        {/* Never "{leads} · {lives}" as parallel facts — an owner divides the two
+            and invents a leads-per-live figure that is wrong by ~5×, because the
+            leads come from a fraction of the lives. Bind them into one clause. */}
         <span className="text-sm font-medium text-blue-600 dark:text-blue-400">
-          {nf(k.totalLeads)} leads · {nf(k.sessions)} live
-          {k.sessions === 1 ? "" : "s"} in period
+          {nf(k.sessions)} live{k.sessions === 1 ? "" : "s"} ·{" "}
+          {nf(k.totalLeads)} leads recorded on {k.livesWithLeads} of{" "}
+          {nf(k.sessions)}
         </span>
       </div>
 
@@ -94,8 +118,14 @@ export function LiveAnalysis({
           icon={<IconCheck />}
           value={k.qualityRate == null ? "—" : `${k.qualityRate}%`}
           label="Lead Quality"
-          hint={`${nf(k.filteredLeads)} of ${nf(k.totalLeads)} filtered`}
-          help="Filtered Leads divided by Total Leads — what share of your leads made it to document submission."
+          // Read from the PAIRED sums, not the headline totals — otherwise the
+          // hint quietly contradicts the percentage above it.
+          hint={
+            k.qualityRate == null
+              ? `needs ${MIN_PAIRED} lives with both numbers`
+              : `${nf(k.pairedFiltered)} of ${nf(k.pairedTotal)} · from ${k.livesWithBoth} live${k.livesWithBoth === 1 ? "" : "s"}`
+          }
+          help={METRIC_HELP.leadQuality}
         />
         <Card
           tone="sky"

@@ -1,82 +1,114 @@
 import { rangeFromParams } from "@/lib/date-range";
 import {
-  tiktokAccountsForPicker,
+  tiktokAccountsWithKeywords,
   tiktokLiveSessionList,
   type SessionRow,
 } from "@/lib/tiktok-live/queries";
-import { CompactDateFilter } from "@/components/compact-date-filter";
+import { AGGREGATIONS, type Agg } from "@/lib/tiktok-live/live-analysis-core";
 import { SessionHighlighter } from "@/app/(dashboard)/tiktok-live/session-highlighter";
 import { SessionsTable } from "../sessions-table";
-import { LiveAnalysis } from "../live-analysis";
-import { StreamerSwitcher } from "../streamer-switcher";
+import { toAnalysisSession } from "../live-analysis";
+import { OverviewFilters } from "./overview-filters";
+import { OverviewHeader } from "./overview-header";
+import { OverviewCharts } from "./overview-charts";
+import { StreamerTable } from "./streamer-table";
+import { TopLives } from "./top-lives";
+import { DataQuality } from "./data-quality";
 
 /**
- * Combined TikTok Live performance across EVERY handle (admin monitoring). The
- * "All streamers" choice from the chooser on /admin/tiktok. Clicking a handle in
- * the table drills into that single streamer's page.
+ * The Overview — every card and chart for TikTok Live, filterable by date,
+ * streamer and how to combine the charts.
+ *
+ * This is the same route the "All streamers" choice already pointed at, rebuilt
+ * rather than duplicated: a second cross-streamer page would show the same rows
+ * with different maths, and the wrong one is the one already bookmarked.
+ *
+ * Trust descends down the page. Auto-captured, near-complete material sits above
+ * manually-typed material, and every figure that rests on a fraction of the
+ * lives says so next to itself.
  */
-export default async function AdminTikTokAllPage({
+export default async function AdminTikTokOverviewPage({
   searchParams,
 }: {
-  searchParams: Promise<{ range?: string; start?: string; end?: string }>;
+  searchParams: Promise<{
+    range?: string;
+    start?: string;
+    end?: string;
+    streamer?: string;
+    agg?: string;
+  }>;
 }) {
   const sp = await searchParams;
-  const choice = rangeFromParams(sp);
 
-  // Export every streamer, for the SAME range the page is showing.
-  const exportQs = new URLSearchParams();
-  if (sp.range) exportQs.set("range", sp.range);
-  if (sp.start) exportQs.set("start", sp.start);
-  if (sp.end) exportQs.set("end", sp.end);
-  const exportHref = `/api/tiktok-live/export${
-    exportQs.toString() ? `?${exportQs.toString()}` : ""
-  }`;
+  // 30 days, not the shared 7-day default: a cross-streamer comparison off ~8
+  // lives per handle is noise.
+  const choice = rangeFromParams({
+    range: sp.range ?? (sp.start && sp.end ? undefined : "30d"),
+    start: sp.start,
+    end: sp.end,
+  });
 
-  // Every handle, for the "switch streamer" dropdown (best-effort).
-  let handles: { id: string; handle: string }[] = [];
+  const agg: Agg = AGGREGATIONS.includes(sp.agg as Agg) ? (sp.agg as Agg) : "SUM";
+
+  let handles: { id: string; handle: string; hasKeywords: boolean }[] = [];
   try {
-    handles = await tiktokAccountsForPicker();
+    handles = await tiktokAccountsWithKeywords();
   } catch {
-    // non-fatal — the rest of the page still renders
+    // non-fatal — the page still renders without the streamer filter
   }
-  // Carry the chosen period across when switching streamer.
-  const preserve: Record<string, string> = {};
-  if (sp.range) preserve.range = sp.range;
-  if (sp.start) preserve.start = sp.start;
-  if (sp.end) preserve.end = sp.end;
+
+  // An unknown ?streamer= falls back to "all" rather than showing nothing.
+  const streamer =
+    sp.streamer && handles.some((h) => h.id === sp.streamer) ? sp.streamer : "all";
+  const scope = streamer === "all" ? undefined : [streamer];
 
   let sessions: SessionRow[] = [];
   let error: string | null = null;
   try {
-    sessions = await tiktokLiveSessionList(choice.range, 500);
+    sessions = await tiktokLiveSessionList(choice.range, 500, scope);
   } catch (err) {
     error = err instanceof Error ? err.message : String(err);
   }
 
+  const slim = sessions.map(toAnalysisSession);
+  const keywordsByAccount = new Map(handles.map((h) => [h.id, h.hasKeywords]));
+  const scopeLabel =
+    streamer === "all"
+      ? "All streamers"
+      : `@${handles.find((h) => h.id === streamer)?.handle ?? "unknown"}`;
+
+  const exportQs = new URLSearchParams(
+    choice.mode === "custom"
+      ? { start: choice.startStr, end: choice.endStr }
+      : { range: choice.presetKey ?? "30d" }
+  );
+  if (streamer !== "all") exportQs.set("account", streamer);
+
   return (
-    <div className="p-4 sm:p-8 max-w-6xl">
+    <div className="max-w-6xl p-4 sm:p-8">
       <SessionHighlighter />
 
-      <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
+      <header className="mb-4 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">All streamers</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Overview</h1>
           <p className="mt-1 text-sm text-zinc-500">
-            Combined TikTok Live performance across every handle.
+            Every TikTok Live number in one place.
           </p>
-          <div className="mt-2 w-full sm:w-64">
-            <StreamerSwitcher handles={handles} value="all" preserve={preserve} />
-          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <a
-            href={exportHref}
-            className="inline-flex items-center rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-3 py-1.5 text-sm font-medium text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-900"
-          >
-            Export CSV
-          </a>
-          <CompactDateFilter basePath="/admin/tiktok/all" choice={choice} />
-        </div>
+        <a
+          href={`/api/tiktok-live/export?${exportQs.toString()}`}
+          className="inline-flex items-center rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-900"
+        >
+          Export CSV
+        </a>
       </header>
+
+      <OverviewFilters
+        choice={choice}
+        handles={handles}
+        streamer={streamer}
+        agg={agg}
+      />
 
       {error && (
         <div className="mb-6 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
@@ -84,24 +116,40 @@ export default async function AdminTikTokAllPage({
         </div>
       )}
 
-      {/* Data analysis: headline cards + re-aggregatable charts, both date-filtered. */}
-      <LiveAnalysis
-        sessions={sessions}
-        rangeLabel={choice.label}
-        startStr={choice.startStr}
-        endStr={choice.endStr}
-      />
+      {sessions.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-zinc-300 p-10 text-center text-sm text-zinc-500 dark:border-zinc-700">
+          No lives {streamer === "all" ? "" : `for ${scopeLabel} `}in{" "}
+          {choice.label.toLowerCase()}. Try a wider date range.
+        </div>
+      ) : (
+        <>
+          <OverviewHeader
+            sessions={slim}
+            rangeLabel={choice.label}
+            startStr={choice.startStr}
+            endStr={choice.endStr}
+            scopeLabel={scopeLabel}
+            handleCount={new Set(slim.map((s) => s.handle)).size}
+          />
 
-      <section className="mb-10">
-        <h2 className="mb-3 text-lg font-semibold">Session history</h2>
-        {sessions.length > 0 ? (
-          <SessionsTable sessions={sessions} />
-        ) : (
-          <div className="border border-zinc-200 dark:border-zinc-800 rounded-xl p-8 text-center text-sm text-zinc-500">
-            No lives in the selected range.
-          </div>
-        )}
-      </section>
+          <OverviewCharts
+            sessions={slim}
+            seedAgg={agg}
+            perHandle={streamer === "all"}
+          />
+
+          <StreamerTable sessions={slim} keywordsByAccount={keywordsByAccount} />
+
+          <TopLives sessions={slim} />
+
+          <DataQuality sessions={slim} />
+
+          <section className="mb-10">
+            <h2 className="mb-3 text-lg font-semibold">Session history</h2>
+            <SessionsTable sessions={sessions} linkHandle={streamer === "all"} />
+          </section>
+        </>
+      )}
     </div>
   );
 }

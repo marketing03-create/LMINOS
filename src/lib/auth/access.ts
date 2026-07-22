@@ -28,7 +28,7 @@ export function accessForRole(role: Role): Access {
     // now that leads/sales/ads (and the old /dashboard Overview) live in Adrify.
     case "hq_admin":
     case "marketing_manager":
-      return { allowed: "all", home: "/admin/tiktok" };
+      return { allowed: "all", home: "/admin/tiktok/all" };
     // A live streamer only ever sees + uploads their own TikTok Live.
     case "live_streamer":
       return { allowed: [NO_ACCESS_PATH, "/tiktok-live"], home: "/tiktok-live" };

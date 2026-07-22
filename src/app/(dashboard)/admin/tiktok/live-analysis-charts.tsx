@@ -1,21 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
 import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Legend,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
-import {
-  AGG_LABEL,
-  AGGREGATIONS,
   dmsByDate,
   durationByDate,
   leadsByHour,
@@ -25,199 +10,27 @@ import {
   watchByDate,
   type Agg,
   type AnalysisSession,
-  type ChartRow,
 } from "@/lib/tiktok-live/live-analysis-core";
-
-const BLUE = "#3b82f6";
-const RED = "#ef4444";
-const AXIS = "#8b93a7";
-const GRID = "rgba(148,163,184,0.18)";
-
-/** Compact axis ticks — 8 400 → "8.4k", so a 4-digit label can't get clipped. */
-function compact(n: number): string {
-  const abs = Math.abs(n);
-  if (abs >= 1_000_000) return `${(n / 1_000_000).toFixed(abs >= 10_000_000 ? 0 : 1)}M`;
-  if (abs >= 1_000) return `${(n / 1_000).toFixed(abs >= 10_000 ? 0 : 1)}k`;
-  return String(Math.round(n * 10) / 10);
-}
-const full = (n: number) => n.toLocaleString("en-MY");
-
-type Series = { key: string; name: string; color: string };
-
-/** Shared dark-on-light-and-dark tooltip; values formatted in full. */
-function ChartTooltip({
-  active,
-  payload,
-  label,
-  rows,
-}: {
-  active?: boolean;
-  payload?: { name: string; value: number | null; color: string }[];
-  label?: string | number;
-  rows: ChartRow[];
-}) {
-  if (!active || !payload?.length) return null;
-  const n = rows.find((r) => r.label === label)?.n;
-  return (
-    <div className="rounded-lg border border-zinc-200 bg-white/95 px-3 py-2 text-xs shadow-lg backdrop-blur dark:border-zinc-700 dark:bg-zinc-900/95">
-      <div className="mb-1 font-medium text-zinc-900 dark:text-zinc-100">
-        {String(label)}
-        {n != null && (
-          <span className="ml-1 font-normal text-zinc-500">
-            · {n} live{n === 1 ? "" : "s"}
-          </span>
-        )}
-      </div>
-      {payload.map((p) => (
-        <div key={p.name} className="flex items-center justify-between gap-4">
-          <span className="flex items-center gap-1.5 text-zinc-600 dark:text-zinc-300">
-            <span
-              className="inline-block h-2 w-2 rounded-sm"
-              style={{ background: p.color }}
-            />
-            {p.name}
-          </span>
-          <span className="tabular-nums font-medium text-zinc-900 dark:text-zinc-100">
-            {p.value == null ? "—" : full(p.value)}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/** One chart + its own Total/Average/Min/Max/Count/Median picker. */
-function ChartCard({
-  title,
-  subtitle,
-  kind,
-  series,
-  build,
-  sessions,
-  defaultAgg,
-  emptyHint,
-  unit,
-}: {
-  title: string;
-  subtitle: string;
-  kind: "line" | "bar";
-  series: Series[];
-  build: (s: AnalysisSession[], agg: Agg) => ChartRow[];
-  sessions: AnalysisSession[];
-  defaultAgg: Agg;
-  emptyHint: string;
-  unit?: string;
-}) {
-  const [agg, setAgg] = useState<Agg>(defaultAgg);
-  const rows = useMemo(() => build(sessions, agg), [build, sessions, agg]);
-  const hasData = rows.some((r) => series.some((s) => r[s.key] != null));
-
-  const axis = { fill: AXIS, fontSize: 11 };
-  const xProps = {
-    dataKey: "label",
-    tick: axis,
-    tickLine: false,
-    axisLine: { stroke: GRID },
-    interval: kind === "bar" ? (0 as const) : ("preserveStartEnd" as const),
-    angle: -25,
-    textAnchor: "end" as const,
-    height: 48,
-  };
-  const yProps = {
-    tick: axis,
-    tickLine: false,
-    axisLine: false,
-    width: 52,
-    tickFormatter: compact,
-  };
-
-  return (
-    <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
-      <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
-        <div className="min-w-0">
-          <h3 className="text-sm font-semibold">{title}</h3>
-          <p className="text-[11px] text-zinc-500">
-            {subtitle}
-            {unit ? ` · ${unit}` : ""}
-          </p>
-        </div>
-        <select
-          value={agg}
-          onChange={(e) => setAgg(e.target.value as Agg)}
-          aria-label={`How to combine ${title}`}
-          className="shrink-0 rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs font-medium text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
-        >
-          {AGGREGATIONS.map((a) => (
-            <option key={a} value={a}>
-              {AGG_LABEL[a]}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {!hasData ? (
-        <div className="grid h-[240px] place-items-center rounded-lg border border-dashed border-zinc-300 text-xs text-zinc-500 dark:border-zinc-700">
-          No data yet — {emptyHint}.
-        </div>
-      ) : (
-        <ResponsiveContainer width="100%" height={240}>
-          {kind === "line" ? (
-            <LineChart data={rows} margin={{ top: 6, right: 10, bottom: 0, left: -8 }}>
-              <CartesianGrid stroke={GRID} strokeDasharray="3 3" vertical={false} />
-              <XAxis {...xProps} />
-              <YAxis {...yProps} />
-              <Tooltip
-                content={<ChartTooltip rows={rows} />}
-                cursor={{ stroke: GRID, strokeWidth: 1 }}
-              />
-              {series.length > 1 && <Legend wrapperStyle={{ fontSize: 11 }} />}
-              {series.map((s) => (
-                <Line
-                  key={s.key}
-                  dataKey={s.key}
-                  name={s.name}
-                  stroke={s.color}
-                  strokeWidth={2}
-                  dot={{ r: 2.5, strokeWidth: 0, fill: s.color }}
-                  activeDot={{ r: 5, strokeWidth: 2, stroke: "#fff" }}
-                  connectNulls
-                />
-              ))}
-            </LineChart>
-          ) : (
-            <BarChart data={rows} margin={{ top: 6, right: 10, bottom: 0, left: -8 }}>
-              <CartesianGrid stroke={GRID} strokeDasharray="3 3" vertical={false} />
-              <XAxis {...xProps} />
-              <YAxis {...yProps} />
-              {/* cursor={false} → hovering highlights only the bar, never a grey
-                  band behind it. */}
-              <Tooltip content={<ChartTooltip rows={rows} />} cursor={false} />
-              {series.length > 1 && <Legend wrapperStyle={{ fontSize: 11 }} />}
-              {series.map((s) => (
-                <Bar
-                  key={s.key}
-                  dataKey={s.key}
-                  name={s.name}
-                  fill={s.color}
-                  radius={[3, 3, 0, 0]}
-                  maxBarSize={26}
-                  activeBar={{ fill: s.color, fillOpacity: 0.75 }}
-                />
-              ))}
-            </BarChart>
-          )}
-        </ResponsiveContainer>
-      )}
-    </div>
-  );
-}
+import { BLUE, ChartCard, NON_SUM_AGGS, RED, type Series } from "./chart-card";
 
 const LEADS: Series[] = [
   { key: "totalLeads", name: "Total Leads", color: BLUE },
   { key: "filteredLeads", name: "Filtered Leads", color: RED },
 ];
 
-export function LiveAnalysisCharts({ sessions }: { sessions: AnalysisSession[] }) {
+/** Below this, a per-hour lead breakdown is 1–2 lives per bar. */
+const MIN_LEAD_LIVES = 5;
+
+export function LiveAnalysisCharts({
+  sessions,
+  seedAgg,
+}: {
+  sessions: AnalysisSession[];
+  /** Optional page-level "Combine by" value (the Overview supplies one). */
+  seedAgg?: Agg;
+}) {
+  const leadLives = sessions.filter((s) => s.totalLeads != null).length;
+
   return (
     <div className="grid gap-4 md:grid-cols-2">
       <ChartCard
@@ -229,7 +42,8 @@ export function LiveAnalysisCharts({ sessions }: { sessions: AnalysisSession[] }
         build={durationByDate}
         sessions={sessions}
         defaultAgg="SUM"
-        emptyHint="needs lives with a recorded duration"
+        seedAgg={seedAgg}
+        emptyHint="No data yet — needs lives with a recorded duration."
       />
       <ChartCard
         title="Total Viewers per Session"
@@ -240,7 +54,8 @@ export function LiveAnalysisCharts({ sessions }: { sessions: AnalysisSession[] }
         build={viewsByDate}
         sessions={sessions}
         defaultAgg="SUM"
-        emptyHint="needs lives with views recorded"
+        seedAgg={seedAgg}
+        emptyHint="No data yet — needs lives with views recorded."
       />
       <ChartCard
         title="Daily Average Watch Time"
@@ -251,7 +66,14 @@ export function LiveAnalysisCharts({ sessions }: { sessions: AnalysisSession[] }
         build={watchByDate}
         sessions={sessions}
         defaultAgg="AVG"
-        emptyHint="needs lives with Avg watch (sec) keyed in"
+        seedAgg={seedAgg}
+        // Already an average per live — summing per-live averages is meaningless.
+        aggs={NON_SUM_AGGS}
+        // Recorded on a minority of lives: joining the dots would draw a
+        // confident trend straight across the days nobody entered.
+        connectNulls={false}
+        emptyHint="No data yet — needs lives with Avg watch (sec) keyed in."
+        footnote="A gap means the number wasn't entered for that day, not that it was zero."
       />
       <ChartCard
         title="Daily Direct Messages"
@@ -262,7 +84,10 @@ export function LiveAnalysisCharts({ sessions }: { sessions: AnalysisSession[] }
         build={dmsByDate}
         sessions={sessions}
         defaultAgg="SUM"
-        emptyHint="needs lives with DMs keyed in"
+        seedAgg={seedAgg}
+        connectNulls={false}
+        emptyHint="No data yet — needs lives with DMs keyed in."
+        footnote="A gap means the number wasn't entered for that day, not that it was zero."
       />
       <ChartCard
         title="Views"
@@ -273,27 +98,43 @@ export function LiveAnalysisCharts({ sessions }: { sessions: AnalysisSession[] }
         build={viewsByHour}
         sessions={sessions}
         defaultAgg="AVG"
-        emptyHint="needs lives with views recorded"
+        seedAgg={seedAgg}
+        emptyHint="No data yet — needs lives with views recorded."
+        footnote="Counted from the time each live started, so a long live counts once."
       />
       <ChartCard
-        title="Product vs Total Leads & Filtered Leads"
-        subtitle="Leads per product"
+        title="Product mix vs leads"
+        subtitle="Each live counted once, under the products it promoted"
         kind="bar"
         series={LEADS}
         build={leadsByProduct}
         sessions={sessions}
         defaultAgg="SUM"
-        emptyHint="needs lives with a product tag and leads keyed in"
+        seedAgg={seedAgg}
+        emptyHint="No data yet — needs lives with a product tag and leads keyed in."
       />
       <ChartCard
-        title="Live Session Time"
-        subtitle="By time of day — which slot converts best"
+        title="Leads by time of day"
+        subtitle="Which slot brought the most customer contacts"
         kind="bar"
         series={LEADS}
         build={leadsByHour}
-        sessions={sessions}
+        // Below the floor, hand the chart nothing so it renders the explanation
+        // instead of ~10 bars each resting on a single live.
+        sessions={leadLives >= MIN_LEAD_LIVES ? sessions : []}
         defaultAgg="AVG"
-        emptyHint="needs lives with leads keyed in"
+        seedAgg={seedAgg}
+        // Fade any hour built from fewer than 3 lives that actually had leads
+        // entered — at 19% coverage most bars rest on one or two.
+        dimBelowN={3}
+        emptyHint={
+          leadLives === 0
+            ? "No lead numbers have been entered for these lives yet, so there's nothing to break down by time of day."
+            : `Only ${leadLives} live${leadLives === 1 ? "" : "s"} here ${
+                leadLives === 1 ? "has" : "have"
+              } lead numbers entered — too few to split across the day. Fill in a few more and this chart appears.`
+        }
+        footnote="Faded bars come from fewer than three lives with leads entered."
       />
     </div>
   );

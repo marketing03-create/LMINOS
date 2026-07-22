@@ -19,7 +19,8 @@ describe("page access policy (default-deny)", () => {
         expect(canAccessPath(role, p)).toBe(true);
       }
       expect(isAdminRole(role)).toBe(true);
-      expect(homeForRole(role)).toBe("/admin/tiktok");
+      // The Overview — every card and chart in one place.
+      expect(homeForRole(role)).toBe("/admin/tiktok/all");
     }
   });
 

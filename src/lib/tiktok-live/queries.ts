@@ -54,6 +54,32 @@ export async function tiktokAccountsForPicker(
     .orderBy(tiktokAccounts.handle);
 }
 
+/**
+ * Every handle plus whether it has lead keywords configured.
+ *
+ * The Overview needs the keyword flag because `keyword_leads` is NOT NULL
+ * DEFAULT 0: a handle with no keywords set records a confident 0 on every live,
+ * which reads as "this streamer converts nobody" when it only means nobody
+ * configured the words to watch for.
+ */
+export async function tiktokAccountsWithKeywords(): Promise<
+  { id: string; handle: string; hasKeywords: boolean }[]
+> {
+  const rows = await db
+    .select({
+      id: tiktokAccounts.id,
+      handle: tiktokAccounts.handle,
+      leadKeywords: tiktokAccounts.leadKeywords,
+    })
+    .from(tiktokAccounts)
+    .orderBy(tiktokAccounts.handle);
+  return rows.map((r) => ({
+    id: r.id,
+    handle: r.handle,
+    hasKeywords: (r.leadKeywords?.length ?? 0) > 0,
+  }));
+}
+
 /** True if `sessionId` belongs to a handle assigned to this streamer. */
 export async function streamerOwnsSession(
   userId: string,
