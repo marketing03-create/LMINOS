@@ -14,6 +14,7 @@ import {
 import {
   buildRateChart,
   byPartOfDay,
+  dailyAverage,
   hours,
   type RateDef,
 } from "@/lib/tiktok-live/overview-core";
@@ -89,6 +90,21 @@ export function OverviewCharts({
 
   const leadLives = sessions.filter((s) => s.totalLeads != null).length;
 
+  // Headline averages: the metric's period total ÷ the number of days that had
+  // a live. Per-DAY, so each is labelled with its own unit — the views chart
+  // plots a per-HOUR line and the two must not read as the same figure.
+  const avgViewsPerDay = useMemo(
+    () => dailyAverage(sessions, (s) => s.totalViews),
+    [sessions]
+  );
+  const avgMinutesPerDay = useMemo(
+    () =>
+      dailyAverage(sessions, (s) =>
+        s.durationSeconds == null ? null : s.durationSeconds / 60
+      ),
+    [sessions]
+  );
+
   return (
     <>
       <div className="mb-8 grid gap-4 md:grid-cols-2">
@@ -107,6 +123,13 @@ export function OverviewCharts({
           defaultAgg="SUM"
           aggLock="Pooled rate"
           connectNulls={false}
+          average={{
+            value: avgViewsPerDay.value,
+            unit: "views/day",
+            title: `Total views ÷ the ${avgViewsPerDay.days} day${
+              avgViewsPerDay.days === 1 ? "" : "s"
+            } that had a live. Per day, not per hour — the line above is per hour.`,
+          }}
           emptyHint="No data yet — needs lives with views and a duration recorded."
         />
         <ChartCard
@@ -119,6 +142,13 @@ export function OverviewCharts({
           sessions={sessions}
           defaultAgg="SUM"
           seedAgg={seedAgg}
+          average={{
+            value: avgMinutesPerDay.value,
+            unit: "min/day",
+            title: `Total minutes streamed ÷ the ${avgMinutesPerDay.days} day${
+              avgMinutesPerDay.days === 1 ? "" : "s"
+            } that had a live.`,
+          }}
           emptyHint="No data yet — needs lives with a recorded duration."
         />
       </div>

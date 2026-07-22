@@ -17,6 +17,7 @@
 
 import {
   aggregate,
+  mytDate,
   mytHour,
   type Agg,
   type AnalysisSession,
@@ -234,6 +235,38 @@ export function buildRateChart(
       }
       return row;
     });
+}
+
+/**
+ * A chart's headline "average value": the metric's total across the period
+ * divided by the number of DAYS that had a live (not the number of lives, and
+ * not the number of days in the range — days with no live would drag it down).
+ *
+ * Deliberately per-day rather than per-hour: it answers "on a day we go live,
+ * what do we get?", which is the unit a schedule is planned in. Its unit differs
+ * from a per-hour line, so callers must always render it with its own unit.
+ */
+export function dailyAverage(
+  sessions: AnalysisSession[],
+  get: (s: AnalysisSession) => number | null
+): { value: number | null; days: number; lives: number } {
+  const days = new Set<string>();
+  let total = 0;
+  let lives = 0;
+
+  for (const s of sessions) {
+    const v = get(s);
+    if (v == null || !Number.isFinite(v) || !s.startedAt) continue;
+    total += v;
+    lives += 1;
+    days.add(mytDate(s.startedAt));
+  }
+
+  return {
+    value: days.size > 0 ? round1(total / days.size) : null,
+    days: days.size,
+    lives,
+  };
 }
 
 // ── Buckets ─────────────────────────────────────────────────────────────────

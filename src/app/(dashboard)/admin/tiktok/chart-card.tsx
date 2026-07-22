@@ -122,6 +122,7 @@ export function ChartCard({
   connectNulls = true,
   dimBelowN,
   footnote,
+  average,
 }: {
   title: string;
   subtitle: string;
@@ -143,6 +144,12 @@ export function ChartCard({
   /** Fade any bucket whose own contributing count is below this. */
   dimBelowN?: number;
   footnote?: React.ReactNode;
+  /**
+   * A headline figure for the whole period, shown beside the picker. Its `unit`
+   * is mandatory and always rendered: this is a per-DAY figure while some charts
+   * plot a per-HOUR line, so the two must never be readable as the same thing.
+   */
+  average?: { value: number | null; unit: string; title?: string };
 }) {
   // A local override that self-clears whenever the page-level seed changes —
   // equivalent to syncing in an effect, without the extra render or the
@@ -187,27 +194,42 @@ export function ChartCard({
             {unit ? ` · ${unit}` : ""}
           </p>
         </div>
-        {aggLock ? (
-          <span
-            title="Rates are always worked out from the period totals, so they can't be re-combined."
-            className="shrink-0 cursor-help rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1 text-xs font-medium text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400"
-          >
-            {aggLock}
-          </span>
-        ) : (
-          <select
-            value={agg}
-            onChange={(e) => setOverride({ seed: seedAgg, agg: e.target.value as Agg })}
-            aria-label={`How to combine ${title}`}
-            className="shrink-0 rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs font-medium text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
-          >
-            {aggs.map((a) => (
-              <option key={a} value={a}>
-                {AGG_LABEL[a]}
-              </option>
-            ))}
-          </select>
-        )}
+        <div className="flex shrink-0 items-center gap-1.5">
+          {average && (
+            <span
+              title={
+                average.title ??
+                `Average per day that had a live, across the selected dates. Measured in ${average.unit}.`
+              }
+              className="cursor-help whitespace-nowrap rounded-md bg-zinc-100 px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-zinc-600 dark:bg-zinc-900 dark:text-zinc-300"
+            >
+              Avg{" "}
+              {average.value == null ? "—" : average.value.toLocaleString("en-MY")}{" "}
+              <span className="font-normal text-zinc-400">{average.unit}</span>
+            </span>
+          )}
+          {aggLock ? (
+            <span
+              title="Rates are always worked out from the period totals, so they can't be re-combined."
+              className="cursor-help whitespace-nowrap rounded-md border border-zinc-200 bg-zinc-50 px-1.5 py-0.5 text-[11px] font-medium text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400"
+            >
+              {aggLock}
+            </span>
+          ) : (
+            <select
+              value={agg}
+              onChange={(e) => setOverride({ seed: seedAgg, agg: e.target.value as Agg })}
+              aria-label={`How to combine ${title}`}
+              className="shrink-0 rounded-md border border-zinc-300 bg-white px-1 py-0.5 text-[11px] font-medium text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+            >
+              {aggs.map((a) => (
+                <option key={a} value={a}>
+                  {AGG_LABEL[a]}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
       </div>
 
       {!hasData ? (

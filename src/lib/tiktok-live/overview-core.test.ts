@@ -8,6 +8,7 @@ import {
   chaseList,
   connectorMisses,
   coverage,
+  dailyAverage,
   handlesWithLeads,
   hours,
   pooledRate,
@@ -122,6 +123,54 @@ describe("coverage", () => {
       TYPED_FIELDS
     ).find((f) => f.key === "products")!;
     expect(c.filled).toBe(2);
+  });
+});
+
+describe("dailyAverage", () => {
+  it("divides by DAYS that had a live, not by the number of lives", () => {
+    // Two lives on the same day, one the next day: 3 lives across 2 days.
+    const rows = [
+      mk({ startedAt: "2026-07-14T10:00:00Z", totalViews: 100 }),
+      mk({ startedAt: "2026-07-14T13:00:00Z", totalViews: 200 }),
+      mk({ startedAt: "2026-07-15T10:00:00Z", totalViews: 300 }),
+    ];
+    const a = dailyAverage(rows, (s) => s.totalViews);
+    expect(a.days).toBe(2);
+    expect(a.lives).toBe(3);
+    expect(a.value).toBe(300); // 600 / 2 days — NOT 600 / 3 lives
+  });
+
+  it("groups days in Malaysia time, not UTC", () => {
+    // 20:00Z on the 14th is 04:00 MYT on the 15th — one MYT day, not two.
+    const a = dailyAverage(
+      [
+        mk({ startedAt: "2026-07-14T20:00:00Z", totalViews: 100 }),
+        mk({ startedAt: "2026-07-14T21:00:00Z", totalViews: 100 }),
+      ],
+      (s) => s.totalViews
+    );
+    expect(a.days).toBe(1);
+    expect(a.value).toBe(200);
+  });
+
+  it("ignores lives with the metric unrecorded, in both parts of the ratio", () => {
+    // A blank day must not quietly become a zero that drags the average down.
+    const a = dailyAverage(
+      [
+        mk({ startedAt: "2026-07-14T10:00:00Z", totalViews: 500 }),
+        mk({ startedAt: "2026-07-15T10:00:00Z", totalViews: null }),
+      ],
+      (s) => s.totalViews
+    );
+    expect(a.days).toBe(1);
+    expect(a.value).toBe(500); // not 250
+  });
+
+  it("returns null rather than dividing by zero", () => {
+    expect(dailyAverage([], (s) => s.totalViews).value).toBeNull();
+    expect(
+      dailyAverage(many(3, { totalViews: null }), (s) => s.totalViews).value
+    ).toBeNull();
   });
 });
 

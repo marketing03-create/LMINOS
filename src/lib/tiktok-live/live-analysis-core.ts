@@ -26,9 +26,11 @@ export const AGG_LABEL: Record<Agg, string> = {
   AVG: "Average",
   MIN: "Minimum",
   MAX: "Maximum",
-  // "with a value" matters: aggregate() counts only lives that RECORDED the
-  // metric, which on a 19%-filled field is far fewer than the lives in the bucket.
-  COUNT: "Count of lives with a value",
+  // Counts only lives that RECORDED the metric, which on a 19%-filled field is
+  // far fewer than the lives in the bucket. The tooltip spells that out per
+  // point ("N recorded"); the label stays short so the picker doesn't dominate
+  // the chart header.
+  COUNT: "Count",
   MEDIAN: "Median",
 };
 
