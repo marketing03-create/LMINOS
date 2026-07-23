@@ -35,7 +35,7 @@ export const userNotifications = pgTable(
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    type: text("type").notNull(), // e.g. "tiktok_incomplete_metrics"
+    type: text("type").notNull(), // e.g. "tiktok_missing_leads", "tiktok_missing_metrics"
     title: text("title").notNull(),
     body: text("body"),
     href: text("href"), // where tapping the row goes

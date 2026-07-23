@@ -25,13 +25,23 @@ export const config: VercelConfig = {
   // permanent — browsers cache a 308 forever, and we may want the path back.
   redirects: [{ source: "/dashboard", destination: "/", permanent: false }],
 
+  // Vercel Hobby allows 2 cron jobs, once per day each — so both daily checks
+  // fit, but the ~1h post-live nudge (needs sub-daily) can't be a cron here.
+  // It's exposed at /api/cron/tiktok-post-live-nudge for an hourly external
+  // trigger; the 10pm job calls the same logic as a daily catch-all.
   crons: [
     {
-      // "Did a streamer forget to fill in their live metrics?" — 10:00 Malaysia
-      // time (UTC+8) = 02:00 UTC. Reminds each streamer in-app (+ Telegram if
-      // paired) until every live has its numbers.
+      // 10am Malaysia time (UTC+8) = 02:00 UTC — chase LEAD numbers (Total /
+      // Filtered Leads), which Customer Service fills as leads come in.
       path: "/api/cron/tiktok-missing-results",
       schedule: "0 2 * * *",
+    },
+    {
+      // 10pm Malaysia time = 14:00 UTC — re-check LIVE metrics (DMs, Bio views)
+      // the streamer keys from the TikTok backend, and first-nudge (catch-all)
+      // any live that ended today and was never nudged.
+      path: "/api/cron/tiktok-evening-metrics",
+      schedule: "0 14 * * *",
     },
   ],
 

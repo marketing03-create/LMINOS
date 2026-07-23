@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   isComplete,
+  LEAD_METRICS,
+  LIVE_METRICS,
   LOOKBACK_DAYS,
   lookbackWindow,
   METRIC_LABEL,
+  missingLeadMetrics,
+  missingLiveMetrics,
   missingMetrics,
   REQUIRED_METRICS,
 } from "./completeness";
@@ -57,6 +61,36 @@ describe("missingMetrics / isComplete", () => {
     for (const m of REQUIRED_METRICS) {
       expect(METRIC_LABEL[m]).toBeTruthy();
     }
+  });
+});
+
+describe("the lead / live-metric split", () => {
+  it("the two groups partition the required set, no overlap", () => {
+    expect([...LEAD_METRICS, ...LIVE_METRICS].sort()).toEqual(
+      [...REQUIRED_METRICS].sort()
+    );
+    expect(LEAD_METRICS.some((m) => (LIVE_METRICS as readonly string[]).includes(m))).toBe(false);
+  });
+
+  it("live-metric gaps are chased independently of leads", () => {
+    // Leads both in, but a live metric blank → the LIVE reminder should fire and
+    // the LEAD reminder should not. This is what lets DMs clear without leads.
+    const row = { totalLeads: 4, filteredLeads: 2, directMessages: null, serviceBioViews: 8 };
+    expect(missingLiveMetrics(row)).toEqual(["directMessages"]);
+    expect(missingLeadMetrics(row)).toEqual([]);
+  });
+
+  it("lead gaps are chased independently of live metrics", () => {
+    const row = { totalLeads: null, filteredLeads: 2, directMessages: 30, serviceBioViews: 8 };
+    expect(missingLeadMetrics(row)).toEqual(["totalLeads"]);
+    expect(missingLiveMetrics(row)).toEqual([]);
+  });
+
+  it("a live with only its live metrics done is NOT lead-complete", () => {
+    const row = { totalLeads: null, filteredLeads: null, directMessages: 1, serviceBioViews: 1 };
+    expect(missingLiveMetrics(row)).toEqual([]);
+    expect(missingLeadMetrics(row)).toEqual([...LEAD_METRICS]);
+    expect(isComplete(row)).toBe(false);
   });
 });
 

@@ -73,6 +73,10 @@ export const tiktokLiveSessions = pgTable(
     // `tiktok_live_leads`. A follow-up worklist / intent signal, shown separately
     // from the deduped Total Leads (not summed into it).
     keywordLeads: integer("keyword_leads").notNull().default(0),
+    // When the "your live just ended — add its numbers" nudge was sent for this
+    // session. Set once, ~1h after the live ends, so that reminder never repeats
+    // (the daily 10pm/10am checks take over from there). Null = not yet nudged.
+    metricsNudgedAt: timestamp("metrics_nudged_at", { withTimezone: true }),
     rawPayload: jsonb("raw_payload"),
     ...timestamps(),
   },

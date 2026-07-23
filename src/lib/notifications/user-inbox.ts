@@ -6,10 +6,14 @@
  * READ time rather than by a job, so the badge drops the instant the streamer
  * hits Save — no write, no cron, self-healing.
  */
-import { and, desc, eq, inArray, isNull } from "drizzle-orm";
+import { desc, eq, inArray, isNull, and } from "drizzle-orm";
 import { db } from "@/db/client";
 import { tiktokLiveSessions, userNotifications } from "@/db/schema";
-import { incompleteCondition } from "@/lib/tiktok-live/completeness";
+import {
+  missingLeadMetrics,
+  missingLiveMetrics,
+  missingMetrics,
+} from "@/lib/tiktok-live/completeness";
 
 export type InboxRow = {
   id: string;
@@ -24,24 +28,54 @@ export type InboxRow = {
 };
 
 /**
- * Drop rows whose referenced lives are all complete. Rows with no sessionIds
- * (generic notifications) are always kept.
+ * Which "still owes numbers" test applies to a notification, by its type. A
+ * leads reminder resolves when the LEAD metrics are in; a live-metrics reminder
+ * resolves when the STREAMER metrics are in — independently, so filling one
+ * clears its reminder without waiting on the other. Anything else (legacy /
+ * unknown) falls back to "all four", the safe superset.
+ */
+function stillOwes(type: string, row: MetricRow): boolean {
+  if (type === "tiktok_missing_leads") return missingLeadMetrics(row).length > 0;
+  if (type === "tiktok_missing_metrics") return missingLiveMetrics(row).length > 0;
+  return missingMetrics(row).length > 0;
+}
+
+type MetricRow = {
+  totalLeads: number | null;
+  filteredLeads: number | null;
+  directMessages: number | null;
+  serviceBioViews: number | null;
+};
+
+/**
+ * Drop rows whose referenced lives are all complete FOR THAT ROW'S metric group.
+ * Rows with no sessionIds (generic notifications) are always kept.
  */
 async function filterUnresolved(rows: InboxRow[]): Promise<InboxRow[]> {
   const ids = [...new Set(rows.flatMap((r) => r.sessionIds ?? []))];
   if (ids.length === 0) return rows;
 
-  // Which of those lives STILL owe numbers?
-  const stillOpen = await db
-    .select({ id: tiktokLiveSessions.id })
+  // Pull each referenced live's four metric cells once; decide open-ness per row.
+  const cells = await db
+    .select({
+      id: tiktokLiveSessions.id,
+      totalLeads: tiktokLiveSessions.totalLeads,
+      filteredLeads: tiktokLiveSessions.filteredLeads,
+      directMessages: tiktokLiveSessions.directMessages,
+      serviceBioViews: tiktokLiveSessions.serviceBioViews,
+    })
     .from(tiktokLiveSessions)
-    .where(and(inArray(tiktokLiveSessions.id, ids), incompleteCondition()));
-  const open = new Set(stillOpen.map((r) => r.id));
+    .where(inArray(tiktokLiveSessions.id, ids));
+  const byId = new Map(cells.map((c) => [c.id, c]));
 
   return rows.filter((r) => {
     const refs = r.sessionIds ?? [];
     if (refs.length === 0) return true; // not a live-linked notification
-    return refs.some((id) => open.has(id)); // keep only while something's open
+    // Keep the reminder while ANY referenced live still owes THIS row's group.
+    return refs.some((id) => {
+      const row = byId.get(id);
+      return row ? stillOwes(r.type, row) : false;
+    });
   });
 }
 

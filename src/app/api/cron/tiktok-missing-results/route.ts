@@ -1,53 +1,34 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import {
-  appNotifications,
-  tiktokAccounts,
-  tiktokLiveSessions,
-  userNotifications,
-  users,
-} from "@/db/schema";
+import { appNotifications } from "@/db/schema";
 import { cronAuthorized } from "@/lib/auth/cron";
 import { alertAdmins } from "@/lib/telegram/alert";
-import { escapeMd, sendMarkdown } from "@/lib/telegram/send";
-import { upsertUserNotification } from "@/lib/notifications/user-inbox";
 import {
   lookbackWindow,
-  METRIC_LABEL,
-  missingMetrics,
-  outstandingCondition,
+  leadMetricsIncompleteCondition,
 } from "@/lib/tiktok-live/completeness";
+import { findOutstanding, notifyStreamers } from "@/lib/tiktok-live/reminders";
 
 /**
- * "Did someone forget to fill in their live metrics?" — the 10am Malaysia-time
- * check. The POINT of this job is the STREAMER: it scans the last LOOKBACK_DAYS
- * for any live still missing a required metric (Total Leads, Filtered Leads,
- * DMs, Bio views) and upserts ONE Notification Center row per streamer, resetting
- * it to unread so the bell badge comes back every morning until the numbers are
- * in. That row auto-clears the moment the live is complete (resolved at read
- * time in user-inbox.ts) — no pairing, no setup, works on first login.
+ * The 10am Malaysia-time LEADS check. Leads arrive over hours/days as Customer
+ * Service works them, so they're chased once each morning — separately from the
+ * streamer's own live metrics (DMs/Bio views), which get the ~1h post-live nudge
+ * and the 10pm re-check instead.
  *
- * Admins keep their existing summary UNCHANGED: still yesterday-only, still
- * "no Total Leads", still one Telegram + in-app pop-out per day. Streamers who
- * HAVE paired Telegram also get a personal DM (same once-a-day gate).
+ * Streamers: one Notification Center row each for lives still missing Total or
+ * Filtered Leads, re-surfaced until filled (+ a Telegram DM, once per morning).
+ * Admins: the existing summary, UNCHANGED — yesterday only, "no Total Leads".
  *
  * Fail-closed on CRON_SECRET.
  */
 
 const MYT_MS = 8 * 60 * 60 * 1000; // Malaysia is UTC+8, no DST
-
-/** Keep the Telegram message readable on a heavy streaming day. */
 const MAX_LISTED = 10;
 
 /** Yesterday 00:00–24:00 Malaysia time, expressed as UTC instants. */
 function yesterdayMyt(now = new Date()) {
   const myt = new Date(now.getTime() + MYT_MS);
-  const startMyt = Date.UTC(
-    myt.getUTCFullYear(),
-    myt.getUTCMonth(),
-    myt.getUTCDate() - 1
-  );
+  const startMyt = Date.UTC(myt.getUTCFullYear(), myt.getUTCMonth(), myt.getUTCDate() - 1);
   const start = new Date(startMyt - MYT_MS);
   return {
     start,
@@ -71,111 +52,11 @@ export async function GET(request: NextRequest) {
   const { start, end, date } = yesterdayMyt();
   const { since, until } = lookbackWindow();
 
-  // ONE scan over the whole lookback window; both audiences are derived from it.
-  const outstanding = await db
-    .select({
-      sessionId: tiktokLiveSessions.id,
-      handle: tiktokAccounts.handle,
-      startedAt: tiktokLiveSessions.startedAt,
-      streamerEmail: users.email,
-      streamerId: users.id,
-      streamerChatId: users.telegramChatId,
-      totalLeads: tiktokLiveSessions.totalLeads,
-      filteredLeads: tiktokLiveSessions.filteredLeads,
-      directMessages: tiktokLiveSessions.directMessages,
-      serviceBioViews: tiktokLiveSessions.serviceBioViews,
-    })
-    .from(tiktokLiveSessions)
-    .innerJoin(tiktokAccounts, eq(tiktokAccounts.id, tiktokLiveSessions.accountId))
-    .leftJoin(users, eq(users.id, tiktokAccounts.assignedStreamerId))
-    .where(outstandingCondition(since, until));
+  // ONE scan for lives still missing LEAD numbers; both audiences derive from it.
+  const outstanding = await findOutstanding(since, until, leadMetricsIncompleteCondition());
 
-  // ── Streamers: one persistent Notification Center row each, re-surfaced ──
-  // NOT gated on firstRunToday — the unique index makes the upsert idempotent,
-  // which also makes it self-healing if the admin insert below ever throws.
-  const byStreamer = new Map<
-    string,
-    { chatId: string | null; lines: string[]; sessionIds: string[] }
-  >();
-  for (const r of outstanding) {
-    if (!r.streamerId) continue; // live with no assigned streamer — see admin note
-    const g = byStreamer.get(r.streamerId) ?? {
-      chatId: r.streamerChatId,
-      lines: [],
-      sessionIds: [],
-    };
-    const missing = missingMetrics(r).map((m) => METRIC_LABEL[m]);
-    g.lines.push(
-      `• @${r.handle}${r.startedAt ? ` · ${timeFmt.format(r.startedAt)}` : ""}` +
-        ` — missing ${missing.join(", ")}`
-    );
-    g.sessionIds.push(r.sessionId);
-    byStreamer.set(r.streamerId, g);
-  }
-
-  /** YYYY-MM-DD in Malaysia time. */
-  const mytDay = (d: Date) =>
-    new Date(d.getTime() + MYT_MS).toISOString().slice(0, 10);
-  const today = mytDay(new Date());
-
-  let streamersNotified = 0;
-  let streamersPinged = 0;
-  for (const [streamerId, g] of byStreamer) {
-    const n = g.sessionIds.length;
-
-    // Has this streamer's reminder already been refreshed today? That is the
-    // once-a-day gate for the Telegram DM — no extra table, no admin-feed noise.
-    let alreadySentToday = false;
-    try {
-      const [prev] = await db
-        .select({ updatedAt: userNotifications.updatedAt })
-        .from(userNotifications)
-        .where(
-          and(
-            eq(userNotifications.userId, streamerId),
-            eq(userNotifications.type, "tiktok_incomplete_metrics"),
-            eq(userNotifications.dedupeKey, "incomplete")
-          )
-        )
-        .limit(1);
-      alreadySentToday = !!prev && mytDay(prev.updatedAt) === today;
-
-      await upsertUserNotification({
-        userId: streamerId,
-        type: "tiktok_incomplete_metrics",
-        // Fixed key → ONE row per streamer, refreshed (and re-unread) daily.
-        dedupeKey: "incomplete",
-        title: `${n} live${n === 1 ? "" : "s"} need your numbers`,
-        body:
-          `${n === 1 ? "This live is" : "These lives are"} still missing metrics. ` +
-          `Tap to fill in Total Leads, Filtered Leads, DMs and Bio views.`,
-        href: n === 1 ? `/tiktok-live/${g.sessionIds[0]}` : "/tiktok-live",
-        sessionIds: g.sessionIds,
-      });
-      streamersNotified += 1;
-    } catch {
-      // best-effort — one bad row must not stop the others
-    }
-
-    // Bonus channel: a real phone notification for streamers who paired
-    // Telegram. Deliberately INDEPENDENT of the admin path below, so it still
-    // fires on a morning when nobody streamed yesterday but older lives are
-    // still unfinished.
-    if (g.chatId && !alreadySentToday) {
-      const msg =
-        `📝 Good morning! ${n} of your live${n === 1 ? "" : "s"} ` +
-        `still ${n === 1 ? "needs" : "need"} numbers:\n` +
-        `${g.lines.slice(0, MAX_LISTED).join("\n")}` +
-        `${n > MAX_LISTED ? `\n…and ${n - MAX_LISTED} more` : ""}\n\n` +
-        `Open LMIROS → + → Manual input and key them in.`;
-      try {
-        const res = await sendMarkdown(g.chatId, escapeMd(msg));
-        if (res.ok) streamersPinged += 1;
-      } catch {
-        // best-effort — one bad recipient must not stop the others
-      }
-    }
-  }
+  // ── Streamers: reminded in-app + Telegram (idempotent, once-a-day DM gate) ──
+  const streamer = await notifyStreamers(outstanding, "leads");
 
   // ── Admins: UNCHANGED — yesterday only, "no Total Leads" only ──
   const rows = outstanding.filter(
@@ -185,19 +66,17 @@ export async function GET(request: NextRequest) {
       r.startedAt >= start &&
       r.startedAt < end
   );
-  const unassigned = outstanding.filter((r) => !r.streamerId).length;
 
   if (rows.length === 0) {
-    // Nothing for admins to see, but the streamers above were still reminded.
     return NextResponse.json({
       ok: true,
       date,
       missing: 0,
       alertsSent: 0,
       outstanding: outstanding.length,
-      unassigned,
-      streamersNotified,
-      streamersPinged,
+      unassigned: streamer.unassigned,
+      streamersNotified: streamer.notified,
+      streamersPinged: streamer.pinged,
     });
   }
 
@@ -214,12 +93,11 @@ export async function GET(request: NextRequest) {
     `${rows.length} live${rows.length === 1 ? "" : "s"} still have no Total Leads:\n` +
     `${lines.join("\n")}` +
     `${more > 0 ? `\n…and ${more} more` : ""}\n\n` +
-    `${outstanding.length} live(s) in the last 14 days still owe metrics; ` +
+    `${outstanding.length} live(s) in the last 14 days still owe lead numbers; ` +
     `each streamer has been reminded in-app.` +
-    `${unassigned > 0 ? `\n⚠ ${unassigned} of those have NO assigned streamer — nobody was reminded.` : ""}`;
+    `${streamer.unassigned > 0 ? `\n⚠ ${streamer.unassigned} of those have NO assigned streamer — nobody was reminded.` : ""}`;
 
-  // In-app pop-out for admins — deduped to one per day. (The streamer DM has
-  // its own per-streamer daily gate above, so it no longer depends on this.)
+  // In-app pop-out for admins — deduped to one per day.
   try {
     await db
       .insert(appNotifications)
@@ -244,9 +122,9 @@ export async function GET(request: NextRequest) {
     date,
     missing: rows.length,
     outstanding: outstanding.length,
-    unassigned,
+    unassigned: streamer.unassigned,
     alertsSent,
-    streamersNotified,
-    streamersPinged,
+    streamersNotified: streamer.notified,
+    streamersPinged: streamer.pinged,
   });
 }
