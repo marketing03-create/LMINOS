@@ -51,7 +51,11 @@ export function OverviewFilters({
       agg,
       ...next,
     });
-    router.push(`${BASE}?${qs.toString()}`);
+    // scroll: false → the cards, charts and tables re-render in place and the
+    // page keeps its current scroll position, instead of jumping back to the top
+    // every time a filter changes. It's still a soft navigation (URL updates,
+    // server data refetches), just without the scroll reset.
+    router.push(`${BASE}?${qs.toString()}`, { scroll: false });
   }
 
   return (

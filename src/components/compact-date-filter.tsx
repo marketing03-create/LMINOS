@@ -65,7 +65,11 @@ export function CompactDateFilter({
 
   function push(params: Record<string, string>) {
     const merged = { ...(extraParams ?? {}), ...params };
-    router.push(`${basePath}?${new URLSearchParams(merged).toString()}`);
+    // scroll: false keeps the page where it is — changing the date updates the
+    // numbers in place instead of throwing the reader back to the top.
+    router.push(`${basePath}?${new URLSearchParams(merged).toString()}`, {
+      scroll: false,
+    });
     setOpen(false);
   }
   const goRange = (key: string) => push({ range: key });
