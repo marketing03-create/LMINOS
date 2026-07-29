@@ -1,5 +1,6 @@
 "use client";
 
+import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { CompactDateFilter } from "@/components/compact-date-filter";
 import { HelpTip } from "@/components/help-tip";
@@ -37,6 +38,11 @@ export function OverviewFilters({
   exportHref: string;
 }) {
   const router = useRouter();
+  // startTransition keeps the CURRENT page on screen while the new data loads,
+  // so React never shows the dashboard's loading.tsx skeleton (which is what
+  // swaps the whole page out and resets scroll). Paired with scroll:false, the
+  // reader stays exactly where they were and only the numbers change.
+  const [isPending, startTransition] = useTransition();
 
   // The date params as they should appear on every link out of this bar.
   const dateParams: Record<string, string> =
@@ -51,15 +57,18 @@ export function OverviewFilters({
       agg,
       ...next,
     });
-    // scroll: false → the cards, charts and tables re-render in place and the
-    // page keeps its current scroll position, instead of jumping back to the top
-    // every time a filter changes. It's still a soft navigation (URL updates,
-    // server data refetches), just without the scroll reset.
-    router.push(`${BASE}?${qs.toString()}`, { scroll: false });
+    startTransition(() => {
+      router.push(`${BASE}?${qs.toString()}`, { scroll: false });
+    });
   }
 
   return (
-    <div className="sticky top-14 z-30 -mx-4 mb-6 border-b border-zinc-200 bg-white/95 px-4 py-3 backdrop-blur sm:-mx-8 sm:px-8 lg:top-0 dark:border-zinc-800 dark:bg-zinc-950/95">
+    <div
+      aria-busy={isPending}
+      className={`sticky top-14 z-30 -mx-4 mb-6 border-b border-zinc-200 bg-white/95 px-4 py-3 backdrop-blur transition-opacity sm:-mx-8 sm:px-8 lg:top-0 dark:border-zinc-800 dark:bg-zinc-950/95 ${
+        isPending ? "opacity-60" : ""
+      }`}
+    >
       <div className="flex flex-wrap items-center gap-2">
         {/* align="start": this is the leftmost control, so the panel must open
             rightwards into the page. Right-aligned it runs off the side. */}

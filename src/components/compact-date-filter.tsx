@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import type { RangeChoice } from "@/lib/date-range";
 
 /**
@@ -33,6 +33,9 @@ export function CompactDateFilter({
   align?: "start" | "end";
 }) {
   const router = useRouter();
+  // Navigate inside a transition so the current page stays on screen while the
+  // new data loads — no loading.tsx skeleton swap, no scroll reset.
+  const [, startTransition] = useTransition();
   const ref = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [today, setToday] = useState<Date | null>(null);
@@ -65,12 +68,14 @@ export function CompactDateFilter({
 
   function push(params: Record<string, string>) {
     const merged = { ...(extraParams ?? {}), ...params };
-    // scroll: false keeps the page where it is — changing the date updates the
-    // numbers in place instead of throwing the reader back to the top.
-    router.push(`${basePath}?${new URLSearchParams(merged).toString()}`, {
-      scroll: false,
+    setOpen(false); // close the popover immediately (urgent, outside the transition)
+    // scroll: false + transition → the page stays put and only the data swaps,
+    // instead of the loading skeleton flashing and throwing the reader to the top.
+    startTransition(() => {
+      router.push(`${basePath}?${new URLSearchParams(merged).toString()}`, {
+        scroll: false,
+      });
     });
-    setOpen(false);
   }
   const goRange = (key: string) => push({ range: key });
   const goDates = (start: string, end: string) => push({ start, end });
