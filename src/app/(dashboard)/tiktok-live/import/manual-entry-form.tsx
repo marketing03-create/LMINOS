@@ -147,8 +147,12 @@ export function ManualEntryForm({ sessions }: { sessions: MatchCandidate[] }) {
       }
       setApplied(true);
       setMsg("Saved ✓ — opening your live…");
-      // Green for a beat, then jump to this live's row on the list page.
-      setTimeout(() => router.push(`/tiktok-live#session-${sessionId}`), 2000);
+      // Green for a beat, then jump to this live's row on the list page and
+      // refetch it, so the just-saved numbers show instead of a cached feed.
+      setTimeout(() => {
+        router.push(`/tiktok-live#session-${sessionId}`);
+        router.refresh();
+      }, 2000);
     } catch (e) {
       setMsg(e instanceof Error ? e.message : String(e));
       setBusy(false);

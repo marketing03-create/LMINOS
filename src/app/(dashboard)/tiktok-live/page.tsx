@@ -15,6 +15,7 @@ import { METRIC_HELP } from "@/lib/tiktok-live/metric-help";
 import { SessionHighlighter } from "./session-highlighter";
 import { HandleFilter } from "./handle-filter";
 import { StreamerHomeFeed } from "./streamer-home-feed";
+import { FeedRefresh } from "./feed-refresh";
 
 /** Per-column explanations, shown in a “?” beside each header. */
 const HELP: Record<string, string> = {
@@ -102,6 +103,9 @@ export default async function TikTokLivePage({
   return (
     <div className="p-4 sm:p-8 max-w-6xl">
       <SessionHighlighter />
+      {/* Keeps the feed in sync with what's saved, even from a cached page or
+          iOS bfcache — fixes "I keyed in results but see no record". */}
+      <FeedRefresh />
       {isStreamer ? (
         /* Mobile-first: the date filter sits right-most on its own row. */
         <header className="mb-5 flex flex-wrap items-center justify-end gap-3">
