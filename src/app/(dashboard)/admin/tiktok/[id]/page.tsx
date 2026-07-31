@@ -65,7 +65,7 @@ export default async function StreamerDetailPage({
   const keywords = header.leadKeywords ?? [];
 
   return (
-    <div className="p-4 sm:p-8 max-w-6xl">
+    <div className="p-4 sm:p-8">
       <SessionHighlighter />
 
       <header className="mb-6 flex flex-wrap items-start justify-between gap-4">

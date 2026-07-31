@@ -5,7 +5,7 @@ export default function TikTokScreenshotsPage() {
   const aiConfigured = !!process.env.AI_GATEWAY_API_KEY;
 
   return (
-    <div className="p-4 sm:p-8 max-w-5xl">
+    <div className="p-4 sm:p-8">
       <Link href="/admin/tiktok" className="text-sm text-zinc-500 hover:underline">
         ← TikTok Live admin
       </Link>

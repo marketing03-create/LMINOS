@@ -50,7 +50,7 @@ export default async function StreamerImportPage({
   }
 
   return (
-    <div className="p-4 sm:p-8 max-w-5xl">
+    <div className="p-4 sm:p-8">
       <Link href="/tiktok-live" className="text-sm text-zinc-500 hover:underline">
         ← My TikTok Live
       </Link>

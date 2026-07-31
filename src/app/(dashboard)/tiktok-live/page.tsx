@@ -101,7 +101,7 @@ export default async function TikTokLivePage({
   }
 
   return (
-    <div className="p-4 sm:p-8 max-w-6xl">
+    <div className="p-4 sm:p-8">
       <SessionHighlighter />
       {/* Keeps the feed in sync with what's saved, even from a cached page or
           iOS bfcache — fixes "I keyed in results but see no record". */}

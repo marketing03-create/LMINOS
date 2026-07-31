@@ -42,7 +42,7 @@ export default async function AdminUsersPage() {
   const me = await getSessionUser();
 
   return (
-    <div className="p-4 sm:p-8 max-w-6xl">
+    <div className="p-4 sm:p-8">
       <header className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight">Users</h1>
         <p className="mt-1 text-sm text-zinc-500">

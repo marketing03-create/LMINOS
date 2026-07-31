@@ -26,7 +26,7 @@ export default async function NotificationsPage() {
   const rows = me?.userId ? await listUserNotifications(me.userId, 50) : [];
 
   return (
-    <div className="p-4 sm:p-8 max-w-2xl">
+    <div className="p-4 sm:p-8">
       <header className="mb-5">
         <h1 className="text-2xl font-semibold tracking-tight">Notifications</h1>
       </header>

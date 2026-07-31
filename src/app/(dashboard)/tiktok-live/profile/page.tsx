@@ -19,7 +19,7 @@ export default async function StreamerProfilePage() {
   const roleLabel = me?.role ? ROLE_LABEL[me.role] ?? me.role : "—";
 
   return (
-    <div className="mx-auto max-w-md p-4 sm:p-8">
+    <div className="p-4 sm:p-8">
       <header className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight">Profile</h1>
       </header>
