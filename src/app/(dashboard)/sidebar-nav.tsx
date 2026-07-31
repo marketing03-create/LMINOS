@@ -73,7 +73,7 @@ function Section({
 
   return (
     <div>
-      <div className="px-3 mb-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-zinc-400 dark:text-zinc-500">
+      <div className="px-3 mb-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-400 dark:text-zinc-500">
         {label}
       </div>
       <ul className="space-y-0.5">
@@ -83,7 +83,7 @@ function Section({
             <li key={it.href}>
               <Link
                 href={it.href}
-                className={`flex items-center px-3 py-1.5 rounded-lg text-[13px] font-medium transition-colors ${
+                className={`flex items-center px-3 py-2 rounded-lg text-[15px] font-medium transition-colors ${
                   active
                     ? "bg-blue-600 text-white shadow-sm"
                     : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200/60 dark:hover:bg-zinc-800/60 hover:text-zinc-900 dark:hover:text-zinc-100"
