@@ -84,12 +84,14 @@ export default async function AdminTikTokOverviewPage({
   );
   if (streamer !== "all") exportQs.set("account", streamer);
 
+  // Full-width: no max-w cap, so the cards, charts and wide tables use the whole
+  // content area on desktop.
   return (
-    <div className="max-w-6xl p-4 sm:p-8">
+    <div className="p-4 sm:p-8">
       <SessionHighlighter />
 
       <header className="mb-4">
-        <h1 className="text-2xl font-semibold tracking-tight">Overview</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
         <p className="mt-1 text-sm text-zinc-500">
           Every TikTok Live number in one place.
         </p>
