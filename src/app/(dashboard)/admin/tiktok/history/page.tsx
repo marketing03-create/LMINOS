@@ -4,7 +4,11 @@ import { getSessionUser } from "@/lib/auth/authorize";
 import { isAdminRole } from "@/lib/auth/access";
 import { listScreenshotUploads } from "@/lib/tiktok-live/screenshot-history";
 import { signScreenshotUrls } from "@/lib/tiktok-live/screenshot-store";
-import { ScreenshotThumb } from "./screenshot-thumb";
+import {
+  ScreenshotGallery,
+  ScreenshotThumb,
+  type GalleryItem,
+} from "./screenshot-gallery";
 
 const FIELDS: { key: string; label: string; locked?: boolean }[] = [
   { key: "totalViews", label: "Views", locked: true },
@@ -73,8 +77,22 @@ export default async function ScreenshotHistoryPage({
         </div>
       )}
 
+      {/* ONE shared gallery for every screenshot on the page: open any image,
+          then ‹ › / arrow keys / swipe move through the rest without closing. */}
+      <ScreenshotGallery
+        items={uploads.map((u): GalleryItem => ({
+          url: urls.get(u.storagePath),
+          caption: [
+            u.uploaderEmail ?? "unknown uploader",
+            fmt(u.createdAt),
+            u.detectedHandle ? `@${u.detectedHandle}` : null,
+          ]
+            .filter(Boolean)
+            .join(" · "),
+        }))}
+      >
       <div className="space-y-4">
-        {uploads.map((u) => {
+        {uploads.map((u, i) => {
           const url = urls.get(u.storagePath);
           const read = u.aiReadValues ?? {};
           const saved = u.sessionValues;
@@ -84,9 +102,9 @@ export default async function ScreenshotHistoryPage({
               key={u.id}
               className="flex flex-col md:flex-row gap-4 border border-zinc-200 dark:border-zinc-800 rounded-xl bg-white dark:bg-zinc-950 p-4"
             >
-              {/* Screenshot — opens a centered in-page lightbox, not a new tab. */}
+              {/* Screenshot — opens the shared gallery at this upload. */}
               <div className="shrink-0">
-                <ScreenshotThumb url={url} />
+                <ScreenshotThumb index={i} url={url} />
               </div>
 
               {/* Meta + numbers */}
@@ -160,6 +178,7 @@ export default async function ScreenshotHistoryPage({
           );
         })}
       </div>
+      </ScreenshotGallery>
     </div>
   );
 }
