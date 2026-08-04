@@ -50,10 +50,17 @@ type RowState = {
   selectedSessionId: string;
   // Product(s)/service(s) the streamer promoted in this live ([] = not tagged).
   selectedProducts: string[];
+  // Free-text note about this live (pre-filled from the matched session).
+  remarks: string;
   values: Record<string, number>;
   applied: boolean;
   msg: string | null;
 };
+
+// Each block in a live's form sits in its own soft card, matching the reference
+// case-details layout — distinct steps instead of one long list.
+const SECTION =
+  "rounded-2xl border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900/50";
 
 // Shrink a screenshot in the browser BEFORE uploading. Claude's vision resizes
 // anything over ~1568px on the long edge server-side anyway, so sending a full
@@ -139,6 +146,7 @@ export function ScreenshotImporter() {
           return {
             selectedSessionId: g.bestMatchSessionId ?? "",
             selectedProducts: match?.products ?? [],
+            remarks: match?.remarks ?? "",
             values: { ...(g.values as Record<string, number>) },
             applied: false,
             msg: null,
@@ -178,25 +186,30 @@ export function ScreenshotImporter() {
     // Save the product tag too when it differs from what the live already has.
     const target = review?.sessions.find((s) => s.sessionId === row.selectedSessionId);
     const productChanged = !sameProducts(row.selectedProducts, target?.products ?? []);
+    const remarksChanged = (row.remarks ?? "").trim() !== (target?.remarks ?? "").trim();
     const hasNumbers = Object.keys(row.values).length > 0;
-    if (!hasNumbers && !productChanged) {
+    if (!hasNumbers && !productChanged && !remarksChanged) {
       patchRow(idx, { msg: "Nothing to apply." });
       return;
     }
     setBusyKey(g.key);
     patchRow(idx, { msg: null });
     try {
-      // 1) Tag the product/service (separate from the numbers apply, so it still
-      // saves even when every captured number is locked).
-      if (productChanged) {
+      // 1) Tag the product/service + remarks (session PATCH, separate from the
+      // numbers apply, so it still saves even when every captured number is locked).
+      if (productChanged || remarksChanged) {
+        const patchBody: Record<string, unknown> = {};
+        if (productChanged) patchBody.products = row.selectedProducts;
+        if (remarksChanged)
+          patchBody.remarks = row.remarks.trim() === "" ? null : row.remarks.trim();
         const pRes = await fetch(`/api/tiktok-live/sessions/${row.selectedSessionId}`, {
           method: "PATCH",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ products: row.selectedProducts }),
+          body: JSON.stringify(patchBody),
         });
         const pJson = await pRes.json().catch(() => ({}));
         if (!pRes.ok || pJson.ok === false) {
-          patchRow(idx, { msg: pJson.error ?? `Product save failed (${pRes.status}).` });
+          patchRow(idx, { msg: pJson.error ?? `Save failed (${pRes.status}).` });
           return;
         }
       }
@@ -375,6 +388,7 @@ export function ScreenshotImporter() {
                       patchRow(idx, {
                         selectedSessionId: sid,
                         selectedProducts: sess?.products ?? [],
+                        remarks: sess?.remarks ?? "",
                         applied: false,
                         msg: null,
                       });
@@ -398,8 +412,8 @@ export function ScreenshotImporter() {
               </div>
 
               {autoCols.length > 0 && (
-                <div>
-                  <div className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500 mb-1.5">
+                <div className={SECTION}>
+                  <div className="text-sm font-semibold uppercase tracking-wider text-zinc-500 mb-1.5">
                     Corrections to captured numbers
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-x-2 gap-y-2.5">
@@ -409,7 +423,7 @@ export function ScreenshotImporter() {
                         cur != null && row.values[c] != null && cur !== row.values[c];
                       return (
                         <label key={c} className="block">
-                          <div className="text-[11px] font-medium mb-0.5 text-zinc-600 dark:text-zinc-400">{LABELS[c] ?? c}</div>
+                          <div className="text-[13px] font-medium mb-1 text-zinc-600 dark:text-zinc-400">{LABELS[c] ?? c}</div>
                           <input
                             inputMode="numeric"
                             value={row.values[c] ?? ""}
@@ -436,8 +450,8 @@ export function ScreenshotImporter() {
               )}
 
               {manualCols.length > 0 && (
-                <div>
-                  <div className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500 mb-1.5">
+                <div className={SECTION}>
+                  <div className="text-sm font-semibold uppercase tracking-wider text-zinc-500 mb-1.5">
                     Service panel (TikTok-only)
                     <span className="ml-1 font-normal normal-case text-zinc-400">
                       — key in any the screenshot didn&apos;t show
@@ -446,7 +460,7 @@ export function ScreenshotImporter() {
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-x-2 gap-y-2.5">
                     {manualCols.map((c) => (
                       <label key={c} className="block">
-                        <div className="text-[11px] font-medium mb-0.5 text-zinc-600 dark:text-zinc-400">{LABELS[c] ?? c}</div>
+                        <div className="text-[13px] font-medium mb-1 text-zinc-600 dark:text-zinc-400">{LABELS[c] ?? c}</div>
                         <input
                           inputMode="numeric"
                           value={row.values[c] ?? ""}
@@ -465,13 +479,13 @@ export function ScreenshotImporter() {
               )}
 
               {/* Lead counts — CS enters these by hand; never on a screenshot. */}
-              <div>
-                <div className="text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">
+              <div className={SECTION}>
+                <div className="text-sm font-semibold uppercase tracking-wider text-zinc-500 mb-2">
                   Customer-service follow-up
                 </div>
                 <div className="flex flex-wrap gap-3">
                   <label className="block sm:w-48">
-                    <div className="text-xs font-medium mb-1">Total Leads</div>
+                    <div className="text-sm font-medium mb-1">Total Leads</div>
                     <input
                       inputMode="numeric"
                       value={row.values.totalLeads ?? ""}
@@ -485,7 +499,7 @@ export function ScreenshotImporter() {
                     </div>
                   </label>
                   <label className="block sm:w-48">
-                    <div className="text-xs font-medium mb-1">Filtered Leads</div>
+                    <div className="text-sm font-medium mb-1">Filtered Leads</div>
                     <input
                       inputMode="numeric"
                       value={row.values.filteredLeads ?? ""}
@@ -499,6 +513,23 @@ export function ScreenshotImporter() {
                     </div>
                   </label>
                 </div>
+              </div>
+
+              {/* Remarks — free-text notes about this specific live. */}
+              <div className={SECTION}>
+                <div className="text-sm font-semibold uppercase tracking-wider text-zinc-500 mb-2">
+                  Remarks
+                </div>
+                <textarea
+                  value={row.remarks}
+                  onChange={(e) =>
+                    patchRow(idx, { remarks: e.target.value, applied: false, msg: null })
+                  }
+                  disabled={row.applied}
+                  rows={2}
+                  placeholder="Add any notes about this live…"
+                  className={inputCls + " w-full resize-y"}
+                />
               </div>
 
               <div className="flex items-center gap-3">

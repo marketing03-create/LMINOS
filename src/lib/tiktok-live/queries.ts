@@ -337,6 +337,8 @@ export type MatchCandidate = {
   products: string[] | null;
   /** Current value of every metric column (for the current → new display). */
   current: Record<string, number | null>;
+  /** Free-text note already saved on the live (pre-fills the Remarks box). */
+  remarks: string | null;
 };
 
 /** Sessions (newest first) + their current metric values, for the screenshot importer. */
@@ -370,6 +372,7 @@ export async function sessionsForMatching(
       diamonds: tiktokLiveSessions.diamonds,
       totalLeads: tiktokLiveSessions.totalLeads,
       filteredLeads: tiktokLiveSessions.filteredLeads,
+      remarks: tiktokLiveSessions.remarks,
     })
     .from(tiktokLiveSessions)
     .innerJoin(tiktokAccounts, eq(tiktokAccounts.id, tiktokLiveSessions.accountId))
@@ -403,6 +406,7 @@ export async function sessionsForMatching(
       totalLeads: r.totalLeads,
       filteredLeads: r.filteredLeads,
     },
+    remarks: r.remarks,
   }));
 }
 

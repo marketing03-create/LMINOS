@@ -49,6 +49,7 @@ export function ManualEntryForm({ sessions }: { sessions: MatchCandidate[] }) {
   const [sessionId, setSessionId] = useState("");
   const [products, setProducts] = useState<string[]>([]);
   const [values, setValues] = useState<Record<string, string>>({});
+  const [remarks, setRemarks] = useState("");
   const [busy, setBusy] = useState(false);
   const [applied, setApplied] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -64,6 +65,7 @@ export function ManualEntryForm({ sessions }: { sessions: MatchCandidate[] }) {
     setMsg(null);
     const s = sessions.find((x) => x.sessionId === id);
     setProducts(s?.products ?? []);
+    setRemarks(s?.remarks ?? "");
     // Pre-fill each field from what's already saved on that live.
     const v: Record<string, string> = {};
     if (s) {
@@ -105,8 +107,9 @@ export function ManualEntryForm({ sessions }: { sessions: MatchCandidate[] }) {
       payload[col] = next;
     }
     const productChanged = !sameProducts(products, selected.products ?? []);
+    const remarksChanged = remarks.trim() !== (selected.remarks ?? "").trim();
     const hasNumbers = Object.keys(payload).length > 0;
-    if (!hasNumbers && !productChanged) {
+    if (!hasNumbers && !productChanged && !remarksChanged) {
       setMsg("Nothing changed to save.");
       return;
     }
@@ -114,16 +117,19 @@ export function ManualEntryForm({ sessions }: { sessions: MatchCandidate[] }) {
     setBusy(true);
     setMsg(null);
     try {
-      // Product tag (separate route, so it saves even when no number changed).
-      if (productChanged) {
+      // Product tag + remarks (session PATCH — saves even when no number changed).
+      if (productChanged || remarksChanged) {
+        const patchBody: Record<string, unknown> = {};
+        if (productChanged) patchBody.products = products;
+        if (remarksChanged) patchBody.remarks = remarks.trim() === "" ? null : remarks.trim();
         const pRes = await fetch(`/api/tiktok-live/sessions/${sessionId}`, {
           method: "PATCH",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ products }),
+          body: JSON.stringify(patchBody),
         });
         const pj = await pRes.json().catch(() => ({}));
         if (!pRes.ok || pj.ok === false) {
-          setMsg(pj.error ?? `Product save failed (${pRes.status}).`);
+          setMsg(pj.error ?? `Save failed (${pRes.status}).`);
           setBusy(false);
           return;
         }
@@ -198,8 +204,8 @@ export function ManualEntryForm({ sessions }: { sessions: MatchCandidate[] }) {
           {selected && (
             <>
               {/* Your results — the goal numbers, first and prominent. */}
-              <div>
-                <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-400">
+              <div className={SECTION}>
+                <div className="mb-2.5 text-sm font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-400">
                   Your results
                 </div>
                 <div className="grid grid-cols-2 gap-3">
@@ -225,15 +231,36 @@ export function ManualEntryForm({ sessions }: { sessions: MatchCandidate[] }) {
               </div>
 
               {/* Service panel — what the streamer reads off TikTok Studio. */}
-              <FieldGrid
-                title="Service panel — you enter these"
-                cols={EXTRA_COLUMNS}
-                labels={LABELS}
-                values={values}
-                current={selected.current}
-                disabled={busy || applied}
-                onChange={setVal}
-              />
+              <div className={SECTION}>
+                <FieldGrid
+                  title="Service panel — you enter these"
+                  cols={EXTRA_COLUMNS}
+                  labels={LABELS}
+                  values={values}
+                  current={selected.current}
+                  disabled={busy || applied}
+                  onChange={setVal}
+                />
+              </div>
+
+              {/* Remarks — free-text notes about this specific live. */}
+              <div className={SECTION}>
+                <div className="mb-2 text-sm font-semibold uppercase tracking-wider text-zinc-500">
+                  Remarks
+                </div>
+                <textarea
+                  value={remarks}
+                  onChange={(e) => {
+                    setRemarks(e.target.value);
+                    setApplied(false);
+                    setMsg(null);
+                  }}
+                  disabled={busy || applied}
+                  rows={3}
+                  placeholder="Add any notes about this live — issues, highlights, follow-ups…"
+                  className={inputCls + " w-full resize-y"}
+                />
+              </div>
 
               {/* Auto-captured — the bot fills these; collapsed unless a fix is needed. */}
               <div>
@@ -346,7 +373,7 @@ function FieldGrid({
             Number(values[c]) !== Number(cur);
           return (
             <label key={c} className="block">
-              <div className="text-xs font-medium mb-1">{labels[c] ?? c}</div>
+              <div className="text-sm font-medium mb-1">{labels[c] ?? c}</div>
               <input
                 inputMode="numeric"
                 value={values[c] ?? ""}
@@ -392,7 +419,7 @@ function LeadField({
   const cur = current[col];
   return (
     <label className="block">
-      <div className="mb-1 text-xs font-medium">{label}</div>
+      <div className="mb-1 text-sm font-medium">{label}</div>
       <input
         inputMode="numeric"
         value={values[col] ?? ""}
@@ -408,6 +435,10 @@ function LeadField({
   );
 }
 
+// Each block on the form sits in its own soft card, so the sections read as
+// distinct steps (like the reference case-details layout) instead of one long list.
+const SECTION =
+  "rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900/50";
 const inputCls =
   "rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-2.5 py-1.5 text-sm text-zinc-900 dark:text-zinc-100 disabled:opacity-50";
 const btnPrimary =
