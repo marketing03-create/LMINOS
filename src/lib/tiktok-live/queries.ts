@@ -221,6 +221,8 @@ export type SessionRow = {
   diamonds: number | null;
   totalLeads: number | null;
   filteredLeads: number | null;
+  // Free-text note the streamer/admin added for this live (null = none).
+  remarks: string | null;
 };
 
 export async function tiktokLiveSessionList(
@@ -256,6 +258,7 @@ export async function tiktokLiveSessionList(
       diamonds: tiktokLiveSessions.diamonds,
       totalLeads: tiktokLiveSessions.totalLeads,
       filteredLeads: tiktokLiveSessions.filteredLeads,
+      remarks: tiktokLiveSessions.remarks,
     })
     .from(tiktokLiveSessions)
     .innerJoin(tiktokAccounts, eq(tiktokAccounts.id, tiktokLiveSessions.accountId))

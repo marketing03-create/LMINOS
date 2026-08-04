@@ -225,6 +225,13 @@
       "when": 1784789320839,
       "tag": "0031_grey_jasper_sitwell",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1785832193495,
+      "tag": "0032_melodic_stone_men",
+      "breakpoints": true
     }
   ]
 }

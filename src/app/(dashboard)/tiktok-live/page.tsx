@@ -16,6 +16,7 @@ import { SessionHighlighter } from "./session-highlighter";
 import { HandleFilter } from "./handle-filter";
 import { StreamerHomeFeed } from "./streamer-home-feed";
 import { FeedRefresh } from "./feed-refresh";
+import { RemarksInput } from "./remarks-input";
 
 /** Per-column explanations, shown in a “?” beside each header. */
 const HELP: Record<string, string> = {
@@ -192,6 +193,7 @@ export default async function TikTokLivePage({
                 <Th className="text-right" help={HELP.Diamonds}>Diamonds</Th>
                 <Th className="text-right" help={HELP.TotalLeads}>Total leads</Th>
                 <Th className="text-right" help={HELP.FilteredLeads}>Filtered leads</Th>
+                <Th>Remarks</Th>
               </tr>
             </thead>
             <tbody>
@@ -235,6 +237,9 @@ export default async function TikTokLivePage({
                   <Td className="text-right tabular-nums text-zinc-500">{fmtN(s.diamonds)}</Td>
                   <Td className="text-right tabular-nums text-indigo-600 dark:text-indigo-400 font-semibold">{fmtN(s.totalLeads)}</Td>
                   <Td className="text-right tabular-nums text-zinc-500">{fmtN(s.filteredLeads)}</Td>
+                  <Td className="align-top">
+                    <RemarksInput compact sessionId={s.id} initial={s.remarks} />
+                  </Td>
                 </tr>
               ))}
             </tbody>

@@ -77,6 +77,8 @@ export const tiktokLiveSessions = pgTable(
     // session. Set once, ~1h after the live ends, so that reminder never repeats
     // (the daily 10pm/10am checks take over from there). Null = not yet nudged.
     metricsNudgedAt: timestamp("metrics_nudged_at", { withTimezone: true }),
+    // Free-text notes the streamer (or an admin) writes about this specific live.
+    remarks: text("remarks"),
     rawPayload: jsonb("raw_payload"),
     ...timestamps(),
   },

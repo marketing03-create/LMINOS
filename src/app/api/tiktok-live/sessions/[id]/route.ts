@@ -50,6 +50,7 @@ export async function PATCH(
     products?: string[] | null;
     keywordLeads?: number;
     durationSeconds?: number;
+    remarks?: string | null;
   } = {};
   for (const f of MANUAL_TIKTOK_FIELDS) {
     if (!(f in body)) continue;
@@ -119,6 +120,22 @@ export async function PATCH(
   if ("products" in body) {
     const cleaned = filterTikTokProducts(body.products);
     set.products = cleaned.length > 0 ? cleaned : null;
+  }
+
+  // Free-text remarks the streamer/admin writes about this live. Stored as-is
+  // (React escapes it on display), trimmed, capped, and cleared when blank.
+  if ("remarks" in body) {
+    const v = body.remarks;
+    if (v === null || v === "") {
+      set.remarks = null;
+    } else if (typeof v === "string") {
+      set.remarks = v.trim().slice(0, 2000) || null;
+    } else {
+      return NextResponse.json(
+        { ok: false, error: "Invalid remarks — must be text." },
+        { status: 400 }
+      );
+    }
   }
 
   if (Object.keys(set).length === 0) {

@@ -3,6 +3,7 @@ import type { SessionRow } from "@/lib/tiktok-live/queries";
 import { ProductBadges } from "@/components/product-badges";
 import { HelpTip } from "@/components/help-tip";
 import { METRIC_HELP } from "@/lib/tiktok-live/metric-help";
+import { RemarksInput } from "./remarks-input";
 
 /**
  * Instagram-style streamer Home: an insights strip (Lives · Total leads · Avg)
@@ -82,15 +83,18 @@ export function StreamerHomeFeed({ sessions }: { sessions: SessionRow[] }) {
           const needs = s.totalLeads == null;
           const dur = fmtDur(s.durationSeconds);
           return (
-            <Link
+            <div
               key={s.id}
-              href={`/tiktok-live/${s.id}`}
-              className={`block rounded-2xl border bg-white p-4 active:bg-zinc-50 dark:bg-zinc-950 dark:active:bg-zinc-900 ${
+              className={`rounded-2xl border bg-white p-4 dark:bg-zinc-950 ${
                 needs
                   ? "border-amber-300 dark:border-amber-800"
                   : "border-zinc-200 dark:border-zinc-800"
               }`}
             >
+              <Link
+                href={`/tiktok-live/${s.id}`}
+                className="block active:opacity-70"
+              >
               <div className="flex items-start justify-between gap-2">
                 <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
                   <span className="text-sm font-medium">{fmtWhen(s.startedAt)}</span>
@@ -126,7 +130,17 @@ export function StreamerHomeFeed({ sessions }: { sessions: SessionRow[] }) {
                   accent={s.filteredLeads != null}
                 />
               </div>
-            </Link>
+              </Link>
+
+              {/* Remarks — the streamer's own notes for this live. Outside the
+                  Link so typing doesn't navigate away. */}
+              <div className="mt-3 border-t border-zinc-100 pt-3 dark:border-zinc-900">
+                <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-zinc-500">
+                  Remarks
+                </div>
+                <RemarksInput sessionId={s.id} initial={s.remarks} />
+              </div>
+            </div>
           );
         })}
       </div>
