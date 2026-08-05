@@ -85,10 +85,10 @@ export function StreamerHomeFeed({ sessions }: { sessions: SessionRow[] }) {
           return (
             <div
               key={s.id}
-              className={`rounded-2xl border bg-white p-4 dark:bg-zinc-950 ${
+              className={`rounded-2xl border border-l-4 bg-white p-4 shadow-sm dark:bg-zinc-900 ${
                 needs
-                  ? "border-amber-300 dark:border-amber-800"
-                  : "border-zinc-200 dark:border-zinc-800"
+                  ? "border-amber-200 border-l-amber-400 dark:border-amber-900/60 dark:border-l-amber-500"
+                  : "border-zinc-200 border-l-emerald-400 dark:border-zinc-800 dark:border-l-emerald-500"
               }`}
             >
               <Link
@@ -109,7 +109,7 @@ export function StreamerHomeFeed({ sessions }: { sessions: SessionRow[] }) {
                 )}
               </div>
 
-              <div className="mt-3 grid grid-cols-5 gap-1 text-center">
+              <div className="mt-3 grid grid-cols-5 gap-1 border-t border-zinc-100 pt-3 text-center dark:border-zinc-800">
                 <Metric label="Views" value={nf(s.totalViews)} help={METRIC_HELP.views} />
                 <Metric label="Duration" value={dur ?? "—"} help={METRIC_HELP.duration} />
                 <Metric
@@ -160,7 +160,7 @@ function Stat({
   help?: string;
 }) {
   return (
-    <div className="rounded-xl bg-zinc-100 px-3 py-2.5 dark:bg-zinc-900">
+    <div className="rounded-2xl border border-zinc-200 bg-white px-3.5 py-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
       <div className="flex items-center gap-1 text-[11px] text-zinc-500">
         {label}
         {help && <HelpTip text={help} label={`What is ${label}?`} />}

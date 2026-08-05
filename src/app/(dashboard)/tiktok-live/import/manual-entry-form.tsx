@@ -435,10 +435,11 @@ function LeadField({
   );
 }
 
-// Each block on the form sits in its own soft card, so the sections read as
-// distinct steps (like the reference case-details layout) instead of one long list.
+// Each block sits in its own ELEVATED card — a solid surface a shade lighter
+// than the page (white on light, zinc-900 on dark) with a soft shadow, so the
+// sections clearly stand out as distinct steps (per the reference layout).
 const SECTION =
-  "rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900/50";
+  "rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900";
 const inputCls =
   "rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-2.5 py-1.5 text-sm text-zinc-900 dark:text-zinc-100 disabled:opacity-50";
 const btnPrimary =
