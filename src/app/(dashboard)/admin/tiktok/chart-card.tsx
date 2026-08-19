@@ -6,6 +6,7 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  LabelList,
   Legend,
   Line,
   LineChart,
@@ -57,16 +58,21 @@ export const NON_SUM_AGGS: readonly Agg[] = ["AVG", "MEDIAN", "MIN", "MAX", "COU
  * than the bucket's live count, so a bar built from 1 recorded live out of 6
  * can't advertise "6 lives" and manufacture confidence it hasn't earned.
  */
+/** Extra "how this number was worked out" rows, shown under a series in the tooltip. */
+export type DetailRow = { label: string; value: string };
+
 function ChartTooltip({
   active,
   payload,
   label,
   rows,
+  detail,
 }: {
   active?: boolean;
   payload?: { name: string; value: number | null; color: string; dataKey?: string }[];
   label?: string | number;
   rows: ChartRow[];
+  detail?: (row: ChartRow, seriesKey: string) => DetailRow[];
 }) {
   if (!active || !payload?.length) return null;
   const row = rows.find((r) => r.label === label);
@@ -82,23 +88,36 @@ function ChartTooltip({
       </div>
       {payload.map((p) => {
         const contributed = p.dataKey ? (row?.[`${p.dataKey}_n`] as number | undefined) : undefined;
+        const extras = row && p.dataKey && detail ? detail(row, p.dataKey) : [];
         return (
-          <div key={p.name} className="flex items-center justify-between gap-4">
-            <span className="flex items-center gap-1.5 text-zinc-600 dark:text-zinc-300">
-              <span
-                className="inline-block h-2 w-2 rounded-sm"
-                style={{ background: p.color }}
-              />
-              {p.name}
-            </span>
-            <span className="tabular-nums font-medium text-zinc-900 dark:text-zinc-100">
-              {p.value == null ? "—" : full(p.value)}
-              {contributed != null && row?.n != null && contributed < row.n && (
-                <span className="ml-1 font-normal text-zinc-400">
-                  ({contributed} recorded)
-                </span>
-              )}
-            </span>
+          <div key={p.name}>
+            <div className="flex items-center justify-between gap-4">
+              <span className="flex items-center gap-1.5 text-zinc-600 dark:text-zinc-300">
+                <span
+                  className="inline-block h-2 w-2 rounded-sm"
+                  style={{ background: p.color }}
+                />
+                {p.name}
+              </span>
+              <span className="tabular-nums font-medium text-zinc-900 dark:text-zinc-100">
+                {p.value == null ? "—" : full(p.value)}
+                {contributed != null && row?.n != null && contributed < row.n && (
+                  <span className="ml-1 font-normal text-zinc-400">
+                    ({contributed} recorded)
+                  </span>
+                )}
+              </span>
+            </div>
+            {/* How that figure was reached — indented under its series. */}
+            {extras.map((d) => (
+              <div
+                key={d.label}
+                className="ml-3.5 flex items-center justify-between gap-4 text-[11px] text-zinc-500"
+              >
+                <span>{d.label}</span>
+                <span className="tabular-nums">{d.value}</span>
+              </div>
+            ))}
           </div>
         );
       })}
@@ -123,6 +142,8 @@ export function ChartCard({
   dimBelowN,
   footnote,
   average,
+  pointLabel,
+  detail,
 }: {
   title: string;
   subtitle: string;
@@ -150,6 +171,14 @@ export function ChartCard({
    * plot a per-HOUR line, so the two must never be readable as the same thing.
    */
   average?: { value: number | null; unit: string; title?: string };
+  /**
+   * Print a number above each point/bar. `dataKey` maps a series key to the
+   * column holding the number to show — so a chart can plot a RATE while
+   * labelling each point with the underlying total it came from.
+   */
+  pointLabel?: { dataKey: (seriesKey: string) => string; format?: (n: number) => string };
+  /** Extra rows under each series in the tooltip (e.g. the totals behind a rate). */
+  detail?: (row: ChartRow, seriesKey: string) => DetailRow[];
 }) {
   // A local override that self-clears whenever the page-level seed changes —
   // equivalent to syncing in an effect, without the extra render or the
@@ -239,12 +268,16 @@ export function ChartCard({
       ) : (
         <ResponsiveContainer width="100%" height={240}>
           {kind === "line" ? (
-            <LineChart data={rows} margin={{ top: 6, right: 10, bottom: 0, left: -8 }}>
+            // Extra head-room when points carry a number label, so it can't clip.
+            <LineChart
+              data={rows}
+              margin={{ top: pointLabel ? 20 : 6, right: 10, bottom: 0, left: -8 }}
+            >
               <CartesianGrid stroke={GRID} strokeDasharray="3 3" vertical={false} />
               <XAxis {...xProps} />
               <YAxis {...yProps} />
               <Tooltip
-                content={<ChartTooltip rows={rows} />}
+                content={<ChartTooltip rows={rows} detail={detail} />}
                 cursor={{ stroke: GRID, strokeWidth: 1 }}
               />
               {series.length > 1 && <Legend wrapperStyle={{ fontSize: 11 }} />}
@@ -258,7 +291,20 @@ export function ChartCard({
                   dot={{ r: 2.5, strokeWidth: 0, fill: s.color }}
                   activeDot={{ r: 5, strokeWidth: 2, stroke: "#fff" }}
                   connectNulls={connectNulls}
-                />
+                >
+                  {pointLabel && (
+                    <LabelList
+                      dataKey={pointLabel.dataKey(s.key)}
+                      position="top"
+                      offset={8}
+                      fontSize={10}
+                      fill={AXIS}
+                      formatter={(v: unknown) =>
+                        typeof v === "number" ? (pointLabel.format ?? compact)(v) : ""
+                      }
+                    />
+                  )}
+                </Line>
               ))}
             </LineChart>
           ) : (
@@ -268,7 +314,7 @@ export function ChartCard({
               <YAxis {...yProps} />
               {/* cursor={false} → hovering highlights only the bar, never a grey
                   band behind it. */}
-              <Tooltip content={<ChartTooltip rows={rows} />} cursor={false} />
+              <Tooltip content={<ChartTooltip rows={rows} detail={detail} />} cursor={false} />
               {series.length > 1 && <Legend wrapperStyle={{ fontSize: 11 }} />}
               {series.map((s) => (
                 <Bar

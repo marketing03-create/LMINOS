@@ -232,6 +232,11 @@ export function buildRateChart(
         const cur = g.acc.get(r.key);
         row[r.key] = cur && cur.d > 0 ? round1((cur.n / cur.d) * (r.scale ?? 1)) : null;
         row[`${r.key}_n`] = cur?.lives ?? 0;
+        // The two halves the rate was worked out from — the raw total (e.g. views)
+        // and what it was spread over (e.g. live hours). Exposed so a chart can
+        // label its points with the total and show the division in its tooltip.
+        row[`${r.key}_total`] = cur ? cur.n : null;
+        row[`${r.key}_den`] = cur ? round1(cur.d) : null;
       }
       return row;
     });

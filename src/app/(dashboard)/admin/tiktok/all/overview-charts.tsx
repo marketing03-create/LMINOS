@@ -23,6 +23,9 @@ import { BLUE, ChartCard, NON_SUM_AGGS, RED, type Series } from "../chart-card";
 /** Distinct colours for up to 6 handles; beyond that they cycle. */
 const HANDLE_COLORS = ["#3b82f6", "#ef4444", "#10b981", "#a855f7", "#f59e0b", "#0ea5e9"];
 
+/** Full thousands-separated number, for tooltip detail rows. */
+const nf = (n: number) => n.toLocaleString("en-MY");
+
 const LEADS: Series[] = [
   { key: "totalLeads", name: "Total Leads", color: BLUE },
   { key: "filteredLeads", name: "Filtered Leads", color: RED },
@@ -123,6 +126,17 @@ export function OverviewCharts({
           defaultAgg="SUM"
           aggLock="Pooled rate"
           connectNulls={false}
+          // Each point is labelled with that day's TOTAL views; the rate itself
+          // (and the hours it was divided by) moves into the hover detail.
+          pointLabel={{ dataKey: (k) => `${k}_total` }}
+          detail={(row, key) => {
+            const total = row[`${key}_total`] as number | null;
+            const den = row[`${key}_den`] as number | null;
+            const out = [];
+            if (total != null) out.push({ label: "Total views", value: nf(total) });
+            if (den != null) out.push({ label: "Live hours", value: `${nf(den)}h` });
+            return out;
+          }}
           average={{
             value: avgViewsPerDay.value,
             unit: "views/day",
@@ -130,6 +144,7 @@ export function OverviewCharts({
               avgViewsPerDay.days === 1 ? "" : "s"
             } that had a live. Per day, not per hour — the line above is per hour.`,
           }}
+          footnote="Numbers on the line are total views for that day. The line height is views per live hour (total views ÷ total live hours) — hover for both."
           emptyHint="No data yet — needs lives with views and a duration recorded."
         />
         <ChartCard

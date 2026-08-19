@@ -256,6 +256,19 @@ describe("buildRateChart", () => {
     expect(slot.vph).toBe(1500); // 3000 views / 2 hours
     expect(slot.n).toBe(3); // three lives in the slot…
     expect(slot.vph_n).toBe(2); // …but only two had views recorded
+    // Both halves of the division are exposed for the point label / tooltip —
+    // and they come from the PAIRED lives only, so the label can never advertise
+    // a total the rate wasn't actually computed from.
+    expect(slot.vph_total).toBe(3000);
+    expect(slot.vph_den).toBe(2);
+  });
+
+  it("leaves the label totals null when a bucket has no usable pair", () => {
+    const rows = buildRateChart(many(2, { durationSeconds: 0 }), byPartOfDay, [
+      { key: "vph", name: "v", num: (s) => s.totalViews, den: hours },
+    ]);
+    expect(rows[0].vph_total).toBeNull();
+    expect(rows[0].vph_den).toBeNull();
   });
 
   it("emits null for a bucket whose denominator is zero", () => {
