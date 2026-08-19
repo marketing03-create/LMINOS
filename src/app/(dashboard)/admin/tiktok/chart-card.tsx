@@ -58,8 +58,13 @@ export const NON_SUM_AGGS: readonly Agg[] = ["AVG", "MEDIAN", "MIN", "MAX", "COU
  * than the bucket's live count, so a bar built from 1 recorded live out of 6
  * can't advertise "6 lives" and manufacture confidence it hasn't earned.
  */
-/** Extra "how this number was worked out" rows, shown under a series in the tooltip. */
-export type DetailRow = { label: string; value: string };
+/**
+ * Extra "how this number was worked out" rows, shown under a series in the
+ * tooltip. Mark one `main` to promote it to the headline — the plotted series
+ * value then drops to a sub-row, so a chart can lead with the figure people care
+ * about (a total) while still showing the rate the line is drawn from.
+ */
+export type DetailRow = { label: string; value: string; main?: boolean };
 
 function ChartTooltip({
   active,
@@ -89,18 +94,26 @@ function ChartTooltip({
       {payload.map((p) => {
         const contributed = p.dataKey ? (row?.[`${p.dataKey}_n`] as number | undefined) : undefined;
         const extras = row && p.dataKey && detail ? detail(row, p.dataKey) : [];
+        // A detail row flagged `main` takes the headline; the series' own value
+        // then joins the sub-rows beneath it.
+        const promoted = extras.find((d) => d.main);
+        const subs = extras.filter((d) => !d.main);
         return (
-          <div key={p.name}>
+          <div key={p.name} className="mt-0.5">
             <div className="flex items-center justify-between gap-4">
               <span className="flex items-center gap-1.5 text-zinc-600 dark:text-zinc-300">
                 <span
                   className="inline-block h-2 w-2 rounded-sm"
                   style={{ background: p.color }}
                 />
-                {p.name}
+                {promoted ? promoted.label : p.name}
               </span>
               <span className="tabular-nums font-medium text-zinc-900 dark:text-zinc-100">
-                {p.value == null ? "—" : full(p.value)}
+                {promoted
+                  ? promoted.value
+                  : p.value == null
+                    ? "—"
+                    : full(p.value)}
                 {contributed != null && row?.n != null && contributed < row.n && (
                   <span className="ml-1 font-normal text-zinc-400">
                     ({contributed} recorded)
@@ -108,8 +121,16 @@ function ChartTooltip({
                 )}
               </span>
             </div>
-            {/* How that figure was reached — indented under its series. */}
-            {extras.map((d) => (
+            {/* Demoted series value + how the headline was reached. */}
+            {promoted && (
+              <div className="ml-3.5 flex items-center justify-between gap-4 text-[11px] text-zinc-500">
+                <span>{p.name}</span>
+                <span className="tabular-nums">
+                  {p.value == null ? "—" : full(p.value)}
+                </span>
+              </div>
+            )}
+            {subs.map((d) => (
               <div
                 key={d.label}
                 className="ml-3.5 flex items-center justify-between gap-4 text-[11px] text-zinc-500"
@@ -123,6 +144,64 @@ function ChartTooltip({
       })}
     </div>
   );
+}
+
+/**
+ * A number printed above a point. Recharts hands us the plotted coordinates; we
+ * draw a soft chip behind the text so it stays legible where it crosses the
+ * grid or the line, and skip any index the thinning didn't select.
+ */
+function PointLabel(props: {
+  x?: number | string;
+  y?: number | string;
+  value?: number | string;
+  index?: number;
+  show?: (i: number) => boolean;
+  format?: (n: number) => string;
+}) {
+  const { x, y, value, index, show, format = compact } = props;
+  if (typeof x !== "number" || typeof y !== "number" || typeof value !== "number") {
+    return null;
+  }
+  if (index != null && show && !show(index)) return null;
+
+  const text = format(value);
+  const w = text.length * 6.1 + 10;
+  return (
+    <g pointerEvents="none">
+      <rect
+        x={x - w / 2}
+        y={y - 22}
+        width={w}
+        height={15}
+        rx={4}
+        className="fill-white/85 dark:fill-zinc-900/85"
+      />
+      <text
+        x={x}
+        y={y - 11.5}
+        textAnchor="middle"
+        fontSize={10}
+        fontWeight={600}
+        className="fill-zinc-600 tabular-nums dark:fill-zinc-300"
+      >
+        {text}
+      </text>
+    </g>
+  );
+}
+
+/**
+ * Which point indices get a label. Every point when they fit; otherwise an even
+ * spread (always including the first and last) so labels never collide — a wall
+ * of overlapping numbers is worse than no numbers.
+ */
+function labelIndices(n: number, max = 11): ((i: number) => boolean) | undefined {
+  if (n <= max) return undefined; // show all
+  const step = (n - 1) / (max - 1);
+  const keep = new Set<number>();
+  for (let i = 0; i < max; i++) keep.add(Math.round(i * step));
+  return (i: number) => keep.has(i);
 }
 
 export function ChartCard({
@@ -292,15 +371,16 @@ export function ChartCard({
                   activeDot={{ r: 5, strokeWidth: 2, stroke: "#fff" }}
                   connectNulls={connectNulls}
                 >
-                  {pointLabel && (
+                  {/* Labels only on a single line — several labelled series
+                      would overlap into noise. */}
+                  {pointLabel && series.length === 1 && (
                     <LabelList
                       dataKey={pointLabel.dataKey(s.key)}
-                      position="top"
-                      offset={8}
-                      fontSize={10}
-                      fill={AXIS}
-                      formatter={(v: unknown) =>
-                        typeof v === "number" ? (pointLabel.format ?? compact)(v) : ""
+                      content={
+                        <PointLabel
+                          show={labelIndices(rows.length)}
+                          format={pointLabel.format}
+                        />
                       }
                     />
                   )}

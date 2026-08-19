@@ -129,11 +129,14 @@ export function OverviewCharts({
           // Each point is labelled with that day's TOTAL views; the rate itself
           // (and the hours it was divided by) moves into the hover detail.
           pointLabel={{ dataKey: (k) => `${k}_total` }}
+          // Total views leads; the rate and the hours it was divided by sit
+          // under it as the supporting numbers.
           detail={(row, key) => {
             const total = row[`${key}_total`] as number | null;
             const den = row[`${key}_den`] as number | null;
-            const out = [];
-            if (total != null) out.push({ label: "Total views", value: nf(total) });
+            const out: { label: string; value: string; main?: boolean }[] = [];
+            if (total != null)
+              out.push({ label: "Total views", value: nf(total), main: true });
             if (den != null) out.push({ label: "Live hours", value: `${nf(den)}h` });
             return out;
           }}
