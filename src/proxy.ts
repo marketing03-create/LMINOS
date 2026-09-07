@@ -14,6 +14,9 @@ const PUBLIC_PREFIXES = [
   "/manifest.webmanifest",
   "/apple-icon",
   "/icon",
+  // The brand mark, rendered on the sign-in page itself — so it is fetched
+  // before any session exists and must not be bounced to /login.
+  "/logo.png",
 ];
 
 export async function proxy(request: NextRequest) {

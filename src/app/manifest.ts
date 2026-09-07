@@ -17,12 +17,11 @@ export default function manifest(): MetadataRoute.Manifest {
     background_color: "#0a0a0a",
     theme_color: "#3b82f6",
     icons: [
-      {
-        src: "/icon.svg",
-        sizes: "any",
-        type: "image/svg+xml",
-        purpose: "any",
-      },
+      { src: "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+      { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+      // `maskable` lets Android crop the mark to whatever shape the launcher
+      // uses without slicing into it — the icon already carries its own padding.
+      { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
     ],
   };
 }

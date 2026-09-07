@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -56,9 +57,14 @@ export function DashboardShell({
           </button>
         )}
         <Link href={homeHref} className="flex items-center gap-2">
-          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 text-sm font-bold text-white">
-            L
-          </span>
+          <Image
+            src="/logo.png"
+            alt=""
+            width={28}
+            height={28}
+            className="h-7 w-7 rounded-lg"
+            priority
+          />
           <span className="font-semibold tracking-tight">LMIROS</span>
         </Link>
         {/* Notification Center — streamers only for now (nothing writes admin
@@ -87,9 +93,14 @@ export function DashboardShell({
       >
         <div className="flex items-center justify-between px-5 pb-4 pt-5">
           <Link href={homeHref} className="flex items-center gap-2.5" onClick={() => setOpen(false)}>
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 text-sm font-bold text-white shadow-sm">
-              L
-            </span>
+            <Image
+              src="/logo.png"
+              alt=""
+              width={28}
+              height={28}
+              className="h-7 w-7 rounded-lg shadow-sm"
+              priority
+            />
             <span>
               <span className="block text-[15px] font-semibold leading-none tracking-tight">
                 LMIROS

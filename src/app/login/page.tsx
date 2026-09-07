@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -42,6 +43,14 @@ function LoginForm() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-black p-6">
       <div className="w-full max-w-sm border border-zinc-200 dark:border-zinc-800 rounded-xl p-8 bg-white dark:bg-zinc-950 shadow-sm">
+        <Image
+          src="/logo.png"
+          alt=""
+          width={48}
+          height={48}
+          className="mb-3 h-12 w-12 rounded-xl"
+          priority
+        />
         <h1 className="text-2xl font-semibold tracking-tight">LMIROS</h1>
         <p className="mt-1 text-sm text-zinc-500">
           Loan Marketing Intelligence & Revenue OS
