@@ -3,8 +3,10 @@ import { notFound } from "next/navigation";
 import { sessionDetail, streamerAccountIds } from "@/lib/tiktok-live/queries";
 import { getSessionUser } from "@/lib/auth/authorize";
 import { SessionMetricsCard } from "./manual-metrics-form";
+import { SessionScreenshotCard } from "./session-screenshot-card";
 import { ProductSelect } from "./product-select";
 import { ProductBadges } from "@/components/product-badges";
+import { mytDate } from "@/lib/tiktok-live/live-analysis-core";
 
 function fmtDuration(sec: number): string {
   if (!sec) return "—";
@@ -19,6 +21,9 @@ export default async function TikTokSessionPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  // Screenshot reading needs the AI key; without it the card says so rather than
+  // failing on upload (same rule as the streamer's import page).
+  const aiConfigured = !!process.env.AI_GATEWAY_API_KEY;
   // Scope streamers to their own handles — a session that isn't theirs 404s.
   const me = await getSessionUser();
   const isStreamer = me?.role === "live_streamer";
@@ -70,6 +75,32 @@ export default async function TikTokSessionPage({
           {/* Product / service first — what this live promoted. */}
           <div className="mb-6">
             <ProductSelect sessionId={s.id} initial={s.products ?? []} />
+          </div>
+
+          {/* Screenshots first — the fast path. The live is already known here,
+              so the photos apply straight to it with no matching step. */}
+          <div className="mb-6">
+            <SessionScreenshotCard
+              sessionId={s.id}
+              aiConfigured={aiConfigured}
+              sessionDate={s.startedAt ? mytDate(new Date(s.startedAt).toISOString()) : null}
+              current={{
+                totalViews: s.totalViews,
+                peakViewers: s.peakViewers,
+                avgViewers: s.avgViewers,
+                newFollowers: s.newFollowers,
+                totalLikes: s.totalLikes,
+                totalComments: s.totalComments,
+                totalShares: s.totalShares,
+                uniqueViewers: s.uniqueViewers,
+                activeViewers: s.activeViewers,
+                avgWatchSeconds: s.avgWatchSeconds,
+                directMessages: s.directMessages,
+                serviceBioViews: s.serviceBioViews,
+                interestedViewers: s.interestedViewers,
+                diamonds: s.diamonds,
+              }}
+            />
           </div>
 
           {/* Every metric is editable — check each against your screenshots. */}
