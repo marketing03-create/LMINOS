@@ -72,13 +72,9 @@ export default async function TikTokSessionPage({
             )}
           </header>
 
-          {/* Product / service first — what this live promoted. */}
-          <div className="mb-6">
-            <ProductSelect sessionId={s.id} initial={s.products ?? []} />
-          </div>
-
-          {/* Screenshots first — the fast path. The live is already known here,
-              so the photos apply straight to it with no matching step. */}
+          {/* Screenshots FIRST — it's what a streamer opens this page to do, and
+              the live is already known here, so the photos apply straight to it
+              with no matching step. Everything below is checking/correcting. */}
           <div className="mb-6">
             <SessionScreenshotCard
               sessionId={s.id}
@@ -101,6 +97,11 @@ export default async function TikTokSessionPage({
                 diamonds: s.diamonds,
               }}
             />
+          </div>
+
+          {/* Product / service — what this live promoted. */}
+          <div className="mb-6">
+            <ProductSelect sessionId={s.id} initial={s.products ?? []} />
           </div>
 
           {/* Every metric is editable — check each against your screenshots. */}
