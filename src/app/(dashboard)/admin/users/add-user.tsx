@@ -58,7 +58,12 @@ export function AddUser() {
       const origin =
         typeof window !== "undefined" ? window.location.origin : "https://lmiros.vercel.app";
       setInvite(
-        `You've been added to LMIROS. Open ${origin} and sign in with Google using ${email.trim()}.`
+        `You've been added to LMIROS.\n\n` +
+          `1. Open ${origin}\n` +
+          `2. Enter your email: ${email.trim()}\n` +
+          `3. Tap "Email me a code"\n` +
+          `4. Check your inbox and type the 6-digit code\n\n` +
+          `Any email works — Outlook, Gmail, anything. No password needed.`
       );
       setCopied(false);
       router.refresh(); // show the new user in the table
@@ -88,8 +93,9 @@ export function AddUser() {
           ✅ User added
         </div>
         <p className="text-xs text-zinc-500">
-          Send them this (WhatsApp, Telegram, email). They just open the link and
-          sign in with Google — no password, nothing else to set up.
+          Send them this (WhatsApp, Telegram, email). They enter their email,
+          get a code in their inbox, and they&apos;re in — no password, and it
+          works with any mailbox, not just Gmail.
         </p>
         <div className="rounded-md border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-950 p-3 text-sm text-zinc-800 dark:text-zinc-200 whitespace-pre-wrap">
           {invite}

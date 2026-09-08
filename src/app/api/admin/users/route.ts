@@ -23,12 +23,15 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  *
  * Login keys on the Supabase auth UID and `users.email` is UNIQUE, so we can't
  * just insert an app row — the signup trigger would later hit the unique-email
- * constraint and lock the person out of Google SSO. Instead we create the
- * Supabase auth identity via the admin API (NO email is sent, NO password —
- * Google SSO only; `email_confirm` marks it verified so their first Google
- * sign-in with the same address LINKS to this identity), then upsert the app row
- * with the chosen role. Result: the person signs in with Google and already has
- * the right role/team.
+ * constraint and lock the person out. Instead we create the Supabase auth
+ * identity via the admin API (NO email is sent, NO password; `email_confirm`
+ * marks it verified so their first sign-in with the same address LINKS to this
+ * identity), then upsert the app row with the chosen role.
+ *
+ * Creating the identity HERE is also what makes the login page's
+ * `shouldCreateUser: false` safe: an email code is only ever sent to someone an
+ * admin has already added. Either sign-in route — the emailed code or Google —
+ * lands on this same identity with the right role already set.
  */
 export async function POST(request: NextRequest) {
   const auth = await requireRole(ADMIN_ROLES);
