@@ -79,3 +79,91 @@ body {
 .dark .session-flash > td {
   background-color: rgb(69 26 3);
 }
+
+/* The same arrival flash, for a CARD. `SessionHighlighter` adds .session-flash
+   to whatever element carries the id — a <tr> on desktop, a card on a phone —
+   but the rule above only ever painted `> td`, so the streamer (who has no
+   table) saw nothing after saving. Keyframes rather than a transition, because
+   a card has no child to paint and the class is removed after 2.6s. */
+@keyframes lmiros-flash {
+  0%,
+  70% {
+    background-color: rgb(254 243 199); /* amber-100 */
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+@keyframes lmiros-flash-dark {
+  0%,
+  70% {
+    background-color: rgb(69 26 3);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+.session-flash:not(:has(> td)) {
+  animation: lmiros-flash 2.6s ease-out;
+}
+.dark .session-flash:not(:has(> td)) {
+  animation: lmiros-flash-dark 2.6s ease-out;
+}
+
+/* ── Mobile primitives ─────────────────────────────────────────────────────
+   These rules are deliberately UNLAYERED. Tailwind v4 puts utilities in
+   @layer utilities, and an unlayered rule beats a layered one — which is
+   exactly what makes the desktop guarantee below unconditional. Do not move
+   them into a layer, and do not replace them with utility classes. */
+
+/* `Disclosure` (src/components/mobile/disclosure.tsx): a section that collapses
+   below lg and is ALWAYS open from lg up. This single rule is what guarantees
+   "desktop must not regress" for every section that becomes collapsible on a
+   phone — at lg the body is shown and the summary stops being interactive, so
+   the desktop DOM reads exactly as it did before. */
+.lm-sec > .lm-body {
+  display: none;
+}
+.lm-sec[open] > .lm-body {
+  display: block;
+}
+.lm-sec > summary::-webkit-details-marker {
+  display: none;
+}
+@media (min-width: 1024px) {
+  .lm-sec > .lm-body {
+    display: block;
+  }
+  .lm-sec > summary {
+    pointer-events: none;
+    list-style: none;
+  }
+  .lm-sec > summary .lm-chev {
+    display: none;
+  }
+}
+
+/* Height of the bottom tab bar, published once so nothing hard-codes `4rem`
+   again (manual-entry-form.tsx currently does). Zero by default — a route with
+   no tab bar must not pad for one — and 4rem only while a tab bar is actually
+   mounted below lg, which the shell signals via the body data attribute. */
+:root {
+  --lmiros-bottom-bar: 0px;
+}
+@media (max-width: 1023.98px) {
+  body[data-lmiros-tabbar="1"] {
+    --lmiros-bottom-bar: 4rem;
+  }
+}
+
+/* Respect a reduced-motion preference for our own animations. */
+@media (prefers-reduced-motion: reduce) {
+  .session-flash:not(:has(> td)),
+  .dark .session-flash:not(:has(> td)) {
+    animation: none;
+    background-color: rgb(254 243 199);
+  }
+  .dark .session-flash:not(:has(> td)) {
+    background-color: rgb(69 26 3);
+  }
+}
