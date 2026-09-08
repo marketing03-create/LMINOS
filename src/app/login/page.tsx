@@ -29,6 +29,10 @@ export default function LoginPage() {
  * `shouldCreateUser: false` is the important bit. An admin still creates every
  * account first (Admin → Users), exactly as before; the code only proves the
  * person owns that mailbox. A stranger typing their address gets nothing.
+ *
+ * The screen carries no standing advisory text — only messages that respond to
+ * what the person just did. A line that is always true is a line everyone stops
+ * reading, and it competes with the one field they need to fill in.
  */
 function LoginForm() {
   const router = useRouter();
@@ -43,7 +47,6 @@ function LoginForm() {
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [err, setErr] = useState<string | null>(null);
-  const [note, setNote] = useState<string | null>(null);
 
   async function signInWithGoogle() {
     setLoading(true);
@@ -66,7 +69,6 @@ function LoginForm() {
     if (!address) return;
     setLoading(true);
     setErr(null);
-    setNote(null);
     try {
       const supabase = createSupabaseBrowserClient();
       const { error } = await supabase.auth.signInWithOtp({
@@ -86,7 +88,6 @@ function LoginForm() {
         return;
       }
       setStep("code");
-      setNote(`Code sent to ${address}. It expires in a few minutes.`);
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
@@ -129,139 +130,137 @@ function LoginForm() {
     setStep("email");
     setCode("");
     setErr(null);
-    setNote(null);
   }
 
-  const inputCls =
-    "w-full h-10 rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-900 placeholder:text-zinc-400 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100";
+  // Full-width, 44px tall: comfortably tappable on a phone, which is where
+  // streamers sign in.
+  const field =
+    "w-full h-11 rounded-lg border border-zinc-300 bg-white px-3.5 text-[15px] text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100";
+  const primary =
+    "w-full h-11 rounded-lg bg-blue-600 text-[15px] font-medium text-white transition hover:bg-blue-500 active:scale-[0.99] disabled:opacity-40 disabled:hover:bg-blue-600";
+  const secondary =
+    "w-full h-11 rounded-lg border border-zinc-300 text-[15px] font-medium transition hover:bg-zinc-50 active:scale-[0.99] disabled:opacity-40 dark:border-zinc-700 dark:hover:bg-zinc-900";
+
+  const banner = urlError === "domain_not_allowed"
+    ? "Your email domain is not on the allowlist. Contact an admin."
+    : urlError === "auth_failed"
+      ? "That sign-in didn't complete. Please try again."
+      : null;
+  const message = err ?? banner;
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-black p-6">
-      <div className="w-full max-w-sm border border-zinc-200 dark:border-zinc-800 rounded-xl p-8 bg-white dark:bg-zinc-950 shadow-sm">
-        <Image
-          src="/logo.png"
-          alt=""
-          width={48}
-          height={48}
-          className="mb-3 h-12 w-12 rounded-xl"
-          priority
-        />
-        <h1 className="text-2xl font-semibold tracking-tight">LMIROS</h1>
-        <p className="mt-1 text-sm text-zinc-500">
-          Loan Marketing Intelligence &amp; Revenue OS
-        </p>
+    <div className="flex min-h-screen items-center justify-center bg-zinc-50 p-6 dark:bg-black">
+      <div className="w-full max-w-[380px]">
+        {/* Logo and name centred above the card — the card then holds nothing
+            but the task, so the eye lands on the input, not on chrome. */}
+        <div className="mb-7 flex flex-col items-center">
+          <Image
+            src="/logo.png"
+            alt=""
+            width={56}
+            height={56}
+            className="h-14 w-14 rounded-2xl shadow-sm"
+            priority
+          />
+          <h1 className="mt-3.5 text-[22px] font-semibold tracking-tight">LMIROS</h1>
+        </div>
 
-        {urlError === "domain_not_allowed" && (
-          <div className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
-            Your email domain is not on the allowlist. Contact an admin.
-          </div>
-        )}
-        {urlError === "auth_failed" && (
-          <div className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
-            That sign-in didn&apos;t complete. Please try again.
-          </div>
-        )}
+        <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+          {message && (
+            <div
+              role="alert"
+              className="mb-5 rounded-lg border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm text-red-800 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300"
+            >
+              {message}
+            </div>
+          )}
 
-        {err && (
-          <div className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
-            {err}
-          </div>
-        )}
+          {step === "email" ? (
+            <>
+              <form onSubmit={sendCode}>
+                <label htmlFor="email" className="block text-sm font-medium">
+                  Email
+                </label>
+                <input
+                  id="email"
+                  type="email"
+                  autoComplete="email"
+                  inputMode="email"
+                  autoFocus
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={loading}
+                  placeholder="you@company.com"
+                  className={`mt-2 ${field}`}
+                />
+                <button
+                  type="submit"
+                  disabled={loading || !email.trim()}
+                  className={`mt-3 ${primary}`}
+                >
+                  {loading ? "Sending…" : "Email me a code"}
+                </button>
+              </form>
 
-        {step === "email" ? (
-          <>
-            {/* Email code first — it works with ANY mailbox, so it's the path
-                that never dead-ends someone. */}
-            <form onSubmit={sendCode} className="mt-6">
-              <label htmlFor="email" className="block text-sm font-medium">
-                Work email
+              <div className="my-5 flex items-center gap-3">
+                <span className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
+                <span className="text-xs text-zinc-400">or</span>
+                <span className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
+              </div>
+
+              <button onClick={signInWithGoogle} disabled={loading} className={secondary}>
+                Continue with Google
+              </button>
+            </>
+          ) : (
+            <form onSubmit={verifyCode}>
+              {/* The address is the one thing they need to confirm here — if the
+                  code never arrives, a typo is the usual reason. */}
+              <p className="text-sm text-zinc-500">
+                We sent a code to{" "}
+                <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                  {email.trim().toLowerCase()}
+                </span>
+              </p>
+
+              <label htmlFor="code" className="mt-5 block text-sm font-medium">
+                6-digit code
               </label>
               <input
-                id="email"
-                type="email"
-                autoComplete="email"
-                inputMode="email"
+                id="code"
+                // One-time-code autocomplete lets phones offer the code straight
+                // from the notification instead of making them switch apps.
+                autoComplete="one-time-code"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={8}
                 required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                autoFocus
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
                 disabled={loading}
-                placeholder="you@company.com"
-                className={`mt-1.5 ${inputCls}`}
+                placeholder="123456"
+                className={`mt-2 text-center text-xl tracking-[0.4em] tabular-nums ${field}`}
               />
               <button
                 type="submit"
-                disabled={loading || !email.trim()}
-                className="mt-3 w-full h-10 rounded-md bg-zinc-900 text-zinc-50 hover:bg-zinc-700 disabled:opacity-50 text-sm font-medium dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
+                disabled={loading || !code.trim()}
+                className={`mt-3 ${primary}`}
               >
-                {loading ? "Sending…" : "Email me a code"}
+                {loading ? "Checking…" : "Sign in"}
               </button>
-              <p className="mt-2 text-xs text-zinc-500">
-                Works with any email — Outlook, Gmail, anything.
-              </p>
+              <button
+                type="button"
+                onClick={startOver}
+                disabled={loading}
+                className="mt-4 w-full text-sm text-zinc-500 transition hover:text-zinc-900 disabled:opacity-40 dark:hover:text-zinc-100"
+              >
+                Use a different email
+              </button>
             </form>
-
-            <div className="my-5 flex items-center gap-3">
-              <span className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
-              <span className="text-[11px] uppercase tracking-wider text-zinc-400">
-                or
-              </span>
-              <span className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
-            </div>
-
-            <button
-              onClick={signInWithGoogle}
-              disabled={loading}
-              className="w-full h-10 rounded-md border border-zinc-300 text-sm font-medium hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
-            >
-              Continue with Google
-            </button>
-          </>
-        ) : (
-          <form onSubmit={verifyCode} className="mt-6">
-            {note && <p className="mb-3 text-sm text-zinc-500">{note}</p>}
-            <label htmlFor="code" className="block text-sm font-medium">
-              Enter the 6-digit code
-            </label>
-            <input
-              id="code"
-              // One-time-code autocomplete lets phones offer the code straight
-              // from the notification instead of making them switch apps.
-              autoComplete="one-time-code"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              maxLength={8}
-              required
-              autoFocus
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              disabled={loading}
-              placeholder="123456"
-              className={`mt-1.5 text-center text-lg tracking-[0.3em] tabular-nums ${inputCls}`}
-            />
-            <button
-              type="submit"
-              disabled={loading || !code.trim()}
-              className="mt-3 w-full h-10 rounded-md bg-zinc-900 text-zinc-50 hover:bg-zinc-700 disabled:opacity-50 text-sm font-medium dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
-            >
-              {loading ? "Checking…" : "Sign in"}
-            </button>
-            <button
-              type="button"
-              onClick={startOver}
-              disabled={loading}
-              className="mt-3 w-full text-sm text-zinc-500 hover:underline disabled:opacity-50"
-            >
-              Use a different email
-            </button>
-            <p className="mt-4 text-xs text-zinc-500">
-              No email? Check your spam folder.
-            </p>
-          </form>
-        )}
-
-        <p className="mt-6 text-xs text-zinc-500">
-          Internal staff only. Access is logged.
-        </p>
+          )}
+        </div>
       </div>
     </div>
   );
