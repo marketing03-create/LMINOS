@@ -32,12 +32,25 @@ function devBypass(): boolean {
 }
 
 /**
+ * Which role the dev bypass impersonates. Defaults to hq_admin; set
+ * LMIROS_DEV_BYPASS_ROLE=live_streamer to preview the streamer experience
+ * without a real login. Only ever consulted inside devBypass(), so it has no
+ * effect in production.
+ */
+function devBypassRole(): Role {
+  const r = process.env.LMIROS_DEV_BYPASS_ROLE;
+  return r === "live_streamer" || r === "marketing_manager" || r === "viewer"
+    ? r
+    : "hq_admin";
+}
+
+/**
  * Require the current user to hold one of `roles`. Returns the resolved
  * userId + role on success, or a 401/403 result to return from the route.
  */
 export async function requireRole(roles: Role[]): Promise<AuthResult> {
   if (devBypass()) {
-    return { ok: true, userId: null, role: "hq_admin" };
+    return { ok: true, userId: null, role: devBypassRole() };
   }
 
   const supabase = await createSupabaseServerClient();
@@ -81,7 +94,7 @@ export type SessionUser = {
  */
 export async function getSessionUser(): Promise<SessionUser | null> {
   if (devBypass()) {
-    return { userId: null, email: "dev@stub.local", role: "hq_admin" };
+    return { userId: null, email: "dev@stub.local", role: devBypassRole() };
   }
 
   const supabase = await createSupabaseServerClient();

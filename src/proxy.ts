@@ -32,7 +32,10 @@ export async function proxy(request: NextRequest) {
     process.env.LMIROS_DEV_BYPASS_AUTH === "true" &&
     process.env.NODE_ENV !== "production"
   ) {
-    return NextResponse.next();
+    // Forward the request (with the pathname header set above) — without it the
+    // dashboard layout can't gate non-admin roles and shows its deny page, which
+    // made the streamer experience impossible to preview in dev.
+    return NextResponse.next({ request });
   }
 
   if (PUBLIC_PREFIXES.some((p) => pathname.startsWith(p))) {
