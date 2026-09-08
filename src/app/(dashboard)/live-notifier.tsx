@@ -35,7 +35,8 @@ function saveSeen(m: Record<string, number>) {
 }
 
 /**
- * Admin-only top-center pop-out. Polls the app_notifications feed and toasts any
+ * Admin-only pop-out — bottom-centre on a phone, top-centre on a laptop, for the
+ * reason spelled out at the container below. Polls the app_notifications feed and toasts any
  * fresh, unseen event (today: a streamer going live). Dedupes via a localStorage
  * seen-set so a page refresh never re-pops, and only surfaces events from the
  * last few minutes so opening the app doesn't flood old ones.
@@ -108,7 +109,17 @@ export function LiveNotifier() {
   if (!toasts.length) return null;
 
   return (
-    <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] flex w-[calc(100%-2rem)] max-w-md flex-col items-center gap-2">
+    // Bottom on a phone, unchanged at the top on a laptop. `top-4` put the toast
+    // directly over the sticky top bar — the one strip that is always on screen —
+    // so an alert about a streamer going live hid the logo and the notification
+    // bell for its full 12 seconds. Bottom is also where the thumb already is.
+    // `--lmiros-bottom-bar` keeps it clear of whichever tab bar is mounted and
+    // resolves to 0 when there is none, so nothing hard-codes 4rem a second time.
+    <div
+      role="status"
+      aria-live="polite"
+      className="fixed top-auto bottom-[calc(var(--lmiros-bottom-bar)+1rem)] lg:bottom-auto lg:top-4 left-1/2 -translate-x-1/2 z-[100] flex w-[calc(100%-2rem)] max-w-md flex-col items-center gap-2"
+    >
       {toasts.map((t) => (
         <div
           key={t.id}
@@ -119,15 +130,18 @@ export function LiveNotifier() {
             <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
           </span>
           <div className="min-w-0 flex-1">
-            <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+            <div className="text-[15px] lg:text-sm font-semibold text-zinc-900 dark:text-zinc-100">
               {t.title}
             </div>
-            {t.body && <div className="truncate text-xs text-zinc-500">{t.body}</div>}
+            {/* Clipping stays a desktop-only habit. The body here is the handle
+                and the time — the two things that decide whether this alert is
+                worth tapping — and on a 375px card `truncate` ate most of it. */}
+            {t.body && <div className="text-sm lg:truncate lg:text-xs text-zinc-500">{t.body}</div>}
             {t.href && (
               <Link
                 href={t.href}
                 onClick={() => dismiss(t.id)}
-                className="mt-1 inline-block text-xs font-medium text-blue-600 hover:underline dark:text-blue-400"
+                className="mt-1 inline-flex min-h-11 items-center lg:inline-block lg:min-h-0 text-sm lg:text-xs font-medium text-blue-600 hover:underline active:text-blue-800 dark:text-blue-400 dark:active:text-blue-300"
               >
                 View →
               </Link>
@@ -135,7 +149,11 @@ export function LiveNotifier() {
           </div>
           <button
             onClick={() => dismiss(t.id)}
-            className="shrink-0 text-sm leading-none text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
+            // 44px of box below lg. A 14px ✕ eight pixels from a "View →" link is
+            // a coin-flip between dismissing the alert and following it, and the
+            // toast auto-clears in 12s anyway — so the cheap tap has to be the
+            // right one. At lg it collapses back to the original inline glyph.
+            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-base leading-none text-zinc-400 hover:text-zinc-700 active:bg-zinc-100 dark:hover:text-zinc-200 dark:active:bg-zinc-800 lg:inline-block lg:h-auto lg:w-auto lg:rounded-none lg:text-sm"
             aria-label="Dismiss"
           >
             ✕

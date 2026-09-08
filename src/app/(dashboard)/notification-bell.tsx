@@ -13,6 +13,18 @@ const POLL_MS = 60_000;
  * `lmiros:notifications-read` so opening the list clears it instantly rather
  * than after the next poll. Fire-and-forget: the API returns an empty payload
  * instead of erroring when there's no session.
+ *
+ * The bell is 44px rather than 36px because it sits in the top-right corner of
+ * the mobile header — the far end of a right-handed thumb's arc, and the one
+ * place in the app where an 8px miss is most likely. It renders below `lg`
+ * only (the header holding it is `lg:hidden`), so the extra 8px costs the
+ * desktop layout nothing.
+ *
+ * Three things here are deliberately not tunable: the 60s `countOnly=1` poll,
+ * the `visibilitychange` refetch and the `lmiros:notifications-read` listener.
+ * Drop any one of them and the badge sits stale for up to a minute after the
+ * streamer has already read the list, which reads as the app not knowing what
+ * they just did.
  */
 export function NotificationBell() {
   const [unread, setUnread] = useState(0);
@@ -54,7 +66,7 @@ export function NotificationBell() {
     <Link
       href="/tiktok-live/notifications"
       aria-label={unread ? `Notifications, ${unread} unread` : "Notifications"}
-      className="relative flex h-9 w-9 items-center justify-center rounded-lg text-zinc-700 hover:bg-zinc-200 dark:text-zinc-300 dark:hover:bg-zinc-800"
+      className="relative flex h-11 w-11 items-center justify-center rounded-lg text-zinc-700 hover:bg-zinc-200 active:bg-zinc-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:active:bg-zinc-800"
     >
       <svg
         width="22"
@@ -71,7 +83,7 @@ export function NotificationBell() {
         <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
       </svg>
       {unread > 0 && (
-        <span className="absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold leading-none text-white">
+        <span className="absolute right-1 top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-xs font-semibold leading-none text-white tabular-nums">
           {unread > 9 ? "9+" : unread}
         </span>
       )}

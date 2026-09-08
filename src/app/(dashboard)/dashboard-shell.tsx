@@ -2,21 +2,35 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SidebarNav } from "./sidebar-nav";
 import { BackBar } from "./back-bar";
 import { LogoutButton } from "./logout-button";
 import { StreamerTabBar } from "./streamer-tab-bar";
+import { AdminTabBar } from "./admin-tab-bar";
 import { NotificationBell } from "./notification-bell";
 
 /**
  * Responsive app shell. Desktop (lg+): the sidebar is a permanent left column,
- * exactly as before. Mobile/tablet: the sidebar becomes an off-canvas drawer
- * behind a top bar with a hamburger — so streamers on phones get the full width
- * for the upload flow and can still reach every page. The drawer auto-closes on
- * navigation.
+ * exactly as before. Phone/tablet: every role now navigates from a bottom tab
+ * bar — streamers from `StreamerTabBar`, admins from `AdminTabBar` — and the top
+ * bar carries nothing but the logo and (for streamers) the notification bell.
+ *
+ * The off-canvas drawer and its hamburger are gone below `lg`. That was the one
+ * real behaviour change here, and it is worth spelling out: the top-left corner
+ * is the hardest place on a phone for a thumb to reach, and every admin page
+ * change cost open-drawer → scan-six-links → tap. `AdminTabBar`'s More sheet
+ * renders the same `SidebarNav`, so no destination was lost — a page that is in
+ * the nav is still reachable, and a page that is not never was.
+ *
+ * The sidebar therefore became `hidden lg:flex` rather than a translated drawer.
+ * Every class that had any effect at 1024px is still on the element (`lg:sticky
+ * lg:left-0 lg:top-0 lg:z-30 lg:flex` replacing what `fixed left-0 top-0 z-50
+ * flex` used to supply below that width), so the desktop column renders exactly
+ * as it does today; what dropped out is the transform and transition that only
+ * ever moved the drawer on a phone. Bonus: the nav links are no longer sitting
+ * off-screen in the tab order for a streamer who could never open the drawer.
  */
 export function DashboardShell({
   role,
@@ -29,70 +43,65 @@ export function DashboardShell({
   homeHref: string;
   children: React.ReactNode;
 }) {
-  const [open, setOpen] = useState(false);
-  const pathname = usePathname();
   const initial = (email[0] ?? "?").toUpperCase();
-  // Live streamers get an app-like bottom tab bar on mobile instead of the
-  // hamburger drawer, so the phone experience is Home / + / Profile.
   const isStreamer = role === "live_streamer";
+  // Same inline test layout.tsx uses for LiveNotifier, kept inline rather than
+  // importing isAdminRole so this client file pulls in no auth module at all.
+  const isAdmin = role === "hq_admin" || role === "marketing_manager";
+  // Roles with neither bar (team_lead, viewer, …) only ever see /no-access.
+  const hasTabBar = isStreamer || isAdmin;
 
+  // `--lmiros-bottom-bar` in globals.css keys off `body[data-lmiros-tabbar="1"]`,
+  // and the <body> tag belongs to the root layout — a server component shared
+  // with /login, which must not pad for a bar it never renders. So the shell
+  // stamps the attribute from an effect and clears it on unmount. The cost is
+  // that the var reads 0px for the first frame after hydration; that is fine,
+  // because everything reading it is a sticky action bar that is itself a client
+  // component mounting in the same pass, and the failure mode is one frame of a
+  // button sitting 64px lower, never a button hidden under the tab bar.
   useEffect(() => {
-    setOpen(false); // close the drawer whenever the route changes
-  }, [pathname]);
+    if (!hasTabBar) return;
+    document.body.dataset.lmirosTabbar = "1";
+    return () => {
+      delete document.body.dataset.lmirosTabbar;
+    };
+  }, [hasTabBar]);
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 lg:flex">
-      {/* Mobile top bar (hidden on desktop). Streamers use the bottom tab bar
-          instead, so they get a cleaner app-like top with just the logo. */}
-      <header className="lg:hidden sticky top-0 z-40 flex h-14 items-center gap-3 border-b border-zinc-200/80 dark:border-zinc-800/80 bg-zinc-100/85 dark:bg-zinc-900/80 px-4 backdrop-blur">
-        {!isStreamer && (
-          <button
-            onClick={() => setOpen(true)}
-            aria-label="Open menu"
-            className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-800"
+      {/* Mobile top bar (hidden on desktop). The padding sits on the header and
+          the 48px row sits inside it: with border-box sizing, putting the notch
+          inset on an `h-12` element would eat the logo instead of moving it. */}
+      <header className="lg:hidden sticky top-0 z-40 border-b border-zinc-200/80 dark:border-zinc-800/80 bg-zinc-100/85 dark:bg-zinc-900/80 pt-[env(safe-area-inset-top)] backdrop-blur">
+        <div className="flex h-12 items-center gap-3 px-4">
+          <Link
+            href={homeHref}
+            className="flex min-h-11 items-center gap-2 rounded-lg px-1 active:bg-zinc-200/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:active:bg-zinc-800/70"
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <path d="M3 6h18M3 12h18M3 18h18" />
-            </svg>
-          </button>
-        )}
-        <Link href={homeHref} className="flex items-center gap-2">
-          <Image
-            src="/logo.png"
-            alt=""
-            width={28}
-            height={28}
-            className="h-7 w-7 rounded-lg"
-            priority
-          />
-          <span className="font-semibold tracking-tight">LMIROS</span>
-        </Link>
-        {/* Notification Center — streamers only for now (nothing writes admin
-            rows yet, so it would sit permanently at 0). */}
-        {isStreamer && (
-          <div className="ml-auto">
-            <NotificationBell />
-          </div>
-        )}
+            <Image
+              src="/logo.png"
+              alt=""
+              width={28}
+              height={28}
+              className="h-7 w-7 rounded-lg"
+              priority
+            />
+            <span className="font-semibold tracking-tight">LMIROS</span>
+          </Link>
+          {/* Notification Center — streamers only for now (nothing writes admin
+              rows yet, so it would sit permanently at 0). */}
+          {isStreamer && (
+            <div className="ml-auto">
+              <NotificationBell />
+            </div>
+          )}
+        </div>
       </header>
 
-      {/* Backdrop when the drawer is open (mobile only) */}
-      {open && (
-        <div
-          className="fixed inset-0 z-40 bg-black/40 lg:hidden"
-          onClick={() => setOpen(false)}
-          aria-hidden
-        />
-      )}
-
-      {/* Sidebar: off-canvas drawer on mobile, static column on desktop */}
-      <aside
-        className={`fixed left-0 top-0 z-50 flex h-screen w-64 shrink-0 flex-col border-r border-zinc-200/80 bg-zinc-100/95 backdrop-blur-xl transition-transform duration-200 dark:border-zinc-800/80 dark:bg-zinc-900/95 lg:sticky lg:z-30 lg:translate-x-0 ${
-          open ? "translate-x-0" : "-translate-x-full"
-        }`}
-      >
+      {/* Sidebar: desktop column only. Below lg it is not rendered at all. */}
+      <aside className="hidden h-screen w-64 shrink-0 flex-col border-r border-zinc-200/80 bg-zinc-100/95 backdrop-blur-xl dark:border-zinc-800/80 dark:bg-zinc-900/95 lg:sticky lg:left-0 lg:top-0 lg:z-30 lg:flex">
         <div className="flex items-center justify-between px-5 pb-4 pt-5">
-          <Link href={homeHref} className="flex items-center gap-2.5" onClick={() => setOpen(false)}>
+          <Link href={homeHref} className="flex items-center gap-2.5">
             <Image
               src="/logo.png"
               alt=""
@@ -110,16 +119,6 @@ export function DashboardShell({
               </span>
             </span>
           </Link>
-          {/* Close (mobile only) */}
-          <button
-            onClick={() => setOpen(false)}
-            aria-label="Close menu"
-            className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-800 lg:hidden"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <path d="M18 6 6 18M6 6l12 12" />
-            </svg>
-          </button>
         </div>
 
         <SidebarNav role={role} />
@@ -136,17 +135,17 @@ export function DashboardShell({
         </div>
       </aside>
 
-      <main
-        className={`min-w-0 flex-1 overflow-x-clip ${
-          isStreamer ? "pb-24 lg:pb-0" : ""
-        }`}
-      >
+      {/* The bottom padding is unconditional below lg now. It used to be
+          streamer-only, which is why an admin's last table row sat under the
+          bar the moment they got one. */}
+      <main className="min-w-0 flex-1 overflow-x-clip pb-28 lg:pb-0">
         <BackBar homeHref={homeHref} />
         {children}
       </main>
 
-      {/* App-like bottom nav — streamers on mobile only. */}
+      {/* App-like bottom nav — one per role, both lg:hidden internally. */}
       {isStreamer && <StreamerTabBar />}
+      {isAdmin && <AdminTabBar role={role} email={email} />}
     </div>
   );
 }

@@ -33,10 +33,8 @@ export default async function DashboardLayout({
       <main className="grid min-h-screen place-items-center p-6 text-center">
         <div>
           <h1 className="text-lg font-medium">Can&apos;t verify this page</h1>
-          <p className="mt-1 max-w-sm text-sm text-zinc-500">
-            Something went wrong checking what you&apos;re allowed to see, so we
-            didn&apos;t load it. Please refresh — and tell an admin if it keeps
-            happening.
+          <p className="mt-1 max-w-sm text-sm leading-relaxed text-zinc-500">
+            Couldn&apos;t verify your access. Refresh, or tell an admin.
           </p>
         </div>
       </main>
