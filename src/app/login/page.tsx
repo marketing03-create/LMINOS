@@ -203,13 +203,14 @@ function LoginForm() {
                 </button>
               </form>
 
-              <div className="my-5 flex items-center gap-3">
-                <span className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
-                <span className="text-xs text-zinc-400">or</span>
-                <span className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
-              </div>
-
-              <button onClick={signInWithGoogle} disabled={loading} className={secondary}>
+              {/* No divider: the two buttons already read as primary and
+                  fallback from their weight alone, so a labelled rule was one
+                  more thing on screen doing no work. */}
+              <button
+                onClick={signInWithGoogle}
+                disabled={loading}
+                className={`mt-2.5 ${secondary}`}
+              >
                 Continue with Google
               </button>
             </>
