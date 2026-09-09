@@ -131,14 +131,15 @@ export function StreamerHomeFeed({
           number this route is allowed — 24px on a phone, the full 28px from
           `lg` up where there is room beside the date control.
 
-          Two things this header deliberately does NOT do any more. It does not
-          restate the range under the title: the date chip three centimetres
-          away already reads "7 days", and a caption that only ever repeats the
-          control beside it is not information. And it does not right-align the
-          control on a phone: at 375px the title fills the row, so `ml-auto`
-          left the chip stranded on its own line against the right margin,
-          aligned to nothing. Stacked and flush left, the title and the control
-          share an edge. The desktop row is unchanged. */}
+          It no longer restates the range under the title either: the date chip
+          already reads "7 days", and a caption that only ever repeats the
+          control beside it is not information.
+
+          The control sits on its own row below the title on a phone, pushed to
+          the right margin — which only works because the title now fits one
+          line at 24px. It was tried at 28px, where the title filled the row and
+          the chip wrapped underneath looking stranded rather than placed. Same
+          row, right-aligned, from `lg` up. */}
       <header className="mb-2 lg:flex lg:flex-wrap lg:items-start lg:gap-3">
         <div className="min-w-0">
           <h1
@@ -151,7 +152,7 @@ export function StreamerHomeFeed({
               : `${nf(needs.length)} ${plural(needs.length, "live needs", "lives need")} numbers`}
           </h1>
         </div>
-        <div className="mt-3 lg:ml-auto lg:mt-0 lg:shrink-0">
+        <div className="mt-3 flex justify-end lg:ml-auto lg:mt-0 lg:block lg:shrink-0">
           <CompactDateFilter basePath="/tiktok-live" choice={choice} />
         </div>
       </header>
