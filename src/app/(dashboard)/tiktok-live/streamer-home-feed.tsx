@@ -127,14 +127,22 @@ export function StreamerHomeFeed({
 
   return (
     <div className="space-y-4">
-      {/* The hero count is the screen's whole thesis, so it gets the one 28px
-          number this route is allowed. It wraps to a second line before the
-          date control gets squeezed — at 375px the two do not share a row, and
-          `ml-auto` keeps the control on the right when it drops below. */}
-      <header className="mb-2 flex flex-wrap items-start gap-3">
+      {/* The hero count is the screen's whole thesis, so it gets the one large
+          number this route is allowed — 24px on a phone, the full 28px from
+          `lg` up where there is room beside the date control.
+
+          Two things this header deliberately does NOT do any more. It does not
+          restate the range under the title: the date chip three centimetres
+          away already reads "7 days", and a caption that only ever repeats the
+          control beside it is not information. And it does not right-align the
+          control on a phone: at 375px the title fills the row, so `ml-auto`
+          left the chip stranded on its own line against the right margin,
+          aligned to nothing. Stacked and flush left, the title and the control
+          share an edge. The desktop row is unchanged. */}
+      <header className="mb-2 lg:flex lg:flex-wrap lg:items-start lg:gap-3">
         <div className="min-w-0">
           <h1
-            className={`text-[28px] font-semibold leading-tight tabular-nums ${
+            className={`text-2xl font-semibold leading-tight tabular-nums lg:text-[28px] ${
               needs.length === 0 ? "text-emerald-600 dark:text-emerald-400" : ""
             }`}
           >
@@ -142,9 +150,8 @@ export function StreamerHomeFeed({
               ? "All caught up"
               : `${nf(needs.length)} ${plural(needs.length, "live needs", "lives need")} numbers`}
           </h1>
-          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{choice.label}</p>
         </div>
-        <div className="ml-auto shrink-0">
+        <div className="mt-3 lg:ml-auto lg:mt-0 lg:shrink-0">
           <CompactDateFilter basePath="/tiktok-live" choice={choice} />
         </div>
       </header>
