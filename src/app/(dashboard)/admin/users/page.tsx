@@ -42,15 +42,24 @@ export default async function AdminUsersPage() {
   const me = await getSessionUser();
 
   return (
-    <div className="p-4 sm:p-8">
+    <div className="px-4 py-5 sm:p-8">
       <header className="mb-6">
-        <h1 className="text-2xl font-semibold tracking-tight">Users</h1>
-        <p className="mt-1 text-sm text-zinc-500">
-          Add someone here, or they&apos;re auto-created on their first Google
-          sign-in. Edit their role inline below — changes save immediately.
-          Give a <b>Live Streamer</b> a TikTok handle on the TikTok Live admin
-          page.
-        </p>
+        {/* The count is only worth a line on the phone, where the list is the
+            whole screen and you cannot see its length at a glance. The intro
+            paragraph that used to sit here is gone: it claimed changes save
+            immediately, which was never true — Save is an explicit tap. */}
+        <h1 className="text-2xl font-semibold tracking-tight">
+          Users
+          {/* Only when the query actually answered. `load()` swallows a failure
+              into `{rows: [], error}`, so an unguarded count would print
+              "Users (0)" — a confident statement that this company has no
+              users — at the one moment the number is unknown. P1 is about a
+              blank never being rendered as a zero; this is the same
+              substitution one level up. */}
+          {!error && (
+            <span className="font-normal text-zinc-400 lg:hidden"> ({rows.length})</span>
+          )}
+        </h1>
       </header>
 
       <div className="mb-6">

@@ -9,6 +9,9 @@ import {
 } from "@/lib/tiktok-live/queries";
 import { CompactDateFilter } from "@/components/compact-date-filter";
 import { SessionHighlighter } from "@/app/(dashboard)/tiktok-live/session-highlighter";
+import { Disclosure } from "@/components/mobile/disclosure";
+import { HelpChip } from "@/components/mobile/metric-help-sheet";
+import { NotEntered } from "@/components/mobile/not-entered";
 import { SessionsTable } from "../sessions-table";
 import { LiveAnalysis } from "../live-analysis";
 import { StreamerSwitcher } from "../streamer-switcher";
@@ -65,7 +68,7 @@ export default async function StreamerDetailPage({
   const keywords = header.leadKeywords ?? [];
 
   return (
-    <div className="p-4 sm:p-8">
+    <div className="px-4 py-5 sm:p-8">
       <SessionHighlighter />
 
       <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
@@ -95,16 +98,23 @@ export default async function StreamerDetailPage({
             )}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        {/* `flex-wrap` is the whole fix here: these three controls are about
+            420px wide and were sitting in a 343px row with nothing allowed to
+            wrap, so on a phone the date filter — the control that decides every
+            number below — was pushed off the right edge. At `lg` there is room
+            for all three and the row never wraps, so nothing moves there.
+            `min-h-11` does the same trick in the other axis: 44px on a thumb,
+            back to today's 34px from `lg` up. */}
+        <div className="flex flex-wrap items-center gap-2">
           <Link
             href={`/admin/tiktok/history?handle=${encodeURIComponent(header.handle)}&from=${id}`}
-            className="inline-flex items-center rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-3 py-1.5 text-sm font-medium text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-900"
+            className="inline-flex min-h-11 items-center rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-3 py-1.5 text-sm font-medium text-zinc-700 dark:text-zinc-200 active:bg-zinc-100 dark:active:bg-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900 lg:min-h-0"
           >
             Screenshot History
           </Link>
           <a
             href={exportHref}
-            className="inline-flex items-center rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-3 py-1.5 text-sm font-medium text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-900"
+            className="inline-flex min-h-11 items-center rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-3 py-1.5 text-sm font-medium text-zinc-700 dark:text-zinc-200 active:bg-zinc-100 dark:active:bg-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900 lg:min-h-0"
           >
             Export CSV
           </a>
@@ -118,9 +128,11 @@ export default async function StreamerDetailPage({
           {keywords.length > 0 ? (
             <div className="flex flex-wrap gap-1">
               {keywords.map((k) => (
+                // 12px, not 11px: these are the words that decide which comments
+                // become leads, so they are content rather than decoration.
                 <span
                   key={k}
-                  className="text-[11px] px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300"
+                  className="text-xs px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300"
                 >
                   {k}
                 </span>
@@ -131,9 +143,16 @@ export default async function StreamerDetailPage({
           )}
         </Fact>
         <Fact label="Last synced">
-          {header.lastSyncedAt
-            ? new Date(header.lastSyncedAt).toLocaleString("en-MY", { hour12: false })
-            : "—"}
+          {/* Two variants of the same blank on purpose: a phone reads the words,
+              the desktop cell keeps the dash it prints today (P1 / P5). */}
+          {header.lastSyncedAt ? (
+            new Date(header.lastSyncedAt).toLocaleString("en-MY", { hour12: false })
+          ) : (
+            <>
+              <NotEntered className="lg:hidden" />
+              <NotEntered variant="dash" className="hidden text-current lg:inline" />
+            </>
+          )}
         </Fact>
         <Fact label="Switch streamer">
           <StreamerSwitcher handles={handles} value={id} preserve={preserve} />
@@ -154,17 +173,44 @@ export default async function StreamerDetailPage({
         endStr={choice.endStr}
       />
 
-      {/* Session history */}
-      <section className="mb-10">
-        <h2 className="text-lg font-semibold mb-3">Session history</h2>
-        {sessions.length > 0 ? (
-          <SessionsTable sessions={sessions} linkHandle={false} />
-        ) : (
-          <div className="border border-zinc-200 dark:border-zinc-800 rounded-xl p-8 text-center text-sm text-zinc-500">
-            No lives in the selected range.
-          </div>
-        )}
+      {/* Session history. Collapsed on a phone because up to 500 rows of it sit
+          between the reader and nothing — it is the last thing on the page — but
+          expanded it is still the same `SessionsTable`, which brings its own
+          card list below `lg` and its own table above it. `.lm-sec` keeps the
+          body open at `lg`; `-mx-4` puts the summary's padding back where the
+          old `<h2>` sat there. */}
+      <section className="mb-10 -mx-4">
+        <Disclosure
+          title="Session history"
+          count={`${sessions.length} live${sessions.length === 1 ? "" : "s"}`}
+          headingLevel={2}
+        >
+          {sessions.length > 0 ? (
+            <SessionsTable sessions={sessions} linkHandle={false} />
+          ) : (
+            <div className="border border-zinc-200 dark:border-zinc-800 rounded-xl p-8 text-center text-sm text-zinc-500">
+              No lives in the selected range.
+            </div>
+          )}
+        </Disclosure>
       </section>
+
+      {/* The screen's single help affordance. Every `?` on the tiles above is
+          `lg`-only now, so on a phone this is the one place the definitions
+          live — including `notRecorded`, which is where the two "a gap means the
+          number wasn't entered" chart footnotes went. */}
+      <HelpChip
+        keys={[
+          "totalLeads",
+          "filteredLeads",
+          "leadQuality",
+          "sessions",
+          "liveHours",
+          "views",
+          "peak",
+          "notRecorded",
+        ]}
+      />
     </div>
   );
 }

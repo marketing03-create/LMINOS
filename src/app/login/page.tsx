@@ -135,7 +135,7 @@ function LoginForm() {
   // Full-width, 44px tall: comfortably tappable on a phone, which is where
   // streamers sign in.
   const field =
-    "w-full h-11 rounded-lg border border-zinc-300 bg-white px-3.5 text-[15px] text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100";
+    "w-full h-11 rounded-lg border border-zinc-300 bg-white px-3.5 text-base sm:text-[15px] text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100";
   const primary =
     "w-full h-11 rounded-lg bg-blue-600 text-[15px] font-medium text-white transition hover:bg-blue-500 active:scale-[0.99] disabled:opacity-40 disabled:hover:bg-blue-600";
   const secondary =
@@ -149,7 +149,11 @@ function LoginForm() {
   const message = err ?? banner;
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 p-6 dark:bg-black">
+    // Top-aligned, not vertically centred. Centring meant the whole card slid
+    // upward the moment the iOS keyboard opened and slid back when it closed,
+    // so the field you were typing into moved under your thumb. `dvh` because
+    // Safari's `vh` is the pre-keyboard height and would reintroduce the jump.
+    <div className="flex min-h-[100dvh] flex-col items-center justify-start bg-zinc-50 px-6 pb-6 pt-16 dark:bg-black">
       <div className="w-full max-w-[380px]">
         {/* Logo and name centred above the card — the card then holds nothing
             but the task, so the eye lands on the input, not on chrome. */}
@@ -255,7 +259,11 @@ function LoginForm() {
                 type="button"
                 onClick={startOver}
                 disabled={loading}
-                className="mt-4 w-full text-sm text-zinc-500 transition hover:text-zinc-900 disabled:opacity-40 dark:hover:text-zinc-100"
+                // Bare 20px text before this. It is the only escape from the
+                // code step — a mistyped address strands you here — so it gets
+                // the same 44px box as every other way out of a screen, just
+                // in quieter ink so it never competes with Sign in.
+                className={`mt-4 ${secondary} text-zinc-500 dark:text-zinc-400`}
               >
                 Use a different email
               </button>

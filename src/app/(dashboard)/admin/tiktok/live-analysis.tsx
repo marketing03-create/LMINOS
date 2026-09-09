@@ -6,7 +6,14 @@ import {
 } from "@/lib/tiktok-live/live-analysis-core";
 import { HelpTip } from "@/components/help-tip";
 import { METRIC_HELP } from "@/lib/tiktok-live/metric-help";
+import { Disclosure } from "@/components/mobile/disclosure";
+import { MetricGrid, type MetricItem } from "@/components/mobile/metric-line";
 import { LiveAnalysisCharts } from "./live-analysis-charts";
+// From the plain titles module, never from the chart file itself: that one is
+// `"use client"`, and a server component reading a value out of a client module
+// gets Next's reference stub rather than the number — which then renders as the
+// stub's source text inside the section heading, on desktop too.
+import { CHART_COUNT } from "./live-analysis-chart-titles";
 
 /**
  * SessionRow → the slim, serialisable shape the cards + charts share. One place,
@@ -48,11 +55,14 @@ export function toAnalysisSession(s: SessionRow): AnalysisSession {
  */
 export function LiveAnalysis({
   sessions,
-  rangeLabel,
-  startStr,
-  endStr,
 }: {
   sessions: SessionRow[];
+  /**
+   * Still on the contract because the route still passes them, and a prop
+   * contract is not something a layout change gets to edit (P5). Nothing renders
+   * them any more: the period banner they fed said the selected range a fourth
+   * time, after the filter chip, the date inputs and the URL.
+   */
   rangeLabel: string;
   startStr?: string;
   endStr?: string;
@@ -62,39 +72,76 @@ export function LiveAnalysis({
   const slim: AnalysisSession[] = sessions.map(toAnalysisSession);
   const k = summaryCards(slim);
   const nf = (n: number) => n.toLocaleString("en-MY");
-  const period = startStr && endStr ? `${startStr} → ${endStr}` : rangeLabel;
+
+  const lives = (n: number) => `${nf(n)} live${n === 1 ? "" : "s"}`;
+
+  /**
+   * The same seven figures as the cards to the right of this, one per row.
+   *
+   * The reason they are a separate list rather than the cards at a narrower
+   * width: on a 375px phone those cards are 165px wide and their coverage hint
+   * is 11px `truncate`, so `12 of 40 · from 6 lives` renders as `12 of 40 · f…`.
+   * The half that gets deleted is the half that says how much of the period the
+   * number covers — the caveat vanishes on exactly the device with the least
+   * context around it. Here the hint is 12px, full width and wraps.
+   *
+   * Total and Filtered go to `null` when no live has that number entered, not to
+   * the honest-looking `0` the sum produces. Nobody typing anything in is not
+   * the same finding as nobody generating any leads, and this page carries one
+   * named streamer's handle at the top of it.
+   */
+  const metrics: MetricItem[] = [
+    { label: "Sessions", value: k.sessions },
+    {
+      label: "Total Leads",
+      value: k.livesWithLeads > 0 ? k.totalLeads : null,
+      hero: true,
+      tone: k.livesWithLeads > 0 ? "accent" : "warn",
+      denominator:
+        k.livesWithLeads > 0
+          ? `recorded on ${k.livesWithLeads} of ${lives(k.sessions)}`
+          : `0 of ${lives(k.sessions)} — not recorded`,
+    },
+    {
+      label: "Filtered Leads",
+      value: k.livesWithFiltered > 0 ? k.filteredLeads : null,
+      denominator:
+        k.livesWithFiltered > 0
+          ? `recorded on ${k.livesWithFiltered} of ${lives(k.sessions)}`
+          : `0 of ${lives(k.sessions)} — not recorded`,
+    },
+    {
+      label: "Lead Quality",
+      value: k.qualityRate == null ? null : `${k.qualityRate}%`,
+      // Read from the PAIRED sums, not the headline totals — otherwise the hint
+      // quietly contradicts the percentage above it.
+      denominator:
+        k.qualityRate == null
+          ? `needs ${MIN_PAIRED} lives with both numbers`
+          : `${nf(k.pairedFiltered)} of ${nf(k.pairedTotal)} · from ${lives(k.livesWithBoth)}`,
+    },
+    { label: "Views", value: k.totalViews },
+    { label: "Avg Peak Viewers", value: k.avgPeakViewers },
+    { label: "Live Hours", value: `${k.liveHours}h` },
+  ];
 
   return (
     <section className="mb-10">
-      {/* Period banner — echoes the date filter so the numbers below are never
-          read against the wrong window. */}
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900/50">
-        <div className="flex items-baseline gap-2">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
-            Period
-          </span>
-          <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-            {rangeLabel}
-          </span>
-          <span className="text-xs text-zinc-500">{period}</span>
-        </div>
-        {/* Never "{leads} · {lives}" as parallel facts — an owner divides the two
-            and invents a leads-per-live figure that is wrong by ~5×, because the
-            leads come from a fraction of the lives. Bind them into one clause. */}
-        <span className="text-sm font-medium text-blue-600 dark:text-blue-400">
-          {nf(k.sessions)} live{k.sessions === 1 ? "" : "s"} ·{" "}
-          {nf(k.totalLeads)} leads recorded on {k.livesWithLeads} of{" "}
-          {nf(k.sessions)}
-        </span>
+      <div className="mb-6 lg:hidden">
+        <MetricGrid items={metrics} />
       </div>
 
-      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      {/* The desktop tiles, untouched and now `lg`-only. Their 11px truncating
+          hint stays exactly as it is: at four columns on a laptop it has the room
+          it needs, and repainting it would move pixels on the surface managers
+          actually use (P5). */}
+      <div className="mb-6 hidden grid-cols-2 gap-3 lg:grid lg:grid-cols-4">
         <Card
           tone="violet"
           icon={<IconBroadcast />}
           value={nf(k.sessions)}
           label="Sessions"
-          hint={`${k.liveHours}h streamed`}
+          // No hint: "Xh streamed" repeated the Live Hours tile two along.
           help={METRIC_HELP.sessions}
         />
         <Card
@@ -110,7 +157,8 @@ export function LiveAnalysis({
           icon={<IconDocument />}
           value={nf(k.filteredLeads)}
           label="Filtered Leads"
-          hint="documents submitted"
+          // No hint: "documents submitted" is the first clause of this tile's
+          // own help sentence.
           help={METRIC_HELP.filteredLeads}
         />
         <Card
@@ -132,7 +180,7 @@ export function LiveAnalysis({
           icon={<IconEye />}
           value={nf(k.totalViews)}
           label="Views"
-          hint="total entries into your lives"
+          // No hint: the Views help sentence says this in the same words.
           help={METRIC_HELP.views}
         />
         <Card
@@ -140,7 +188,7 @@ export function LiveAnalysis({
           icon={<IconPeak />}
           value={k.avgPeakViewers == null ? "—" : nf(k.avgPeakViewers)}
           label="Avg Peak Viewers"
-          hint="average of each live's peak"
+          // No hint: the label already says "average of each live's peak".
           help={`Average of each live's peak. ${METRIC_HELP.peak}`}
         />
         <Card
@@ -148,12 +196,22 @@ export function LiveAnalysis({
           icon={<IconClock />}
           value={`${k.liveHours}h`}
           label="Live Hours"
-          hint={`across ${nf(k.sessions)} session${k.sessions === 1 ? "" : "s"}`}
+          // No hint: that count is the Sessions tile, four along in the same row.
           help={METRIC_HELP.liveHours}
         />
       </div>
 
-      <LiveAnalysisCharts sessions={slim} />
+      {/* Seven charts at 240px each is ~2,300px of scrolling before the session
+          table on a phone, in front of the leads figures that are what this page
+          is for. Collapsed, they are one tap away instead. `.lm-sec` forces the
+          body open at `lg`, so a manager on a laptop still sees all seven —
+          `-mx-4` then pulls the summary's own padding back so its heading lines
+          up with the rest of the page there. */}
+      <div className="-mx-4">
+        <Disclosure title="Charts" count={`${CHART_COUNT} charts`} headingLevel={2}>
+          <LiveAnalysisCharts sessions={slim} />
+        </Disclosure>
+      </div>
     </section>
   );
 }

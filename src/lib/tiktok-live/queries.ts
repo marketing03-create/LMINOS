@@ -296,6 +296,10 @@ export type SessionDetail = {
   diamonds: number | null;
   totalLeads: number | null;
   filteredLeads: number | null;
+  // Free-text note on this live. Selected here because the live's own page is
+  // now the only place a streamer can write one (their Home feed dropped the
+  // per-card box), and that editor needs the current value to pre-fill.
+  remarks: string | null;
 };
 
 /** The manual TikTok-backend fields, for the editor + PATCH route. */
@@ -456,6 +460,7 @@ export async function sessionDetail(
       diamonds: tiktokLiveSessions.diamonds,
       totalLeads: tiktokLiveSessions.totalLeads,
       filteredLeads: tiktokLiveSessions.filteredLeads,
+      remarks: tiktokLiveSessions.remarks,
     })
     .from(tiktokLiveSessions)
     .innerJoin(tiktokAccounts, eq(tiktokAccounts.id, tiktokLiveSessions.accountId))

@@ -1,4 +1,5 @@
 import { and, desc, eq, gte, ilike, sql } from "drizzle-orm";
+import { AuditFilters, AuditShowMore } from "./audit-mobile";
 
 type AuditRow = {
   id: string;
@@ -102,13 +103,11 @@ export default async function AuditLogPage({
   const { rows, total, eventTypes, error } = await load(filter);
 
   return (
-    <div className="p-4 sm:p-8">
+    <div className="px-4 py-5 sm:p-8">
       <header className="mb-6">
-        <h1 className="text-2xl font-semibold tracking-tight">Audit log</h1>
-        <p className="mt-1 text-sm text-zinc-500">
-          Every state-changing action across LMIROS is recorded here. PDPA
-          requirement.
-        </p>
+        <h1 className="text-xl font-semibold tracking-tight lg:text-2xl">
+          Audit log
+        </h1>
       </header>
 
       {error && (
@@ -117,9 +116,23 @@ export default async function AuditLogPage({
         </div>
       )}
 
+      {/* Phone: one chip, the same five controls inside a sheet. It carries the
+          current filter state as props (never a row), so this page stays a
+          server component and the three frozen queries stay where they are. */}
+      <AuditFilters
+        q={filter.q ?? ""}
+        event={filter.event ?? ""}
+        entity={filter.entity ?? ""}
+        days={String(filter.days ?? 7)}
+        eventTypes={eventTypes}
+      />
+
+      {/* Desktop keeps today's form, untouched down to the class list — it is
+          simply not rendered below `lg`, where the chip above stands in for it.
+          Two forms, one URL contract; neither knows about the other. */}
       <form
         method="get"
-        className="grid grid-cols-1 md:grid-cols-5 gap-2 mb-6"
+        className="hidden lg:grid grid-cols-1 md:grid-cols-5 gap-2 mb-6"
       >
         <input
           name="q"
@@ -169,11 +182,14 @@ export default async function AuditLogPage({
         </button>
       </form>
 
-      <div className="mb-3 text-xs text-zinc-500">
-        Showing {rows.length} of {total.toLocaleString()} matching entries
+      <div className="mb-3 text-xs tabular-nums text-zinc-500">
+        {rows.length} of {total.toLocaleString()}
       </div>
 
-      <ul className="space-y-2">
+      {/* The id is what `AuditShowMore` hangs its media query off — see the
+          note there for why the paging is CSS over server-rendered rows rather
+          than 200 payloads shipped a second time as props. */}
+      <ul id="audit-entries" className="space-y-3 lg:space-y-2">
         {rows.length === 0 && !error && (
           <li className="border border-zinc-200 dark:border-zinc-800 rounded-xl bg-white dark:bg-zinc-950 p-10 text-center text-zinc-500">
             No audit entries match the filters.
@@ -184,39 +200,61 @@ export default async function AuditLogPage({
             key={r.id}
             className="border border-zinc-200 dark:border-zinc-800 rounded-xl bg-white dark:bg-zinc-950 p-4"
           >
-            <div className="flex items-baseline justify-between mb-2 gap-3">
-              <div className="flex items-baseline gap-2 min-w-0">
-                <span className="font-mono text-sm font-semibold">
+            {/* Three stacked lines below `lg`, today's two-column baseline row
+                from `lg` up — same elements, same order, only the flex
+                direction and the sizes move.
+
+                What it fixes: the left column is `min-w-0` and truncating, but
+                `eventType` inside it is not, so a 34-character event name holds
+                the row open and pushes the timestamp column past 375px. The
+                page then pans sideways on the one screen whose whole job is
+                "who changed what". Stacking them means every value gets the
+                full width and wraps instead of choosing a victim. */}
+            <div className="mb-2 flex flex-col gap-1 lg:flex-row lg:items-baseline lg:justify-between lg:gap-3">
+              <div className="flex min-w-0 flex-col gap-1 lg:flex-row lg:items-baseline lg:gap-2">
+                <span className="break-words font-mono text-[15px] font-semibold lg:break-normal lg:text-sm">
                   {r.eventType}
                 </span>
-                <span className="text-xs text-zinc-500 truncate">
+                <span className="break-all text-sm text-zinc-500 lg:truncate lg:break-normal lg:text-xs">
                   {r.entityType}:
                   <span className="font-mono ml-1">{r.entityId}</span>
                 </span>
               </div>
-              <div className="text-xs text-zinc-500 tabular-nums whitespace-nowrap">
+              <div className="text-xs text-zinc-500 tabular-nums lg:whitespace-nowrap">
                 {new Date(r.createdAt).toLocaleString("en-MY", { hour12: false })}
                 {r.actorEmail && (
-                  <span className="ml-2 text-zinc-400">by {r.actorEmail}</span>
+                  <span className="ml-2 break-all text-zinc-400 lg:break-normal">
+                    by {r.actorEmail}
+                  </span>
                 )}
               </div>
             </div>
             {(r.before != null || r.after != null) && (
-              <details className="mt-2 text-xs">
-                <summary className="cursor-pointer text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100">
+              <details className="mt-2 text-sm lg:text-xs">
+                {/* Left as a `list-item` on purpose rather than flexed to a row:
+                    that keeps the browser's own disclosure marker, so desktop
+                    still gets the triangle it has today and the phone gets a
+                    44px target out of padding alone. */}
+                <summary className="min-h-11 cursor-pointer py-3 text-zinc-500 hover:text-zinc-900 active:text-zinc-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 lg:min-h-0 lg:py-0 dark:hover:text-zinc-100 dark:active:text-zinc-100">
                   Show payload
                 </summary>
                 <div className="mt-2 grid md:grid-cols-2 gap-2">
+                  {/* Wrapped below `lg`, `pre` from `lg` up. A JSON payload in
+                      its own sideways-scrolling box, nested inside the page
+                      scroll, is a trap on a phone: you cannot tell which of the
+                      two axes your thumb just moved, and the box is 300px wide.
+                      `break-all` because these payloads are mostly uuids and
+                      emails, which have nowhere legal to break. */}
                   {r.before != null && (
-                    <pre className="bg-rose-50 dark:bg-rose-950/20 rounded p-2 overflow-x-auto">
-                      <span className="text-rose-700 dark:text-rose-400 text-[10px] uppercase tracking-wider">before</span>
+                    <pre className="bg-rose-50 dark:bg-rose-950/20 rounded p-2 whitespace-pre-wrap break-all lg:whitespace-pre lg:break-normal lg:overflow-x-auto">
+                      <span className="text-rose-700 dark:text-rose-400 text-xs uppercase tracking-wider">before</span>
                       {"\n"}
                       {JSON.stringify(r.before, null, 2)}
                     </pre>
                   )}
                   {r.after != null && (
-                    <pre className="bg-emerald-50 dark:bg-emerald-950/20 rounded p-2 overflow-x-auto">
-                      <span className="text-emerald-700 dark:text-emerald-400 text-[10px] uppercase tracking-wider">after</span>
+                    <pre className="bg-emerald-50 dark:bg-emerald-950/20 rounded p-2 whitespace-pre-wrap break-all lg:whitespace-pre lg:break-normal lg:overflow-x-auto">
+                      <span className="text-emerald-700 dark:text-emerald-400 text-xs uppercase tracking-wider">after</span>
                       {"\n"}
                       {JSON.stringify(r.after, null, 2)}
                     </pre>
@@ -227,6 +265,8 @@ export default async function AuditLogPage({
           </li>
         ))}
       </ul>
+
+      <AuditShowMore total={rows.length} listId="audit-entries" />
     </div>
   );
 }

@@ -4,12 +4,22 @@ import { listUserNotifications } from "@/lib/notifications/user-inbox";
 import { MarkReadOnView } from "./mark-read-on-view";
 
 /**
- * The streamer's Notification Center. A route (not a sheet) so `access.ts`
- * allows it automatically for live_streamer via the /tiktok-live/* prefix, and
- * the global BackBar gives a free back button.
+ * The streamer's reminder list. A route (not a sheet) so `access.ts` allows it
+ * automatically for live_streamer via the /tiktok-live/* prefix, and the global
+ * BackBar gives a free back button.
  *
  * Rows here are already auto-cleared: a "needs your numbers" reminder vanishes
  * the moment those lives are complete, so an empty list genuinely means done.
+ * That is also why the empty state says one thing and stops — a sentence
+ * explaining when reminders appear renders identically forever, and the person
+ * reading it is by definition looking at the answer already.
+ *
+ * The row is written out here rather than through `RecordCard`. A reminder's
+ * state is read/unread, and the card primitive's rail speaks in amber/emerald
+ * ("needs attention" / "complete"), which means something else entirely on a
+ * live. Borrowing it would have said the wrong word in the right colour, so we
+ * keep the card's geometry — 3px rail, 15px title, chevron-free full-row tap —
+ * and give it blue.
  */
 
 const whenFmt = new Intl.DateTimeFormat("en-MY", {
@@ -26,17 +36,14 @@ export default async function NotificationsPage() {
   const rows = me?.userId ? await listUserNotifications(me.userId, 50) : [];
 
   return (
-    <div className="p-4 sm:p-8">
+    <div className="px-4 py-5 sm:p-8">
       <header className="mb-5">
-        <h1 className="text-2xl font-semibold tracking-tight">Notifications</h1>
+        <h1 className="text-xl font-semibold tracking-tight">Reminders</h1>
       </header>
 
       {rows.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-zinc-300 px-6 py-12 text-center dark:border-zinc-700">
           <div className="text-sm font-medium">You&apos;re all caught up</div>
-          <p className="mx-auto mt-1 max-w-xs text-xs text-zinc-500">
-            Reminders show up here when a live is still missing its numbers.
-          </p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -46,29 +53,36 @@ export default async function NotificationsPage() {
               <Link
                 key={n.id}
                 href={n.href ?? "/tiktok-live"}
-                className={`block rounded-2xl border p-4 active:bg-zinc-50 dark:active:bg-zinc-900 ${
+                className={`flex min-h-16 w-full items-start gap-3 rounded-2xl border border-l-[3px] p-4 text-left shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500 ${
                   unread
-                    ? "border-blue-200 bg-blue-50/60 dark:border-blue-900 dark:bg-blue-950/20"
-                    : "border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950"
+                    ? "border-blue-200 border-l-blue-500 bg-blue-50/60 active:bg-blue-100/70 dark:border-blue-900 dark:border-l-blue-400 dark:bg-blue-950/20 dark:active:bg-blue-950/40"
+                    : "border-zinc-200 bg-white active:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:active:bg-zinc-800"
                 }`}
               >
-                <div className="flex items-start gap-2">
-                  {unread && (
-                    <span
-                      className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-blue-600 dark:bg-blue-400"
-                      aria-hidden
-                    />
+                {/* Blue is doing the work of "unread" on its own, and colour
+                    alone is WCAG 1.4.1. The dot is for the eye, the hidden word
+                    is for the screen reader. */}
+                {unread && (
+                  <span
+                    className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-blue-600 dark:bg-blue-400"
+                    aria-hidden
+                  />
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="break-words text-[15px] font-medium leading-snug">
+                    {unread && <span className="sr-only">Unread, </span>}
+                    {n.title}
+                  </div>
+                  {/* The body is the sentence that names which lives owe what.
+                      It was 12px, smaller than the title it qualifies — the one
+                      thing on this row anybody actually needs to read. */}
+                  {n.body && (
+                    <p className="mt-1 break-words text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
+                      {n.body}
+                    </p>
                   )}
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm font-medium">{n.title}</div>
-                    {n.body && (
-                      <p className="mt-0.5 text-xs text-zinc-600 dark:text-zinc-400">
-                        {n.body}
-                      </p>
-                    )}
-                    <div className="mt-1 text-[11px] text-zinc-400">
-                      {whenFmt.format(n.updatedAt)}
-                    </div>
+                  <div className="mt-1.5 text-xs tabular-nums text-zinc-500 dark:text-zinc-400">
+                    {whenFmt.format(n.updatedAt)}
                   </div>
                 </div>
               </Link>

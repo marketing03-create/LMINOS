@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getSessionUser } from "@/lib/auth/authorize";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { LogoutButton } from "@/app/(dashboard)/logout-button";
@@ -9,8 +10,18 @@ const ROLE_LABEL: Record<string, string> = {
 };
 
 /**
- * Streamer Profile tab (bottom-nav "Profile"): who you're signed in as,
- * appearance (Light / Auto / Dark), and Log out. Mobile-first single column.
+ * Streamer Profile tab (bottom-nav "Profile"). One job: log out. Everything
+ * else on the page is here because it has nowhere better to live.
+ *
+ * The "Account" list that used to sit in the middle repeated the email and the
+ * role from the card 40px above it, and that repetition was the only reason Log
+ * out fell below the fold on a 375x667 phone — a person signed in on the wrong
+ * account had to scroll to find the way out. Identity, Reminders, Appearance
+ * and Log out now all land above the fold.
+ *
+ * Reminders is duplicated here on purpose. The bell in the top bar is the only
+ * other way in, and it is a 44px target in the corner that a streamer holding
+ * the phone one-handed can miss; the tab bar has no slot for it.
  */
 export default async function StreamerProfilePage() {
   const me = await getSessionUser();
@@ -19,46 +30,40 @@ export default async function StreamerProfilePage() {
   const roleLabel = me?.role ? ROLE_LABEL[me.role] ?? me.role : "—";
 
   return (
-    <div className="p-4 sm:p-8">
-      <header className="mb-6">
-        <h1 className="text-2xl font-semibold tracking-tight">Profile</h1>
+    <div className="px-4 py-5 sm:p-8">
+      <header className="mb-5">
+        <h1 className="text-xl font-semibold tracking-tight">Profile</h1>
       </header>
 
-      {/* Identity card */}
-      <div className="mb-4 flex items-center gap-3 rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
-        <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-xl font-semibold text-white">
+      {/* Identity. `break-all`, not `truncate`: a work address on a 375px
+          screen is exactly the string that gets clipped, and a half-shown
+          email is useless to the person who has to read it out to an admin. */}
+      <div className="mb-3 flex items-center gap-3 rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-lg font-semibold text-white">
           {initial}
         </span>
         <div className="min-w-0">
-          <div className="truncate text-base font-medium text-zinc-900 dark:text-zinc-100">
+          <div className="break-all text-base font-medium text-zinc-900 dark:text-zinc-100">
             {email}
           </div>
-          <span className="mt-1 inline-block rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-medium text-blue-700 dark:bg-blue-950/50 dark:text-blue-300">
+          <span className="mt-1 inline-block rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-950/50 dark:text-blue-300">
             {roleLabel}
           </span>
         </div>
       </div>
 
-      {/* Details */}
-      <div className="mb-4 rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
-        <div className="text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
-          Account
-        </div>
-        <dl className="mt-2 space-y-2 text-sm">
-          <div className="flex items-center justify-between gap-3">
-            <dt className="text-zinc-500">Email</dt>
-            <dd className="truncate text-zinc-900 dark:text-zinc-100">{email}</dd>
-          </div>
-          <div className="flex items-center justify-between gap-3">
-            <dt className="text-zinc-500">Role</dt>
-            <dd className="text-zinc-900 dark:text-zinc-100">{roleLabel}</dd>
-          </div>
-        </dl>
-      </div>
+      <Link
+        href="/tiktok-live/notifications"
+        className="mb-3 flex min-h-11 w-full items-center justify-between gap-3 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm font-medium active:bg-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500 dark:border-zinc-800 dark:bg-zinc-950 dark:active:bg-zinc-900"
+      >
+        Reminders
+        <span aria-hidden className="text-zinc-300 dark:text-zinc-600">
+          &rsaquo;
+        </span>
+      </Link>
 
-      {/* Appearance */}
       <div className="mb-6 rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
-        <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+        <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
           Appearance
         </div>
         <ThemeToggle />

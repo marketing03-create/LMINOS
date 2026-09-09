@@ -1,10 +1,17 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AUTO_COLUMNS } from "@/lib/tiktok-live/screenshot-extract-core";
 import { ProductPicker } from "@/components/product-picker";
 import { LivePicker } from "@/components/live-picker";
+import { Sheet } from "@/components/mobile/sheet";
+import { Disclosure } from "@/components/mobile/disclosure";
+import { NumberField } from "@/components/mobile/number-field";
+import { StickyAction } from "@/components/mobile/sticky-action";
+import { RecordCard } from "@/components/mobile/record-card";
+import { NoticeStrip } from "@/components/mobile/notice-strip";
+import { HelpChip } from "@/components/mobile/metric-help-sheet";
 import type { ReviewGroup, ReviewPayload } from "@/lib/tiktok-live/import-screenshots";
 
 const AUTO_SET = new Set<string>(AUTO_COLUMNS);
@@ -46,6 +53,20 @@ const LABELS: Record<string, string> = {
   filteredLeads: "Filtered Leads",
 };
 
+/**
+ * Conflict strings come out of `mergeExtractions` keyed by raw column name —
+ * `avgWatchSeconds: 412 vs 380 (kept first)`. That is the right key for a log
+ * and the wrong word for a person, so the leading key is swapped for the label
+ * the same field carries everywhere else on this screen. The rest of the
+ * sentence, including which value was kept, is left exactly as written.
+ */
+function labelConflict(c: string): string {
+  const m = /^([A-Za-z][A-Za-z0-9]*):/.exec(c);
+  if (!m) return c;
+  const label = LABELS[m[1]];
+  return label ? `${label}${c.slice(m[1].length)}` : c;
+}
+
 type RowState = {
   selectedSessionId: string;
   // Product(s)/service(s) the streamer promoted in this live ([] = not tagged).
@@ -71,6 +92,19 @@ const SECTION =
 // re-encode wouldn't actually be smaller (readability is unchanged either way).
 const MAX_EDGE = 1600;
 const JPEG_QUALITY = 0.85;
+
+/**
+ * How long the "Applied ✓" state stays on screen before we open the live so the
+ * numbers can be checked. FROZEN at 1500ms (contract 14) — the delay is what
+ * makes the confirmation readable, and shortening or lengthening it changes a
+ * behaviour other people have learned. What is NOT frozen is that it used to be
+ * unstoppable: a batch of four screenshots would apply one and then navigate
+ * away from the other three, silently abandoning them. Hence the countdown and
+ * the Stay-here escape below.
+ */
+const REDIRECT_MS = 1500;
+
+const ACCEPT = "image/png,image/jpeg,image/webp";
 
 async function downscaleForUpload(file: File): Promise<File> {
   if (!file.type.startsWith("image/")) return file;
@@ -115,6 +149,80 @@ export function ScreenshotImporter() {
   // Which live is expanded. Only one open at a time so several screenshots stay
   // a short stack of summary rows instead of one very long form.
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
+  /**
+   * The phone's half of the same "one at a time" rule, deliberately NOT the
+   * same state as `expandedKey`. `read()` opens the first group as soon as the
+   * numbers come back, which is right for the inline desktop panel and would be
+   * a full-screen sheet slamming shut over the batch on a phone. So the sheet
+   * only ever opens from a tap, and starts closed.
+   */
+  const [sheetKey, setSheetKey] = useState<string | null>(null);
+  const [redirect, setRedirect] = useState<{ sid: string; msLeft: number } | null>(
+    null
+  );
+  const redirectTimer = useRef<number | null>(null);
+
+  /**
+   * Thumbnails for the picked files. Built in a memo rather than an effect
+   * because setting state from an effect body is a lint error in this repo, and
+   * because the URLs must exist on the same render as the files they belong to
+   * — a strip that appears one frame late reads as the picker having dropped
+   * the photo. The effect below is only the cleanup half.
+   */
+  const previews = useMemo(
+    () => files.map((f) => ({ name: f.name, url: URL.createObjectURL(f) })),
+    [files]
+  );
+  useEffect(
+    () => () => {
+      previews.forEach((p) => URL.revokeObjectURL(p.url));
+    },
+    [previews]
+  );
+
+  // Tick the visible countdown. Half-second steps, because 1.5s cannot be
+  // counted honestly in whole ones and a number that jumps 2 → 1 → gone reads
+  // as a bug in the very moment we are asking someone to trust the save.
+  const counting = redirect !== null;
+  useEffect(() => {
+    if (!counting) return;
+    const id = window.setInterval(() => {
+      setRedirect((r) => (r ? { ...r, msLeft: Math.max(0, r.msLeft - 500) } : r));
+    }, 500);
+    return () => window.clearInterval(id);
+  }, [counting]);
+
+  // A pending navigation must not outlive the component — leaving this page
+  // some other way and then being yanked to a live 1.5s later is the same bug
+  // in a different costume.
+  useEffect(
+    () => () => {
+      if (redirectTimer.current != null) window.clearTimeout(redirectTimer.current);
+    },
+    []
+  );
+
+  const stayHere = useCallback(() => {
+    if (redirectTimer.current != null) window.clearTimeout(redirectTimer.current);
+    redirectTimer.current = null;
+    setRedirect(null);
+  }, []);
+
+  const closeSheet = useCallback(() => setSheetKey(null), []);
+
+  // The sheet is the phone rendering of a panel that expands inline at `lg`.
+  // Widen the window with one open and it would sit over a layout that has its
+  // own copy of the same form. Same breakpoint the cards are hidden at, in the
+  // same unit Tailwind writes it in.
+  useEffect(() => {
+    if (sheetKey == null) return;
+    const mq = window.matchMedia("(min-width: 64rem)");
+    const onChange = (e: MediaQueryListEvent) => {
+      if (e.matches) setSheetKey(null);
+    };
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, [sheetKey]);
 
   async function read() {
     if (!files.length) return;
@@ -232,10 +340,20 @@ export function ScreenshotImporter() {
           return;
         }
       }
-      patchRow(idx, { applied: true, msg: "Applied ✓ — opening this live to verify…" });
+      patchRow(idx, { applied: true, msg: "Applied ✓" });
+      // Close the review sheet so the card underneath can show its Applied ✓,
+      // and hand the countdown bar the navigation.
+      setSheetKey(null);
       // Green for a beat, then open this live's detail page to check the metrics.
       const sid = row.selectedSessionId;
-      setTimeout(() => router.push(`/tiktok-live/${sid}`), 1500);
+      // Applying a second group inside the 1.5s window would otherwise leave
+      // the first timer pending and land on the FIRST live, not this one.
+      if (redirectTimer.current != null) window.clearTimeout(redirectTimer.current);
+      setRedirect({ sid, msLeft: REDIRECT_MS });
+      redirectTimer.current = window.setTimeout(
+        () => router.push(`/tiktok-live/${sid}`),
+        REDIRECT_MS
+      );
     } catch (e) {
       patchRow(idx, { msg: e instanceof Error ? e.message : String(e) });
     } finally {
@@ -244,9 +362,128 @@ export function ScreenshotImporter() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Upload box */}
-      <div className="rounded-2xl border-2 border-dashed border-zinc-300 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-950">
+    <>
+      {/* ── The escape from the frozen redirect (fix F5) ────────────────────
+          Pinned, because by the time this appears the review sheet has closed
+          and the reader may be anywhere in a stack of four groups. A banner at
+          the top of the component would be off-screen for the whole 1.5s it is
+          offering to be cancelled, which is the same as not offering.
+
+          It sits OUTSIDE the `space-y-6` list below on purpose: a `space-y-*`
+          rule adds a top margin to every child but the first, so a bar that
+          appears at the head of that list would shove the whole page down by
+          24px for the duration of the countdown — a layout jump at the exact
+          moment we are asking someone to read a number and decide. */}
+      {redirect && (
+        <div
+          className="fixed inset-x-0 z-40 px-4"
+          style={{
+            bottom:
+              "calc(env(safe-area-inset-bottom, 0px) + var(--lmiros-bottom-bar, 0px) + 0.5rem)",
+          }}
+        >
+          <div className="mx-auto flex max-w-lg items-center gap-3 rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-2 shadow-lg dark:border-emerald-800 dark:bg-emerald-950">
+            {/* The ticking half is `aria-hidden`, and the announced half is a
+                sentence that does not change. A live region holding the
+                countdown re-announces on every 500ms tick, so a screen-reader
+                user gets "opening this live in 1.5 seconds… 1.0 seconds…"
+                talking over the Stay-here button during the 1.5s they have to
+                press it. Say it once, and name the escape. */}
+            <p
+              role="status"
+              aria-live="polite"
+              className="min-w-0 flex-1 text-sm leading-relaxed text-emerald-900 dark:text-emerald-300"
+            >
+              <span className="sr-only">
+                Applied. Opening this live shortly — choose Stay here to cancel.
+              </span>
+              <span aria-hidden="true">
+                Applied ✓ — opening this live in{" "}
+                <span className="tabular-nums">
+                  {(redirect.msLeft / 1000).toFixed(1)}s
+                </span>
+              </span>
+            </p>
+            <button
+              type="button"
+              onClick={stayHere}
+              className="inline-flex min-h-11 shrink-0 items-center rounded-lg border border-emerald-400 px-4 text-sm font-medium text-emerald-900 active:bg-emerald-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 dark:border-emerald-700 dark:text-emerald-200 dark:active:bg-emerald-900"
+            >
+              Stay here
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-6">
+      {/* ── Phone: a hero dropzone ──────────────────────────────────────────
+          The native file input squeezed beside a shrink-0 "Read (N)" button
+          gave the actual target about 180px of a 375px screen, at 14px, with
+          the OS filename string eating whatever was left. A full-width 160px
+          label is one thumb-sized thing to hit, and it is what makes the
+          camera a first-class option after a live. */}
+      <div className="lg:hidden">
+        <label className="flex h-40 w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-zinc-300 bg-white px-4 text-center active:bg-zinc-50 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/40 dark:border-zinc-700 dark:bg-zinc-950 dark:active:bg-zinc-900">
+          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-blue-100 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z" />
+              <circle cx="12" cy="13" r="3.5" />
+            </svg>
+          </span>
+          <span className="text-base font-medium">Add your LIVE screenshots</span>
+          <input
+            type="file"
+            multiple
+            accept={ACCEPT}
+            onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
+            className="sr-only"
+          />
+        </label>
+
+        {previews.length > 0 && (
+          <>
+            <ul className="mt-3 flex gap-2 overflow-x-auto pb-1">
+              {previews.map((p, i) => (
+                <li key={p.url} className="relative shrink-0">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={p.url}
+                    alt={p.name}
+                    className="h-16 w-16 rounded-lg border border-zinc-200 object-cover dark:border-zinc-800"
+                  />
+                  {/* Drawn small so it does not swallow the 64px thumbnail it
+                      sits on, but the pressable area is 48px via hit-slop — a
+                      pseudo-element, so it adds no layout box and cannot push
+                      the strip around (§P2). */}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setFiles((prev) => prev.filter((_, j) => j !== i))
+                    }
+                    aria-label={`Remove ${p.name}`}
+                    className="absolute right-0.5 top-0.5 inline-flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-xs leading-none text-white active:bg-black/80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 before:absolute before:-inset-3 before:content-['']"
+                  >
+                    <span aria-hidden="true">✕</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <button
+              type="button"
+              onClick={read}
+              disabled={reading}
+              className="mt-3 flex h-12 w-full items-center justify-center rounded-xl bg-blue-600 text-base font-medium text-white active:bg-blue-700 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
+            >
+              {reading
+                ? "Reading…"
+                : `Read ${previews.length} photo${previews.length === 1 ? "" : "s"}`}
+            </button>
+          </>
+        )}
+      </div>
+
+      {/* ── Laptop: today's upload row, unchanged ───────────────────────────── */}
+      <div className="hidden rounded-2xl border-2 border-dashed border-zinc-300 bg-white p-4 lg:block dark:border-zinc-700 dark:bg-zinc-950">
         <div className="mb-3 flex items-center gap-3">
           <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -256,14 +493,13 @@ export function ScreenshotImporter() {
           </span>
           <div className="min-w-0">
             <div className="text-sm font-medium">Add your LIVE screenshots</div>
-            <div className="text-[11px] text-zinc-500">PNG or JPG · pick several at once</div>
           </div>
         </div>
         <div className="flex items-center gap-2">
           <input
             type="file"
             multiple
-            accept="image/png,image/jpeg,image/webp"
+            accept={ACCEPT}
             onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
             className="min-w-0 flex-1 text-sm text-zinc-500 file:mr-3 file:cursor-pointer file:rounded-md file:border-2 file:border-zinc-400 file:bg-zinc-200 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-zinc-800 hover:file:bg-zinc-300 dark:file:border-zinc-500 dark:file:bg-zinc-700 dark:file:text-zinc-100 dark:hover:file:bg-zinc-600"
           />
@@ -308,15 +544,202 @@ export function ScreenshotImporter() {
           );
           const manualCols = [...ALWAYS_MANUAL, ...readManual];
           const expanded = expandedKey === g.key;
+
+          const heading = g.date
+            ? `Live on ${g.date}${g.startTime ? ` · ${g.startTime}` : ""}`
+            : "Undated screenshot";
+          const status: { label: string; tone: "amber" | "emerald" | "zinc" } =
+            row.applied
+              ? { label: "Applied ✓", tone: "emerald" }
+              : !row.selectedSessionId
+                ? { label: "Pick a live", tone: "amber" }
+                : g.conflicts.length > 0
+                  ? {
+                      label: `${g.conflicts.length} conflict${
+                        g.conflicts.length === 1 ? "" : "s"
+                      }`,
+                      tone: "amber",
+                    }
+                  : { label: "Matched", tone: "zinc" };
+
+          const numField = (c: string, autoFocus?: boolean) => (
+            <NumberField
+              key={c}
+              col={c}
+              label={LABELS[c] ?? c}
+              value={String(row.values[c] ?? "")}
+              current={sel?.current?.[c] ?? null}
+              pending={row.values[c] ?? null}
+              onChange={(col, v) => setVal(idx, col, v)}
+              disabled={row.applied}
+              autoFocus={autoFocus}
+            />
+          );
+
           return (
-            <div
-              key={g.key}
-              className={`border rounded-xl bg-white dark:bg-zinc-950 ${
-                row.applied
-                  ? "border-emerald-300 dark:border-emerald-800"
-                  : "border-zinc-200 dark:border-zinc-800"
-              }`}
-            >
+            <div key={g.key}>
+              {/* ── Phone: a summary card that opens a full-height review ──── */}
+              <div className="lg:hidden">
+                <RecordCard
+                  onClick={() => setSheetKey(g.key)}
+                  tone={
+                    row.applied
+                      ? "good"
+                      : !row.selectedSessionId || g.conflicts.length > 0
+                        ? "warn"
+                        : "neutral"
+                  }
+                  status={status}
+                  title={heading}
+                  meta={
+                    <>
+                      {g.handle ? `@${g.handle} · ` : ""}
+                      {cols.length} number{cols.length === 1 ? "" : "s"} read
+                    </>
+                  }
+                />
+
+                <Sheet
+                  open={sheetKey === g.key}
+                  onClose={closeSheet}
+                  title={heading}
+                  fullHeight
+                  footer={
+                    /* -mt-3 lands StickyAction's own top border exactly on the
+                       Sheet footer's, instead of drawing a second hairline
+                       12px below the first. */
+                    <div className="-mt-3">
+                      <StickyAction
+                        label={row.applied ? "Applied ✓" : "Apply to this live"}
+                        onClick={() => apply(idx, g)}
+                        busy={busyKey === g.key}
+                        disabled={row.applied}
+                        status={row.msg}
+                      />
+                    </div>
+                  }
+                >
+                  <div className="space-y-5 pb-2">
+                    {g.conflicts.length > 0 && (
+                      <NoticeStrip
+                        items={g.conflicts.map((c, i) => ({
+                          key: `${g.key}-conflict-${i}`,
+                          short: labelConflict(c),
+                          tone: "amber" as const,
+                        }))}
+                      />
+                    )}
+
+                    <div>
+                      <div className="mb-2 text-sm font-medium">Apply to live</div>
+                      <LivePicker
+                        lives={review.sessions}
+                        value={row.selectedSessionId}
+                        onChange={(sid) => {
+                          const sess = review.sessions.find((s) => s.sessionId === sid);
+                          patchRow(idx, {
+                            selectedSessionId: sid,
+                            selectedProducts: sess?.products ?? [],
+                            remarks: sess?.remarks ?? "",
+                            applied: false,
+                            msg: null,
+                          });
+                        }}
+                        disabled={row.applied}
+                      />
+                    </div>
+
+                    <div>
+                      <div className="mb-2 text-sm font-medium">Products</div>
+                      <ProductPicker
+                        value={row.selectedProducts}
+                        onChange={(next) =>
+                          patchRow(idx, {
+                            selectedProducts: next,
+                            applied: false,
+                            msg: null,
+                          })
+                        }
+                        disabled={row.applied}
+                      />
+                    </div>
+
+                    {/* Leads first, and above both disclosures. They are the two
+                        numbers no screenshot can ever carry, so they are the
+                        only reason this form needs a human — everything else is
+                        a correction to something already read. */}
+                    <div>
+                      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                        <span className="text-[17px] font-semibold">Your results</span>
+                        <HelpChip keys={["totalLeads", "filteredLeads"]} />
+                      </div>
+                      <div className="space-y-3">
+                        {numField("totalLeads")}
+                        {numField("filteredLeads")}
+                      </div>
+                    </div>
+
+                    {autoCols.length > 0 && (
+                      <div className="-mx-4 border-t border-zinc-100 dark:border-zinc-800">
+                        <Disclosure
+                          title="Captured numbers"
+                          count={`${autoCols.length}`}
+                        >
+                          <div className="space-y-3">
+                            {autoCols.map((c) => numField(c))}
+                          </div>
+                        </Disclosure>
+                      </div>
+                    )}
+
+                    {manualCols.length > 0 && (
+                      <div className="-mx-4 border-t border-zinc-100 dark:border-zinc-800">
+                        <Disclosure
+                          title="TikTok backend"
+                          count={`${manualCols.length}`}
+                        >
+                          <div className="space-y-3">
+                            {manualCols.map((c) => numField(c))}
+                          </div>
+                        </Disclosure>
+                      </div>
+                    )}
+
+                    <div>
+                      <label
+                        className="mb-2 block text-sm font-medium"
+                        htmlFor={`remarks-${g.key}`}
+                      >
+                        Remarks
+                      </label>
+                      <textarea
+                        id={`remarks-${g.key}`}
+                        value={row.remarks}
+                        onChange={(e) =>
+                          patchRow(idx, {
+                            remarks: e.target.value,
+                            applied: false,
+                            msg: null,
+                          })
+                        }
+                        disabled={row.applied}
+                        rows={3}
+                        placeholder="Add any notes about this live…"
+                        className="w-full resize-y rounded-lg border border-zinc-300 bg-white px-3 py-2 text-base text-zinc-900 focus-visible:border-blue-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 disabled:opacity-50 sm:text-sm dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                      />
+                    </div>
+                  </div>
+                </Sheet>
+              </div>
+
+              {/* ── Laptop: today's inline expander, unchanged ─────────────── */}
+              <div
+                className={`hidden border rounded-xl bg-white lg:block dark:bg-zinc-950 ${
+                  row.applied
+                    ? "border-emerald-300 dark:border-emerald-800"
+                    : "border-zinc-200 dark:border-zinc-800"
+                }`}
+              >
               {/* Tappable summary — collapses each live so several screenshots
                   don't stack into one giant form. Only one is open at a time. */}
               <button
@@ -331,7 +754,7 @@ export function ScreenshotImporter() {
               >
                 <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
                   <span className="text-[13px] font-semibold">
-                    {g.date ? `Live on ${g.date}` : "Unattached extras"}
+                    {g.date ? `Live on ${g.date}` : "Undated screenshot"}
                     {g.startTime ? ` · ${g.startTime}` : ""}
                   </span>
                   {g.handle && (
@@ -371,7 +794,7 @@ export function ScreenshotImporter() {
 
               {g.conflicts.length > 0 && (
                 <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
-                  {g.conflicts.join(" · ")}
+                  {g.conflicts.map(labelConflict).join(" · ")}
                 </div>
               )}
 
@@ -399,9 +822,7 @@ export function ScreenshotImporter() {
                 </div>
 
                 <div className="block sm:w-auto">
-                  <div className="text-xs font-medium mb-1">
-                    Product / service <span className="text-zinc-400">(tick all that apply)</span>
-                  </div>
+                  <div className="text-xs font-medium mb-1">Products</div>
                   <ProductPicker
                     value={row.selectedProducts}
                     onChange={(next) =>
@@ -415,7 +836,7 @@ export function ScreenshotImporter() {
               {autoCols.length > 0 && (
                 <div className={SECTION}>
                   <div className="text-sm font-semibold uppercase tracking-wider text-zinc-500 mb-1.5">
-                    Corrections to captured numbers
+                    Captured numbers
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-x-2 gap-y-2.5">
                     {autoCols.map((c) => {
@@ -453,10 +874,7 @@ export function ScreenshotImporter() {
               {manualCols.length > 0 && (
                 <div className={SECTION}>
                   <div className="text-sm font-semibold uppercase tracking-wider text-zinc-500 mb-1.5">
-                    Service panel (TikTok-only)
-                    <span className="ml-1 font-normal normal-case text-zinc-400">
-                      — key in any the screenshot didn&apos;t show
-                    </span>
+                    TikTok backend
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-x-2 gap-y-2.5">
                     {manualCols.map((c) => (
@@ -482,7 +900,7 @@ export function ScreenshotImporter() {
               {/* Lead counts — CS enters these by hand; never on a screenshot. */}
               <div className={SECTION}>
                 <div className="text-sm font-semibold uppercase tracking-wider text-zinc-500 mb-2">
-                  Customer-service follow-up
+                  Your results
                 </div>
                 <div className="flex flex-wrap gap-3">
                   <label className="block sm:w-48">
@@ -496,7 +914,7 @@ export function ScreenshotImporter() {
                       className={inputCls + " w-full tabular-nums"}
                     />
                     <div className="mt-0.5 text-[11px] text-zinc-400">
-                      unique leads (by phone) · now {sel?.current?.totalLeads ?? "—"}
+                      now {sel?.current?.totalLeads ?? "—"}
                     </div>
                   </label>
                   <label className="block sm:w-48">
@@ -510,7 +928,7 @@ export function ScreenshotImporter() {
                       className={inputCls + " w-full tabular-nums"}
                     />
                     <div className="mt-0.5 text-[11px] text-zinc-400">
-                      quality after CS filter · now {sel?.current?.filteredLeads ?? "—"}
+                      now {sel?.current?.filteredLeads ?? "—"}
                     </div>
                   </label>
                 </div>
@@ -545,10 +963,12 @@ export function ScreenshotImporter() {
               </div>
                 </div>
               )}
+              </div>
             </div>
           );
         })}
-    </div>
+      </div>
+    </>
   );
 }
 
