@@ -134,6 +134,20 @@ body {
   .lm-sec > .lm-body {
     display: block;
   }
+  /* The rule above is necessary and NOT sufficient, which cost a production
+     bug worth remembering: a closed <details> hides its contents through the
+     element's own content slot, not through any property on the child. So
+     `.lm-body` computed to `display: block` — `getComputedStyle` said so, and
+     that is exactly what made the first check pass — while the browser went on
+     painting nothing. `checkVisibility()` was what finally disagreed.
+
+     Every desktop section that was not `defaultOpen` therefore stayed
+     collapsed: a manager opening a live saw 3 of its 18 numbers. This is the
+     rule that actually opens them. */
+  .lm-sec::details-content {
+    content-visibility: visible;
+    block-size: auto;
+  }
   .lm-sec > summary {
     pointer-events: none;
     list-style: none;
