@@ -46,6 +46,15 @@ export async function POST(
     set.role = body.role as Role;
   }
   if (body.isActive !== undefined) set.isActive = !!body.isActive;
+  // Turning off your own access locks you out of the one page that could turn
+  // it back on — and if you are the only admin, nobody can. The UI no longer
+  // offers it; this is the guarantee. (actorId is null under the dev bypass.)
+  if (set.isActive === false && actorId && actorId === id) {
+    return NextResponse.json(
+      { ok: false, error: "You can't turn off your own access." },
+      { status: 400 }
+    );
+  }
   if (body.fullName !== undefined) {
     const trimmed = typeof body.fullName === "string" ? body.fullName.trim() : "";
     if (trimmed.length > 120) {

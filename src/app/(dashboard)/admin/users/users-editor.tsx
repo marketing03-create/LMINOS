@@ -130,6 +130,18 @@ function Row({ r, isSelf }: { r: UserRow; isSelf: boolean }) {
     fullName.trim() !== nameOrig || role !== r.role || active !== r.isActive;
 
   async function save() {
+    // Turning off access locks a person out as completely as Remove does, and
+    // Remove has always asked first. This did not — the phone sheet below has
+    // the full story.
+    if (
+      r.isActive &&
+      !active &&
+      !confirm(
+        `Turn off access for ${r.email}? They won't be able to sign in until an admin turns it back on.`
+      )
+    ) {
+      return;
+    }
     setBusy(true);
     setErr(null);
     try {
@@ -193,7 +205,14 @@ function Row({ r, isSelf }: { r: UserRow; isSelf: boolean }) {
         </select>
       </td>
       <td className="px-4 py-2.5">
-        <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
+        {/* Not your own: switching yourself off locks you out of the one page
+            that can switch you back on. The API refuses it as well. */}
+        <input
+          type="checkbox"
+          checked={active}
+          disabled={isSelf}
+          onChange={(e) => setActive(e.target.checked)}
+        />
       </td>
       <td className="px-4 py-2.5">{r.telegramPaired ? "✓" : "—"}</td>
       <td className="px-4 py-2.5 text-right whitespace-nowrap">
@@ -313,6 +332,7 @@ function UsersCardList({
   const [saving, setSaving] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [confirmOff, setConfirmOff] = useState(false);
 
   useEffect(() => {
     if (!saved) return;
@@ -321,6 +341,9 @@ function UsersCardList({
   }, [saved]);
 
   const dirtyRows = rows.filter((r) => isDirty(r, draftFor(r, drafts)));
+  // Pending saves that would take someone's sign-in away. These go through the
+  // confirmation sheet at the bottom of this component first.
+  const turningOff = dirtyRows.filter((r) => r.isActive && !draftFor(r, drafts).active);
 
   // Filtering is over the rows the server already sent — no request, no param.
   const visible = useMemo(() => {
@@ -491,7 +514,10 @@ function UsersCardList({
               ? `Save changes to ${dirtyRows.length} users`
               : "Save changes"
           }
-          onClick={saveDirty}
+          onClick={() => {
+            if (turningOff.length > 0) setConfirmOff(true);
+            else void saveDirty();
+          }}
           busy={saving}
           disabled={dirtyRows.length === 0}
           status={
@@ -562,7 +588,9 @@ function UsersCardList({
             {/* A 14px checkbox is a coin toss with a thumb, and the thing it
                 controls is whether a person can sign in at all. The whole row
                 is the target, and the words say which way it is set — a green
-                pill alone is colour-only. */}
+                pill alone is colour-only. Not offered on your own account:
+                switching yourself off would lock you out of this page. */}
+            {editing.id !== currentUserId && (
             <button
               type="button"
               role="switch"
@@ -591,6 +619,7 @@ function UsersCardList({
                 />
               </span>
             </button>
+            )}
 
             {errors[editing.id] && (
               <p className="break-words text-sm leading-relaxed text-red-600 dark:text-red-400">
@@ -645,6 +674,47 @@ function UsersCardList({
         >
           <p className="break-words py-1 text-sm leading-relaxed text-zinc-600 dark:text-zinc-300">
             Remove {confirming.email}? They lose access immediately.
+          </p>
+        </Sheet>
+      )}
+
+      {/* Switching someone off locks them out exactly as Remove does, yet it
+          used to ride out on a generic "Save changes" with nothing naming the
+          consequence. On 9 Sept a live streamer was switched off that way,
+          80 minutes after this screen went live, and spent her next sign-in in
+          a loop that looked like a broken login. Remove always asked first;
+          now this does too, and it says who will be locked out. */}
+      {confirmOff && (
+        <Sheet
+          open
+          onClose={() => setConfirmOff(false)}
+          title="Turn off access?"
+          footer={
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setConfirmOff(false);
+                  void saveDirty();
+                }}
+                disabled={saving}
+                className={`${BTN} bg-red-600 text-white active:bg-red-700`}
+              >
+                Turn off and save
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmOff(false)}
+                className={`${BTN} border border-zinc-300 text-zinc-700 active:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:active:bg-zinc-800`}
+              >
+                Cancel
+              </button>
+            </div>
+          }
+        >
+          <p className="break-words py-1 text-sm leading-relaxed text-zinc-600 dark:text-zinc-300">
+            {turningOff.map((r) => r.email).join(", ")} won&apos;t be able to sign in
+            until an admin turns access back on.
           </p>
         </Sheet>
       )}

@@ -145,7 +145,9 @@ function LoginForm() {
     ? "Your email domain is not on the allowlist. Contact an admin."
     : urlError === "auth_failed"
       ? "That sign-in didn't complete. Please try again."
-      : null;
+      : urlError === "account_disabled"
+        ? "Your account is switched off. Ask your admin to turn it back on."
+        : null;
   const message = err ?? banner;
 
   return (

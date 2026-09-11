@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { getSessionUser } from "@/lib/auth/authorize";
+import { getAccountStatus, getSessionUser } from "@/lib/auth/authorize";
 import { canAccessPath, homeForRole, isAdminRole } from "@/lib/auth/access";
 import { LiveNotifier } from "./live-notifier";
 import { DashboardShell } from "./dashboard-shell";
@@ -13,7 +13,14 @@ export default async function DashboardLayout({
   // Local JWT verification + one role lookup (no auth-server round trip) — this
   // layout runs on every page navigation. Mutating APIs keep requireRole checks.
   const me = await getSessionUser();
-  if (!me) redirect("/login");
+  if (!me) {
+    // A signed-in account that has been switched off is not "signed out", and
+    // must not be handled like it. Sending it to a bare sign-in form made
+    // sign-in itself look broken: it succeeds, bounces straight back, and says
+    // nothing — so the person retries the one step that was never the problem.
+    const status = await getAccountStatus();
+    redirect(status === "inactive" ? "/login?error=account_disabled" : "/login");
+  }
 
   // DEFAULT-DENY page access (Feature U hardening): a role sees only its allowed
   // sections; anything else is bounced to its home. Admins = all; live_streamer

@@ -114,3 +114,31 @@ export async function getSessionUser(): Promise<SessionUser | null> {
 
   return { userId, email, role: row.role as Role };
 }
+
+/**
+ * WHY a page has no user. `getSessionUser()` answers null for two different
+ * situations — nobody is signed in, and someone IS signed in but has no active
+ * account — and the dashboard layout used to send both to /login. For the
+ * second that was a silent loop: sign-in succeeds, the page bounces straight
+ * back to the sign-in form, and nothing on screen says why. A streamer spent a
+ * morning in that loop on 11 Sept after her account was switched off.
+ *
+ * Only called on the already-rare null path, so a normal page load pays nothing
+ * for it. A signed-in user with no app row at all is reported as "inactive" too:
+ * from her side the problem, and the fix (ask an admin), are the same.
+ */
+export async function getAccountStatus(): Promise<"signed-out" | "inactive" | "active"> {
+  if (devBypass()) return "active";
+
+  const supabase = await createSupabaseServerClient();
+  const { data } = await supabase.auth.getClaims();
+  const claims = data?.claims;
+  const userId = claims && typeof claims.sub === "string" ? claims.sub : null;
+  if (!userId) return "signed-out";
+
+  const row = await db.query.users.findFirst({
+    where: eq(users.id, userId),
+    columns: { isActive: true },
+  });
+  return row?.isActive ? "active" : "inactive";
+}
