@@ -308,6 +308,7 @@ function SessionCards({ sessions }: { sessions: SessionRow[] }) {
     <div className="space-y-3">
       <div className="flex justify-end">
         <HelpChip
+          iconOnly
           keys={["views", "totalLeads", "filteredLeads", "dms", "bioViews", "duration"]}
         />
       </div>

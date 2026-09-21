@@ -113,6 +113,29 @@ export function MetricLine({
     ? "text-[28px] font-semibold leading-none tabular-nums"
     : "text-base font-medium tabular-nums";
 
+  // The hero number sits vertically centred against the label AND its
+  // denominator, not level with the label alone. At 28px beside a two-line
+  // label block it otherwise hangs off the top of the row.
+  if (hero) {
+    return (
+      <div className="flex min-h-12 w-full min-w-0 items-center justify-between gap-3 py-2">
+        <div className="min-w-0">
+          <div className="break-words text-sm text-zinc-500 dark:text-zinc-400">{label}</div>
+          {denominator && (
+            <div className="mt-1 break-words text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">
+              {denominator}
+            </div>
+          )}
+        </div>
+        <span
+          className={`max-w-full shrink-0 break-words text-right ${valueCls} ${TONE_VALUE[tone]}`}
+        >
+          {renderValue(value)}
+        </span>
+      </div>
+    );
+  }
+
   return (
     // min-w-0 on the row itself, not only on the label: as a `grid-cols-2` item
     // this box would otherwise size to its own min-content and spill past a

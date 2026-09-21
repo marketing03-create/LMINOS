@@ -149,6 +149,8 @@ export type HelpChipProps = {
   keys: MetricHelpKey[];
   /** Defaults to "What do these mean?". */
   label?: string;
+  /** Render just the "?" icon (44px round target); the label becomes its accessible name. */
+  iconOnly?: boolean;
 };
 
 /**
@@ -156,7 +158,7 @@ export type HelpChipProps = {
  * per-label `HelpTip`s are back and this would be a second, worse route to the
  * same words.
  */
-export function HelpChip({ keys, label }: HelpChipProps): React.JSX.Element | null {
+export function HelpChip({ keys, label, iconOnly = false }: HelpChipProps): React.JSX.Element | null {
   const [open, setOpen] = useState(false);
   const items = unique(keys);
   const text = label ?? DEFAULT_LABEL;
@@ -209,7 +211,10 @@ export function HelpChip({ keys, label }: HelpChipProps): React.JSX.Element | nu
         }}
         aria-haspopup="dialog"
         aria-expanded={open}
-        className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-zinc-300 px-4 text-sm text-zinc-600 active:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 lg:hidden dark:border-zinc-700 dark:text-zinc-400 dark:active:bg-zinc-800"
+        aria-label={iconOnly ? text : undefined}
+        className={`inline-flex min-h-11 items-center rounded-full border border-zinc-300 text-sm text-zinc-600 active:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 lg:hidden dark:border-zinc-700 dark:text-zinc-400 dark:active:bg-zinc-800 ${
+          iconOnly ? "w-11 justify-center" : "gap-1.5 px-4"
+        }`}
       >
         {/* Drawn, not typed: the `?` glyph would have to be set at 10px to fit
             a 16px ring, and sub-12px type is banned below `lg` (§2.1). */}
@@ -228,7 +233,7 @@ export function HelpChip({ keys, label }: HelpChipProps): React.JSX.Element | nu
           <path d="M9.6 9.2a2.5 2.5 0 1 1 3.2 2.6c-.5.2-.8.7-.8 1.2v.5" />
           <path d="M12 16.8h.01" />
         </svg>
-        {text}
+        {!iconOnly && text}
       </button>
       <MetricHelpSheet keys={items} open={open} onClose={close} title={text} />
     </>

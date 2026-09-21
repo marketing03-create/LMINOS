@@ -213,7 +213,7 @@ export function PaneSwitcher({
           aria-label="Sections"
           aria-orientation="horizontal"
           onKeyDown={onStripKeyDown}
-          className="relative -mx-4 mb-4 flex snap-x gap-2 overflow-x-auto overscroll-x-contain px-4 py-1 lg:hidden"
+          className="relative -mx-4 mb-4 flex snap-x gap-2 overflow-x-auto overscroll-x-contain px-4 pb-3 pt-1 lg:hidden"
         >
           {panes.map((pane, i) => {
             const selected = pane.id === activeId;
