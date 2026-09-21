@@ -164,13 +164,25 @@ export default async function TikTokLivePage({
             >
               Manual Input
             </Link>
-            <CompactDateFilter
-              basePath="/tiktok-live"
-              choice={choice}
-              extraParams={
-                selectedHandle !== "all" ? { handle: selectedHandle } : undefined
-              }
-            />
+            {/* The "?" shares the date filter's row on a phone, pushed to the
+                right edge, instead of taking a row of its own above the list.
+                `lg:contents` dissolves the wrapper on desktop, where the chip
+                is hidden, so the header row there is exactly as before. */}
+            <div className="flex w-full items-center gap-3 lg:contents">
+              <CompactDateFilter
+                basePath="/tiktok-live"
+                choice={choice}
+                extraParams={
+                  selectedHandle !== "all" ? { handle: selectedHandle } : undefined
+                }
+              />
+              <div className="ml-auto lg:hidden">
+                <HelpChip
+                  iconOnly
+                  keys={["views", "totalLeads", "filteredLeads", "dms", "bioViews", "duration"]}
+                />
+              </div>
+            </div>
           </div>
         </header>
       )}
@@ -306,12 +318,6 @@ export default async function TikTokLivePage({
 function SessionCards({ sessions }: { sessions: SessionRow[] }) {
   return (
     <div className="space-y-3">
-      <div className="flex justify-end">
-        <HelpChip
-          iconOnly
-          keys={["views", "totalLeads", "filteredLeads", "dms", "bioViews", "duration"]}
-        />
-      </div>
       <RecordList legend="Not entered means nobody has keyed that number in yet — it is not a zero.">
         {sessions.map((s) => (
           <RecordCard
