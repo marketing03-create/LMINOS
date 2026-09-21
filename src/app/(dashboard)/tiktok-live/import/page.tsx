@@ -43,9 +43,13 @@ export default async function StreamerImportPage({
 
   // The streamer's own lives (with current values) for the manual form.
   const me = await getSessionUser();
+  // Fail closed: a streamer with no id gets an empty scope, never `undefined`
+  // ("every handle").
   const scope =
-    me?.role === "live_streamer" && me?.userId
-      ? await streamerAccountIds(me.userId)
+    me?.role === "live_streamer"
+      ? me.userId
+        ? await streamerAccountIds(me.userId)
+        : []
       : undefined;
   let sessions: MatchCandidate[] = [];
   let accounts: { id: string; handle: string }[] = [];

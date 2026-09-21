@@ -23,9 +23,13 @@ export async function POST(request: NextRequest) {
   if (!auth.ok) return new NextResponse(auth.error, { status: auth.status });
 
   // Streamers only ever match against their own handles' sessions.
+  // Fail closed, matching sessions/route.ts: no id means an empty scope, never
+  // `undefined` ("every handle's lives").
   const scope =
-    auth.role === "live_streamer" && auth.userId
-      ? await streamerAccountIds(auth.userId)
+    auth.role === "live_streamer"
+      ? auth.userId
+        ? await streamerAccountIds(auth.userId)
+        : []
       : undefined;
 
   if (!serverEnv().AI_GATEWAY_API_KEY) {

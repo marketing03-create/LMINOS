@@ -95,8 +95,13 @@ export default async function TikTokLivePage({
 
   let scope: string[] | undefined;
   let handles: { id: string; handle: string }[] = [];
-  if (isStreamer && me?.userId) {
-    scope = await streamerAccountIds(me.userId);
+  // FAIL CLOSED. A streamer with no resolvable id sees nothing — never the
+  // admin branch below, which lists every streamer's lives. This used to read
+  // `isStreamer && me?.userId`, so a streamer without an id fell through to
+  // "no restriction". Production always has the id today; this makes sure a
+  // future refactor cannot turn a missing id into a data leak.
+  if (isStreamer) {
+    scope = me?.userId ? await streamerAccountIds(me.userId) : [];
   } else {
     try {
       handles = await tiktokAccountsForPicker();

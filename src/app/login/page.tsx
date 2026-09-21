@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { Suspense, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 // Login page reads `?error=…` and `?redirect=…` query params at runtime, so
@@ -35,7 +35,6 @@ export default function LoginPage() {
  * reading, and it competes with the one field they need to fill in.
  */
 function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const urlError = searchParams.get("error");
   // "/" sends the user to the right home for their role (admin vs streamer).
@@ -117,8 +116,11 @@ function LoginForm() {
         return;
       }
       // Session cookies are set — go where the proxy was sending them.
-      router.replace(redirect);
-      router.refresh();
+      // A full page load, not a client navigation. The app keeps visited pages
+      // in a 30s client cache (next.config staleTimes), and a client navigation
+      // after switching accounts could hand the new user a page rendered for
+      // the old one. A hard load starts from nothing, as the new user.
+      window.location.assign(redirect);
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     } finally {

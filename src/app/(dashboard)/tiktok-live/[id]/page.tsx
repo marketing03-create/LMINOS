@@ -41,8 +41,13 @@ export default async function TikTokSessionPage({
   // Scope streamers to their own handles — a session that isn't theirs 404s.
   const me = await getSessionUser();
   const isStreamer = me?.role === "live_streamer";
-  const scope =
-    isStreamer && me?.userId ? await streamerAccountIds(me.userId) : undefined;
+  // Fail closed: a streamer with no id gets an empty scope (the live 404s),
+  // never `undefined`, which means "every handle".
+  const scope = isStreamer
+    ? me?.userId
+      ? await streamerAccountIds(me.userId)
+      : []
+    : undefined;
   let data: Awaited<ReturnType<typeof sessionDetail>> | null = null;
   let error: string | null = null;
   try {
