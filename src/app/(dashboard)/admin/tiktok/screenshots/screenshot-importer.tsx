@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { refreshEverywhere } from "@/app/actions/refresh-everywhere";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AUTO_COLUMNS } from "@/lib/tiktok-live/screenshot-extract-core";
 import { ProductPicker } from "@/components/product-picker";
@@ -341,6 +342,10 @@ export function ScreenshotImporter() {
         }
       }
       patchRow(idx, { applied: true, msg: "Applied ✓" });
+      // The live's page we are about to open may be sitting in the 30s client
+      // cache from before this apply — purge it, or it opens with the old
+      // (blank) numbers and the save looks like it vanished.
+      void refreshEverywhere();
       // Close the review sheet so the card underneath can show its Applied ✓,
       // and hand the countdown bar the navigation.
       setSheetKey(null);

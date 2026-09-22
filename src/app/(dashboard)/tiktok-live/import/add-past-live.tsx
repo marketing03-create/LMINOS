@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { refreshEverywhere } from "@/app/actions/refresh-everywhere";
 import { useState } from "react";
 import { AUTO_COLUMNS, MANUAL_COLUMNS } from "@/lib/tiktok-live/screenshot-extract-core";
 import { ProductPicker } from "@/components/product-picker";
@@ -67,7 +67,6 @@ export function AddPastLive({
    */
   sticky?: boolean;
 }) {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [accountId, setAccountId] = useState(accounts[0]?.id ?? "");
   const [date, setDate] = useState("");
@@ -169,7 +168,7 @@ export function AddPastLive({
       }
       setDoneId(json.id ?? null);
       setMsg("Saved ✓ — this live is now in your list.");
-      router.refresh();
+      void refreshEverywhere();
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     } finally {

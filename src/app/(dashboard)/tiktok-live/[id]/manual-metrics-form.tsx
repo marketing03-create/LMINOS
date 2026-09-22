@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { refreshEverywhere } from "@/app/actions/refresh-everywhere";
 import { useCallback, useState } from "react";
 import { Disclosure } from "@/components/mobile/disclosure";
 import { HelpChip } from "@/components/mobile/metric-help-sheet";
@@ -200,7 +200,6 @@ export function SessionEditor({
   remarks: string | null;
   initial: Record<string, number | null>;
 }) {
-  const router = useRouter();
   const leadFields = isStreamer ? LEAD_FIELDS : [...LEAD_FIELDS, ...ADMIN_LEAD_FIELDS];
   const allFields = [...leadFields, ...LIVE_FIELDS, ...BACKEND_FIELDS];
 
@@ -360,7 +359,7 @@ export function SessionEditor({
         });
       }
       setMsg("Saved ✓");
-      router.refresh();
+      void refreshEverywhere();
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
@@ -369,9 +368,13 @@ export function SessionEditor({
   }
 
   // A photo dated differently from this live is the one mistake worth catching
-  // before it overwrites good numbers — warn, but let them proceed.
+  // before it overwrites good numbers — warn, but let them proceed. Day and
+  // month only: the screen has no year, and a guessed one made this fire on
+  // every single read, which trained streamers to tap Discard.
   const dateMismatch =
-    readGroup?.date && sessionDate && readGroup.date !== sessionDate ? readGroup.date : null;
+    readGroup?.date && sessionDate && readGroup.date.slice(5) !== sessionDate.slice(5)
+      ? readGroup.date
+      : null;
 
   const notices: NoticeItem[] = [];
   if (dateMismatch) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { refreshEverywhere } from "@/app/actions/refresh-everywhere";
 import { LeadsQuickSheet } from "@/components/mobile/leads-quick-sheet";
 
 /**
@@ -10,15 +10,17 @@ import { LeadsQuickSheet } from "@/components/mobile/leads-quick-sheet";
  * a server component cannot hand a client one.
  *
  * So this is the four-line client shim that owns that callback. It exists for
- * exactly one reason: without a `router.refresh()` after the PATCH, the card
+ * exactly one reason: without a refresh after the PATCH, the card
  * the streamer just filled in stays amber and still reads "Missing: Total
  * Leads" — she saved the number, the sheet closed, and the screen told her
  * nothing happened. `FeedRefresh` cannot cover this: it fires on arrival,
  * bfcache restore and tab focus, and saving inside a sheet is none of those.
  *
- * `router.refresh()` and not `location.reload()`: the feed re-renders in place
- * with fresh server data, keeping scroll position and the rest of the list
- * exactly where the thumb left it.
+ * `refreshEverywhere()` and not `location.reload()`: the feed re-renders in
+ * place with fresh server data, keeping scroll position and the rest of the
+ * list exactly where the thumb left it — and every other cached page (the
+ * live's own page, the Lives list) is purged too, so none of them can show the
+ * pre-save numbers for the next 30s.
  */
 export function LeadsQuickAction({
   sessionId,
@@ -31,14 +33,13 @@ export function LeadsQuickAction({
   totalLeads: number | null;
   filteredLeads: number | null;
 }) {
-  const router = useRouter();
   return (
     <LeadsQuickSheet
       sessionId={sessionId}
       when={when}
       totalLeads={totalLeads}
       filteredLeads={filteredLeads}
-      onSaved={() => router.refresh()}
+      onSaved={() => void refreshEverywhere()}
     />
   );
 }

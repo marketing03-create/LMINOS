@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { refreshEverywhere } from "@/app/actions/refresh-everywhere";
 import { useId, useState } from "react";
 import { MobileTable } from "@/components/mobile/mobile-table";
 import { RecordCard, RecordList } from "@/components/mobile/record-card";
@@ -58,7 +58,6 @@ export function TikTokAdmin({
   rows: TikTokRow[];
   streamers: StreamerOption[];
 }) {
-  const router = useRouter();
   const [handle, setHandle] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -80,7 +79,7 @@ export function TikTokAdmin({
         setError(json.error ?? `Request failed (${res.status}).`);
         return false;
       }
-      router.refresh();
+      void refreshEverywhere();
       return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));

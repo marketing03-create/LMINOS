@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { refreshEverywhere } from "@/app/actions/refresh-everywhere";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AUTO_COLUMNS, MANUAL_COLUMNS } from "@/lib/tiktok-live/screenshot-extract-core";
 import { ProductPicker } from "@/components/product-picker";
@@ -187,9 +188,9 @@ export function ManualEntryForm({
     // The redirect path refreshes; the stay path must too, or the "Now …" chips
     // beside every field keep showing the pre-save values and a second Save
     // would diff against stale `current` and re-send numbers that are already
-    // stored — one extra audit row per save. Contract #66: router.refresh()
-    // after every successful mutation.
-    router.refresh();
+    // stored — one extra audit row per save. Contract #66: refresh after
+    // every successful mutation — every cached page, not just this one.
+    void refreshEverywhere();
   }
 
   async function apply() {
@@ -281,8 +282,10 @@ export function ManualEntryForm({
         setCountdown((c) => (c == null ? c : Math.max(0, c - 1)));
       }, 1000);
       timers.current.push = setTimeout(() => {
-        router.push(`/tiktok-live#session-${sessionId}`);
-        router.refresh();
+        // Purge first, then go: the feed must not come out of the 30s cache.
+        void refreshEverywhere().finally(() =>
+          router.push(`/tiktok-live#session-${sessionId}`)
+        );
       }, 2000);
     } catch (e) {
       setMsg(e instanceof Error ? e.message : String(e));

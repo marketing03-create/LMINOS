@@ -4,6 +4,7 @@ import {
   buildScreenshotPrompt,
   extractionToValues,
   mergeExtractions,
+  normalizeScreenshotYear,
   SCREENSHOT_SYSTEM,
   splitByBucket,
   type ScreenshotExtraction,
@@ -195,5 +196,26 @@ describe("prompt", () => {
     expect(SCREENSHOT_SYSTEM).toContain("TOTAL SECONDS");
     expect(SCREENSHOT_SYSTEM).toContain("Malaysia time");
     expect(buildScreenshotPrompt()).toContain("null");
+  });
+});
+
+describe("normalizeScreenshotYear", () => {
+  it("replaces the model's guessed year with this year", () => {
+    expect(normalizeScreenshotYear("2024-09-19", "2026-09-22")).toBe("2026-09-19");
+  });
+  it("keeps today as this year", () => {
+    expect(normalizeScreenshotYear("2024-09-22", "2026-09-22")).toBe("2026-09-22");
+  });
+  it("uses last year for a date later in the calendar than today", () => {
+    expect(normalizeScreenshotYear("2026-12-30", "2027-01-02")).toBe("2026-12-30");
+    expect(normalizeScreenshotYear("2024-09-23", "2026-09-22")).toBe("2025-09-23");
+  });
+  it("passes null and non-dates through", () => {
+    expect(normalizeScreenshotYear(null, "2026-09-22")).toBeNull();
+    expect(normalizeScreenshotYear("Sept 19", "2026-09-22")).toBe("Sept 19");
+  });
+  it("handles 29 Feb: last year if it had one, else leaves the read alone", () => {
+    expect(normalizeScreenshotYear("2024-02-29", "2029-03-01")).toBe("2028-02-29");
+    expect(normalizeScreenshotYear("2024-02-29", "2027-03-01")).toBe("2024-02-29");
   });
 });

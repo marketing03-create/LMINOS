@@ -238,3 +238,30 @@ RULES:
 export function buildScreenshotPrompt(): string {
   return "Extract the date, start time, @handle, tab, and every visible metric from this TikTok LIVE analytics screenshot, following the rules exactly. Use null for anything not shown on this screenshot.";
 }
+
+/**
+ * TikTok's LIVE analytics screens print a day and month but no year, so the
+ * year the model returns is a guess — and it guesses 2024 almost every time
+ * (295 of 303 dated reads in the uploads table). A live is always in the past,
+ * so the right year is the latest one that doesn't put the date after today.
+ * `today` is YYYY-MM-DD in Malaysia time. Anything that isn't a real calendar
+ * date comes back unchanged for the caller to treat as it already does.
+ */
+export function normalizeScreenshotYear(
+  date: string | null,
+  today: string
+): string | null {
+  if (!date) return date;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  if (!m) return date;
+  const [, , mm, dd] = m;
+  const yearNow = Number(today.slice(0, 4));
+  for (const y of [yearNow, yearNow - 1]) {
+    const candidate = `${y}-${mm}-${dd}`;
+    // Round-trip check rejects 02-30 and friends (and 02-29 in a common year).
+    const valid =
+      new Date(`${candidate}T00:00:00Z`).toISOString().slice(0, 10) === candidate;
+    if (valid && candidate <= today) return candidate;
+  }
+  return date;
+}

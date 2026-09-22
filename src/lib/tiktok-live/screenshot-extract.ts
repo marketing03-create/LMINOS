@@ -9,10 +9,12 @@ import { serverEnv } from "@/lib/env";
 import {
   buildScreenshotPrompt,
   DEFAULT_SCREENSHOT_MODEL,
+  normalizeScreenshotYear,
   SCREENSHOT_SYSTEM,
   ScreenshotExtractionSchema,
   type ScreenshotExtraction,
 } from "./screenshot-extract-core";
+import { mytDate } from "./live-analysis-core";
 
 export const MAX_SCREENSHOTS = 12;
 
@@ -59,5 +61,9 @@ export async function extractFromImages(
   images: UploadedImage[]
 ): Promise<ScreenshotExtraction[]> {
   requireKey();
-  return Promise.all(images.slice(0, MAX_SCREENSHOTS).map(extractOneImage));
+  const reads = await Promise.all(images.slice(0, MAX_SCREENSHOTS).map(extractOneImage));
+  // The screens carry no year; fix the model's guess before anything compares
+  // dates — the live page warned "these look like 2024-09-19" on every read.
+  const today = mytDate(new Date().toISOString());
+  return reads.map((e) => ({ ...e, date: normalizeScreenshotYear(e.date, today) }));
 }

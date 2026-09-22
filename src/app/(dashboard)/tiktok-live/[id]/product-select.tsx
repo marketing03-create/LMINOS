@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { refreshEverywhere } from "@/app/actions/refresh-everywhere";
 import { useState } from "react";
 import { ProductPicker } from "@/components/product-picker";
 
@@ -16,7 +16,6 @@ export function ProductSelect({
   sessionId: string;
   initial: string[];
 }) {
-  const router = useRouter();
   const [value, setValue] = useState<string[]>(initial);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -39,7 +38,7 @@ export function ProductSelect({
         return;
       }
       setMsg("Saved.");
-      router.refresh();
+      void refreshEverywhere();
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
