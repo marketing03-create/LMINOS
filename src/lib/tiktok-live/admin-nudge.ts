@@ -29,10 +29,9 @@ import {
   users,
 } from "@/db/schema";
 import { writeAudit } from "@/lib/audit/write";
-import { escapeMd, sendMarkdown } from "@/lib/telegram/send";
+import { pushToUser } from "@/lib/notifications/push";
 import { upsertUserNotification } from "@/lib/notifications/user-inbox";
 import {
-  METRIC_LABEL,
   incompleteCondition,
   lookbackWindow,
   missingMetrics,
@@ -44,18 +43,9 @@ export const NUDGE_TYPE = "tiktok_admin_nudge";
 const NUDGE_KEY = "admin";
 const SENT_EVENT = "tiktok_live.admin_nudge_sent";
 const DONE_EVENT = "tiktok_live.admin_nudge_done";
-const MAX_LISTED = 10;
-/** A second press inside this window refreshes the inbox row but sends no second Telegram DM. */
-const TELEGRAM_COOLDOWN_MS = 10 * 60 * 1000;
+/** A second press inside this window refreshes the inbox row but buzzes no phone twice. */
+const PUSH_COOLDOWN_MS = 10 * 60 * 1000;
 
-const whenFmt = new Intl.DateTimeFormat("en-MY", {
-  timeZone: "Asia/Kuala_Lumpur",
-  day: "numeric",
-  month: "short",
-  hour: "numeric",
-  minute: "2-digit",
-  hour12: true,
-});
 
 export type OwedLive = {
   sessionId: string;
@@ -73,7 +63,7 @@ const METRIC_COLS = {
 
 /** Every finished live in the window still owing numbers, with its active streamer. */
 async function owedByStreamer(): Promise<
-  Map<string, { email: string; chatId: string | null; lives: OwedLive[] }>
+  Map<string, { email: string; lives: OwedLive[] }>
 > {
   const { since, until } = lookbackWindow();
   const rows = await db
@@ -83,7 +73,6 @@ async function owedByStreamer(): Promise<
       startedAt: tiktokLiveSessions.startedAt,
       streamerId: users.id,
       email: users.email,
-      chatId: users.telegramChatId,
       ...METRIC_COLS,
     })
     .from(tiktokLiveSessions)
@@ -99,9 +88,9 @@ async function owedByStreamer(): Promise<
     )
     .orderBy(desc(tiktokLiveSessions.startedAt));
 
-  const out = new Map<string, { email: string; chatId: string | null; lives: OwedLive[] }>();
+  const out = new Map<string, { email: string; lives: OwedLive[] }>();
   for (const r of rows) {
-    const g = out.get(r.streamerId) ?? { email: r.email, chatId: r.chatId, lives: [] };
+    const g = out.get(r.streamerId) ?? { email: r.email, lives: [] };
     g.lives.push({
       sessionId: r.sessionId,
       handle: r.handle,
@@ -115,27 +104,22 @@ async function owedByStreamer(): Promise<
 
 const plural = (n: number) => `${n} live${n === 1 ? "" : "s"}`;
 
-function lineFor(l: OwedLive): string {
-  return (
-    `• @${l.handle}${l.startedAt ? ` · ${whenFmt.format(l.startedAt)}` : ""}` +
-    ` — missing ${l.missing.map((m) => METRIC_LABEL[m]).join(", ")}`
-  );
-}
 
 /**
  * Notify every active streamer who owes numbers. One inbox row each (refreshed
- * and made unread again on every press), a Telegram DM where they have one
- * linked, and an audit row per streamer so the admin panel can show who was
+ * and made unread again on every press), an LMIROS phone notification on every
+ * device they turned notifications on for, and an audit row per streamer so the admin panel can show who was
  * told when.
  */
 export async function sendAdminNudge(actorUserId: string | null): Promise<{
   streamers: number;
   lives: number;
-  pinged: number;
+  /** Streamers whose phone got an LMIROS notification. */
+  pushed: number;
 }> {
   const owed = await owedByStreamer();
   let lives = 0;
-  let pinged = 0;
+  let pushed = 0;
 
   for (const [streamerId, g] of owed) {
     const n = g.lives.length;
@@ -152,8 +136,8 @@ export async function sendAdminNudge(actorUserId: string | null): Promise<{
         )
       )
       .limit(1);
-    const recentlyPinged =
-      !!prev && Date.now() - prev.updatedAt.getTime() < TELEGRAM_COOLDOWN_MS;
+    const recentlyPushed =
+      !!prev && Date.now() - prev.updatedAt.getTime() < PUSH_COOLDOWN_MS;
 
     await upsertUserNotification({
       userId: streamerId,
@@ -173,22 +157,18 @@ export async function sendAdminNudge(actorUserId: string | null): Promise<{
       after: { lives: n, sessionIds: g.lives.map((l) => l.sessionId) },
     });
 
-    if (g.chatId && !recentlyPinged) {
-      const listed = g.lives.slice(0, MAX_LISTED).map(lineFor).join("\n");
-      const more = n > MAX_LISTED ? `\n…and ${n - MAX_LISTED} more` : "";
-      const text =
-        `📣 Reminder from admin: ${plural(n)} still need${n === 1 ? "s" : ""} your numbers:\n` +
-        `${listed}${more}\n\nFill them in on LMIROS, then tap Done on your Home page.`;
-      try {
-        const res = await sendMarkdown(g.chatId, escapeMd(text));
-        if (res.ok) pinged += 1;
-      } catch {
-        // best-effort — the in-app reminder is already written
-      }
+    if (!recentlyPushed) {
+      const sent = await pushToUser(streamerId, {
+        title: `${plural(n)} still need${n === 1 ? "s" : ""} your numbers`,
+        body: "Reminder from admin. Fill them in, then tap Done.",
+        url: "/tiktok-live",
+        tag: NUDGE_TYPE,
+      });
+      if (sent > 0) pushed += 1;
     }
   }
 
-  return { streamers: owed.size, lives, pinged };
+  return { streamers: owed.size, lives, pushed };
 }
 
 /** The streamer's open admin reminder, with the lives it named re-checked now. */

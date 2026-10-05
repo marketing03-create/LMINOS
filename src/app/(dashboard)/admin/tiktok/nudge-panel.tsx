@@ -24,8 +24,8 @@ const whenFmt = new Intl.DateTimeFormat("en-MY", {
 /**
  * Who still owes numbers, and the one button that tells them.
  *
- * The send is two taps on purpose: it reaches people (in-app, and Telegram for
- * anyone linked), so the first tap only turns the button into the question
+ * The send is two taps on purpose: it reaches people (the in-app bell, and a
+ * phone notification for anyone who turned them on), so the first tap only turns the button into the question
  * "Send to 2 streamers?" — the count being the thing worth a second look.
  *
  * Each row's status answers the admin's follow-up, "did they do it?":
@@ -53,7 +53,9 @@ export function NudgePanel({ rows }: { rows: NudgeRow[] }) {
       }
       setMsg({
         tone: "ok",
-        text: `Sent to ${json.streamers} streamer${json.streamers === 1 ? "" : "s"} ✓`,
+        text:
+          `Sent to ${json.streamers} streamer${json.streamers === 1 ? "" : "s"} ✓` +
+          ` · ${json.pushed} by phone notification`,
       });
       setConfirming(false);
       await refreshEverywhere();

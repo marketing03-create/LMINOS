@@ -38,6 +38,12 @@ const serverSchema = z.object({
   TELEGRAM_BOT_TOKEN: z.string().min(1).optional(),
 
   AUTH_ALLOWED_DOMAINS: z.string().optional(),
+
+  // Web Push — LMIROS's own phone notifications. All three unset = push off
+  // (reminders still land in the in-app bell).
+  NEXT_PUBLIC_VAPID_PUBLIC_KEY: z.string().min(1).optional(),
+  VAPID_PRIVATE_KEY: z.string().min(1).optional(),
+  VAPID_SUBJECT: z.string().min(1).optional(),
 });
 
 const clientSchema = z.object({

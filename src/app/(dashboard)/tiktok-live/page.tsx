@@ -21,6 +21,7 @@ import { HandleFilter } from "./handle-filter";
 import { StreamerHomeFeed } from "./streamer-home-feed";
 import { FeedRefresh } from "./feed-refresh";
 import { AdminNudgeCard, type NudgeLive } from "./admin-nudge-card";
+import { PushSwitch } from "@/components/push-switch";
 import { getMyNudge } from "@/lib/tiktok-live/admin-nudge";
 import { METRIC_LABEL } from "@/lib/tiktok-live/completeness";
 import { RemarksInput } from "./remarks-input";
@@ -220,6 +221,7 @@ export default async function TikTokLivePage({
       )}
 
       {/* Streamers get the to-do list; admins keep the wide table at lg+. */}
+      {isStreamer && <PushSwitch />}
       {isStreamer && nudge && <AdminNudgeCard remaining={nudge} />}
 
       {isStreamer && !error && (

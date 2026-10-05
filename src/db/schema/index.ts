@@ -9,6 +9,7 @@ export * from "./tiktok-live-leads";
 export * from "./tiktok-screenshot-uploads";
 export * from "./app-notifications";
 export * from "./user-notifications";
+export * from "./push-subscriptions";
 export * from "./worker-heartbeats";
 export * from "./audit-logs";
 export * from "./processed-jobs";

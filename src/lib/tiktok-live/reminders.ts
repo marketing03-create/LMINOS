@@ -14,27 +14,18 @@
 import { and, eq, gte, isNotNull, isNull, lte, or, type SQL } from "drizzle-orm";
 import { db } from "@/db/client";
 import { tiktokAccounts, tiktokLiveSessions, userNotifications, users } from "@/db/schema";
-import { sendMarkdown, escapeMd } from "@/lib/telegram/send";
+import { pushToUser } from "@/lib/notifications/push";
 import { upsertUserNotification } from "@/lib/notifications/user-inbox";
 import {
-  METRIC_LABEL,
   MIN_DURATION_SECONDS,
   liveMetricsIncompleteCondition,
   missingLeadMetrics,
   missingLiveMetrics,
   outstandingCondition,
-  type RequiredMetric,
 } from "./completeness";
 
 const MYT_MS = 8 * 60 * 60 * 1000; // Malaysia is UTC+8, no DST
-const MAX_LISTED = 10; // keep a Telegram message readable on a heavy day
 
-const timeFmt = new Intl.DateTimeFormat("en-MY", {
-  timeZone: "Asia/Kuala_Lumpur",
-  hour: "numeric",
-  minute: "2-digit",
-  hour12: true,
-});
 
 /** YYYY-MM-DD in Malaysia time. */
 const mytDay = (d: Date) => new Date(d.getTime() + MYT_MS).toISOString().slice(0, 10);
@@ -49,9 +40,6 @@ export const TRACKS = {
     body: (n: number) =>
       `${n === 1 ? "This live is" : "These lives are"} still missing DMs and Bio views. ` +
       `Tap to add them from your TikTok backend.`,
-    ping: (n: number, lines: string) =>
-      `📝 ${n} of your live${n === 1 ? "" : "s"} still ${n === 1 ? "needs" : "need"} its numbers ` +
-      `(DMs, Bio views):\n${lines}\n\nOpen LMIROS → + → Manual input.`,
   },
   leads: {
     type: "tiktok_missing_leads",
@@ -61,9 +49,6 @@ export const TRACKS = {
     body: (n: number) =>
       `${n === 1 ? "This live" : "These lives"} still ${n === 1 ? "needs" : "need"} Total Leads ` +
       `and Filtered Leads entered.`,
-    ping: (n: number, lines: string) =>
-      `📊 Good morning! ${n} of your live${n === 1 ? "" : "s"} still ${n === 1 ? "needs" : "need"} ` +
-      `lead numbers:\n${lines}\n\nOpen LMIROS → + → Manual input.`,
   },
 } as const;
 
@@ -112,18 +97,12 @@ export async function findOutstanding(
     .where(outstandingCondition(since, until, cond)) as Promise<OutstandingRow[]>;
 }
 
-const lineFor = (r: OutstandingRow, track: TrackKey) => {
-  const missing = TRACKS[track].missing(r).map((m: RequiredMetric) => METRIC_LABEL[m]);
-  return (
-    `• @${r.handle}${r.startedAt ? ` · ${timeFmt.format(r.startedAt)}` : ""}` +
-    ` — missing ${missing.join(", ")}`
-  );
-};
 
 /**
  * Notify every streamer with an outstanding live in `rows`, for one track.
  * ONE Notification Center row per streamer (idempotent upsert, re-surfaced),
- * plus a Telegram DM gated to once per Malaysia-day so a re-run can't spam.
+ * plus an LMIROS phone notification gated to once per Malaysia-day so a re-run
+ * can't spam.
  * Returns simple counters for the cron's JSON response.
  */
 export async function notifyStreamers(
@@ -135,7 +114,7 @@ export async function notifyStreamers(
 
   const byStreamer = new Map<
     string,
-    { chatId: string | null; lines: string[]; sessionIds: string[] }
+    { sessionIds: string[] }
   >();
   let unassigned = 0;
   for (const r of rows) {
@@ -143,12 +122,7 @@ export async function notifyStreamers(
       unassigned += 1;
       continue;
     }
-    const g = byStreamer.get(r.streamerId) ?? {
-      chatId: r.streamerChatId,
-      lines: [],
-      sessionIds: [],
-    };
-    g.lines.push(lineFor(r, track));
+    const g = byStreamer.get(r.streamerId) ?? { sessionIds: [] };
     g.sessionIds.push(r.sessionId);
     byStreamer.set(r.streamerId, g);
   }
@@ -159,7 +133,7 @@ export async function notifyStreamers(
     const n = g.sessionIds.length;
 
     // Was this streamer's row for this track already refreshed today? That's the
-    // once-a-day gate for the Telegram DM — no extra table.
+    // once-a-day gate for the phone notification — no extra table.
     let sentToday = false;
     try {
       const [prev] = await db
@@ -189,15 +163,16 @@ export async function notifyStreamers(
       // best-effort — one bad row must not stop the others
     }
 
-    if (g.chatId && !sentToday) {
-      const listed = g.lines.slice(0, MAX_LISTED).join("\n");
-      const more = n > MAX_LISTED ? `\n…and ${n - MAX_LISTED} more` : "";
-      try {
-        const res = await sendMarkdown(g.chatId, escapeMd(t.ping(n, listed + more)));
-        if (res.ok) pinged += 1;
-      } catch {
-        // best-effort — one bad recipient must not stop the others
-      }
+    // An LMIROS phone notification, at most once per track per Malaysia-day.
+    // (These used to go out by Telegram; streamers now get them from LMIROS.)
+    if (!sentToday) {
+      const sent = await pushToUser(streamerId, {
+        title: t.title(n),
+        body: t.body(n),
+        url: n === 1 ? `/tiktok-live/${g.sessionIds[0]}` : "/tiktok-live",
+        tag: t.type,
+      });
+      if (sent > 0) pinged += 1;
     }
   }
 

@@ -17,6 +17,9 @@ const PUBLIC_PREFIXES = [
   // The brand mark, rendered on the sign-in page itself — so it is fetched
   // before any session exists and must not be bounced to /login.
   "/logo.png",
+  // The notifications service worker. The browser fetches it to register and
+  // to update, and a redirect to /login there would break push for good.
+  "/sw.js",
 ];
 
 export async function proxy(request: NextRequest) {
