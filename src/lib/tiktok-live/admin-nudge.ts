@@ -111,7 +111,11 @@ const plural = (n: number) => `${n} live${n === 1 ? "" : "s"}`;
  * device they turned notifications on for, and an audit row per streamer so the admin panel can show who was
  * told when.
  */
-export async function sendAdminNudge(actorUserId: string | null): Promise<{
+export async function sendAdminNudge(
+  actorUserId: string | null,
+  /** Only these streamers; omitted = everyone who owes numbers. */
+  onlyStreamerIds?: string[]
+): Promise<{
   streamers: number;
   lives: number;
   /** Streamers whose phone got an LMIROS notification. */
@@ -121,7 +125,12 @@ export async function sendAdminNudge(actorUserId: string | null): Promise<{
   let lives = 0;
   let pushed = 0;
 
+  const only = onlyStreamerIds ? new Set(onlyStreamerIds) : null;
+  let streamers = 0;
+
   for (const [streamerId, g] of owed) {
+    if (only && !only.has(streamerId)) continue;
+    streamers += 1;
     const n = g.lives.length;
     lives += n;
 
@@ -168,7 +177,7 @@ export async function sendAdminNudge(actorUserId: string | null): Promise<{
     }
   }
 
-  return { streamers: owed.size, lives, pushed };
+  return { streamers, lives, pushed };
 }
 
 /** The streamer's open admin reminder, with the lives it named re-checked now. */

@@ -39,13 +39,34 @@ export function NudgePanel({ rows }: { rows: NudgeRow[] }) {
 
   const owing = rows.filter((r) => r.owed > 0);
   const totalLives = owing.reduce((n, r) => n + r.owed, 0);
-  const people = `${owing.length} streamer${owing.length === 1 ? "" : "s"}`;
+  // Ticked = will be notified. Everyone who owes is ticked unless the admin
+  // unticked them, so "notify all" stays one tap — and the set records the
+  // exceptions, not the picks, so a streamer who starts owing after a refresh
+  // arrives ticked like everyone else.
+  const [left, setLeft] = useState<Set<string>>(() => new Set());
+  const chosen = owing.filter((r) => !left.has(r.streamerId));
+  const people = `${chosen.length} streamer${chosen.length === 1 ? "" : "s"}`;
+
+  function toggle(id: string) {
+    setMsg(null);
+    setConfirming(false);
+    setLeft((p) => {
+      const next = new Set(p);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   async function send() {
     setBusy(true);
     setMsg(null);
     try {
-      const res = await fetch("/api/tiktok-live/nudge", { method: "POST" });
+      const res = await fetch("/api/tiktok-live/nudge", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ streamerIds: chosen.map((r) => r.streamerId) }),
+      });
       const json = await res.json().catch(() => ({}));
       if (!res.ok || json.ok === false) {
         setMsg({ tone: "err", text: json.error ?? `Couldn't send (${res.status}).` });
@@ -85,8 +106,13 @@ export function NudgePanel({ rows }: { rows: NudgeRow[] }) {
                   ? { tone: "emerald", text: `Done ✓ ${whenFmt.format(new Date(r.doneAt))}` }
                   : null;
               return (
-                <li key={r.streamerId} className="flex items-start justify-between gap-3 py-3">
-                  <div className="min-w-0">
+                <li key={r.streamerId}>
+                  <Row
+                    selectable={r.owed > 0}
+                    checked={!left.has(r.streamerId)}
+                    onToggle={() => toggle(r.streamerId)}
+                  >
+                  <div className="min-w-0 flex-1">
                     <div className="break-words text-[15px] font-medium leading-snug">
                       {r.name || r.email}
                     </div>
@@ -111,6 +137,7 @@ export function NudgePanel({ rows }: { rows: NudgeRow[] }) {
                   >
                     {r.owed > 0 ? `${r.owed} live${r.owed === 1 ? "" : "s"}` : "All in"}
                   </span>
+                  </Row>
                 </li>
               );
             })}
@@ -125,10 +152,12 @@ export function NudgePanel({ rows }: { rows: NudgeRow[] }) {
                 setMsg(null);
                 setConfirming(true);
               }}
-              disabled={owing.length === 0}
+              disabled={chosen.length === 0}
               className="inline-flex h-11 w-full items-center justify-center rounded-xl bg-blue-600 px-5 text-[15px] font-medium text-white transition-colors active:bg-blue-700 hover:bg-blue-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:opacity-40 disabled:hover:bg-blue-600 dark:focus-visible:ring-offset-zinc-950"
             >
-              Notify streamers
+              {chosen.length === 0 || chosen.length === owing.length
+                ? "Notify streamers"
+                : `Notify ${people}`}
             </button>
           ) : (
             <div className="flex gap-3">
@@ -165,5 +194,38 @@ export function NudgePanel({ rows }: { rows: NudgeRow[] }) {
         </div>
       </section>
     </div>
+  );
+}
+
+/**
+ * One streamer row. A streamer who owes numbers gets a tick box, and the whole
+ * row is its label — a 20px box alone is too small a target for a thumb. A
+ * streamer with everything in has nothing to be reminded about, so their row
+ * is plain and carries no box.
+ */
+function Row({
+  selectable,
+  checked,
+  onToggle,
+  children,
+}: {
+  selectable: boolean;
+  checked: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}) {
+  if (!selectable) {
+    return <div className="flex items-start gap-3 py-3 pl-8">{children}</div>;
+  }
+  return (
+    <label className="-mx-2 flex min-h-11 cursor-pointer items-start gap-3 rounded-lg px-2 py-3 active:bg-zinc-50 dark:active:bg-zinc-900">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={onToggle}
+        className="mt-0.5 h-5 w-5 shrink-0 accent-blue-600"
+      />
+      {children}
+    </label>
   );
 }
