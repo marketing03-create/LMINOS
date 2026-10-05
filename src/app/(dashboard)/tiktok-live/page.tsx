@@ -20,6 +20,9 @@ import { SessionHighlighter } from "./session-highlighter";
 import { HandleFilter } from "./handle-filter";
 import { StreamerHomeFeed } from "./streamer-home-feed";
 import { FeedRefresh } from "./feed-refresh";
+import { AdminNudgeCard, type NudgeLive } from "./admin-nudge-card";
+import { getMyNudge } from "@/lib/tiktok-live/admin-nudge";
+import { METRIC_LABEL } from "@/lib/tiktok-live/completeness";
 import { RemarksInput } from "./remarks-input";
 
 /** Per-column explanations, shown in a “?” beside each header. */
@@ -125,6 +128,24 @@ export default async function TikTokLivePage({
     error = err instanceof Error ? err.message : String(err);
   }
 
+  // The admin's "fill your numbers in" reminder, if one is open for this
+  // streamer. Non-fatal: a failed lookup just means no card.
+  let nudge: NudgeLive[] | null = null;
+  if (isStreamer && me?.userId) {
+    try {
+      const open = await getMyNudge(me.userId);
+      nudge =
+        open?.remaining.map((l) => ({
+          sessionId: l.sessionId,
+          handle: l.handle,
+          startedAt: l.startedAt?.toISOString() ?? null,
+          missing: l.missing.map((m) => METRIC_LABEL[m]),
+        })) ?? null;
+    } catch {
+      nudge = null;
+    }
+  }
+
   return (
     <div className="px-4 py-5 sm:p-8">
       <SessionHighlighter />
@@ -199,6 +220,8 @@ export default async function TikTokLivePage({
       )}
 
       {/* Streamers get the to-do list; admins keep the wide table at lg+. */}
+      {isStreamer && nudge && <AdminNudgeCard remaining={nudge} />}
+
       {isStreamer && !error && (
         <StreamerHomeFeed sessions={sessions} choice={choice} />
       )}

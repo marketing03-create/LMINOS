@@ -6,6 +6,8 @@ import {
   type MismatchAlert,
 } from "@/lib/tiktok-live/queries";
 import { MismatchAlerts } from "./mismatch-alerts";
+import { NudgePanel, type NudgeRow } from "./nudge-panel";
+import { nudgeStatus } from "@/lib/tiktok-live/admin-nudge";
 import { StreamerChooser, type ChooserOption } from "./streamer-chooser";
 import { Disclosure } from "@/components/mobile/disclosure";
 import { TriageItem } from "@/components/mobile/triage-item";
@@ -187,6 +189,17 @@ export default async function AdminTikTokPage() {
     // non-fatal — the alerts section just won't render
   }
 
+  let nudgeRows: NudgeRow[] | null = null;
+  try {
+    nudgeRows = (await nudgeStatus()).map((r) => ({
+      ...r,
+      pendingSince: r.pendingSince?.toISOString() ?? null,
+      doneAt: r.doneAt?.toISOString() ?? null,
+    }));
+  } catch {
+    // non-fatal — the panel just won't render
+  }
+
   const emailById = new Map(streamers.map((s) => [s.id, s.email]));
   const options: ChooserOption[] = rows.map((r) => ({
     accountId: r.id,
@@ -271,6 +284,15 @@ export default async function AdminTikTokPage() {
         <div className="order-2 lg:order-none">
           <StreamerChooser options={options} />
         </div>
+
+        {/* Who still owes numbers + the button that tells them. Same `order-2`
+            as the chooser, so on a phone it sits right under it (equal orders
+            keep source order) and at `lg` it is simply next in the flow. */}
+        {nudgeRows && (
+          <div className="order-2 lg:order-none">
+            <NudgePanel rows={nudgeRows} />
+          </div>
+        )}
 
         {/* Handle management (register, keywords, assign streamer, status). */}
         <section className="order-5 mt-10 lg:order-none">

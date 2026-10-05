@@ -35,6 +35,10 @@ export type InboxRow = {
  * unknown) falls back to "all four", the safe superset.
  */
 function stillOwes(type: string, row: MetricRow): boolean {
+  // The admin's reminder waits for the streamer's Done, not for the numbers —
+  // see admin-nudge.ts. (A literal, not the import: admin-nudge imports this
+  // module, and the string is the stored `type`, which can never change.)
+  if (type === "tiktok_admin_nudge") return true;
   if (type === "tiktok_missing_leads") return missingLeadMetrics(row).length > 0;
   if (type === "tiktok_missing_metrics") return missingLiveMetrics(row).length > 0;
   return missingMetrics(row).length > 0;
