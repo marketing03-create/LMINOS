@@ -2,7 +2,16 @@
 
 import { useEffect, useState } from "react";
 
-const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+/** Fetched from the server at runtime, not inlined at build — see /api/push/key. */
+async function publicKey(): Promise<string | null> {
+  try {
+    const res = await fetch("/api/push/key", { cache: "no-store" });
+    const json = (await res.json()) as { key?: string | null };
+    return json.key ?? null;
+  } catch {
+    return null;
+  }
+}
 
 type State =
   | "hidden" // nothing to show: on, unsupported, or not configured
@@ -45,12 +54,15 @@ export function PushSwitch() {
   const [state, setState] = useState<State>("hidden");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [vapidKey, setVapidKey] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       const set = (s: State) => !cancelled && setState(s);
-      if (!VAPID_PUBLIC_KEY) return;
+      const key = await publicKey();
+      if (!key || cancelled) return;
+      setVapidKey(key);
 
       const supported =
         "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
@@ -73,7 +85,7 @@ export function PushSwitch() {
             (await reg.pushManager.getSubscription()) ??
             (await reg.pushManager.subscribe({
               userVisibleOnly: true,
-              applicationServerKey: keyBytes(VAPID_PUBLIC_KEY),
+              applicationServerKey: keyBytes(key),
             }));
           await save(sub);
           return set("hidden");
@@ -89,7 +101,7 @@ export function PushSwitch() {
   }, []);
 
   async function turnOn() {
-    if (!VAPID_PUBLIC_KEY) return;
+    if (!vapidKey) return;
     setBusy(true);
     setErr(null);
     try {
@@ -104,7 +116,7 @@ export function PushSwitch() {
         (await reg.pushManager.getSubscription()) ??
         (await reg.pushManager.subscribe({
           userVisibleOnly: true,
-          applicationServerKey: keyBytes(VAPID_PUBLIC_KEY),
+          applicationServerKey: keyBytes(vapidKey),
         }));
       if (!(await save(sub))) {
         setErr("Couldn't save this phone. Try again.");

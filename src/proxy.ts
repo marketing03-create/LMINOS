@@ -20,6 +20,8 @@ const PUBLIC_PREFIXES = [
   // The notifications service worker. The browser fetches it to register and
   // to update, and a redirect to /login there would break push for good.
   "/sw.js",
+  // The Web Push public key — public by design, and checkable without a login.
+  "/api/push/key",
 ];
 
 export async function proxy(request: NextRequest) {
