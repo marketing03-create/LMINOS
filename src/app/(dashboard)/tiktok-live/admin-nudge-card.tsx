@@ -20,25 +20,25 @@ const whenFmt = new Intl.DateTimeFormat("en-MY", {
   hour12: true,
 });
 
-const SHOWN = 3;
-
 /**
  * The admin's reminder, on the streamer's Home, until they tap Done.
  *
+ * Folded by default to one line — the count — because that is the whole
+ * message, and at full size the card pushed the streamer's own list off the
+ * first screen. "Show more" unfolds every live still owing numbers, each a
+ * link straight to its page.
+ *
  * The count is re-checked on every render, so it falls as lives are filled in.
- * Done stays disabled until it reaches zero — the server refuses it too — and
- * then the card turns green: the one state where tapping it is the next step.
- * Each remaining live is a link straight to its page, so the card is also the
- * to-do list rather than a pointer to one.
+ * Done only appears once it reaches zero (the server refuses it earlier too):
+ * then the card turns green, and Done is the one thing left to tap.
  */
 export function AdminNudgeCard({ remaining }: { remaining: NudgeLive[] }) {
-  const [showAll, setShowAll] = useState(false);
+  const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   const n = remaining.length;
   const done = n === 0;
-  const list = showAll ? remaining : remaining.slice(0, SHOWN);
 
   async function finish() {
     setBusy(true);
@@ -60,22 +60,26 @@ export function AdminNudgeCard({ remaining }: { remaining: NudgeLive[] }) {
 
   return (
     <section
-      className={`mb-5 overflow-hidden rounded-2xl border border-l-[3px] bg-white p-4 shadow-sm dark:bg-zinc-950 ${
+      className={`mb-5 overflow-hidden rounded-2xl border border-l-[3px] bg-white shadow-sm dark:bg-zinc-950 ${
         done
           ? "border-emerald-200 border-l-emerald-500 dark:border-emerald-900 dark:border-l-emerald-400"
           : "border-amber-200 border-l-amber-500 dark:border-amber-900 dark:border-l-amber-400"
       }`}
     >
-      <div className="text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-        Reminder from admin
+      <div className="px-4 pt-3 pb-3">
+        <div className="text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+          Reminder from admin
+        </div>
+        <h2 className="mt-0.5 text-[17px] font-semibold leading-snug tabular-nums">
+          {done
+            ? "All filled in ✓"
+            : `${n} live${n === 1 ? "" : "s"} still need${n === 1 ? "s" : ""} numbers`}
+        </h2>
       </div>
-      <h2 className="mt-1 text-[17px] font-semibold leading-snug tabular-nums">
-        {done ? "All filled in ✓" : `${n} live${n === 1 ? "" : "s"} still need${n === 1 ? "s" : ""} numbers`}
-      </h2>
 
-      {!done && (
-        <ul className="mt-3 space-y-2">
-          {list.map((l) => (
+      {!done && open && (
+        <ul id="nudge-lives" className="space-y-2 px-4 pb-3">
+          {remaining.map((l) => (
             <li key={l.sessionId}>
               <Link
                 href={`/tiktok-live/${l.sessionId}`}
@@ -98,36 +102,45 @@ export function AdminNudgeCard({ remaining }: { remaining: NudgeLive[] }) {
               </Link>
             </li>
           ))}
-          {n > SHOWN && (
-            <li>
-              <button
-                type="button"
-                onClick={() => setShowAll((v) => !v)}
-                className="inline-flex min-h-11 items-center text-sm font-medium text-blue-600 dark:text-blue-400"
-              >
-                {showAll ? "Show fewer" : `Show all ${n}`}
-              </button>
-            </li>
-          )}
         </ul>
       )}
 
-      <button
-        type="button"
-        onClick={finish}
-        disabled={!done || busy}
-        className={`mt-4 inline-flex h-11 w-full items-center justify-center rounded-xl px-5 text-[15px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-zinc-950 ${
-          done
-            ? "bg-emerald-600 text-white active:bg-emerald-700 hover:bg-emerald-500 focus-visible:ring-emerald-500"
-            : "border border-zinc-300 text-zinc-400 dark:border-zinc-700 dark:text-zinc-500"
-        } disabled:cursor-not-allowed ${busy ? "opacity-60" : ""}`}
-      >
-        {busy ? "Saving…" : "Done"}
-      </button>
-      {err && (
-        <p role="status" className="mt-2 text-sm text-red-600 dark:text-red-400">
-          {err}
-        </p>
+      {!done && (
+        // The card's footer: a full-width 44px row, so the whole bottom edge
+        // is the target rather than two words of blue text.
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          aria-controls="nudge-lives"
+          className="flex min-h-11 w-full items-center justify-center gap-1.5 border-t border-zinc-100 px-4 text-sm font-medium text-blue-600 active:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500 dark:border-zinc-800 dark:text-blue-400 dark:active:bg-blue-950/30"
+        >
+          {open ? "Show less" : "Show more"}
+          <span
+            aria-hidden="true"
+            className={`text-xs transition-transform ${open ? "rotate-180" : ""}`}
+          >
+            ▾
+          </span>
+        </button>
+      )}
+
+      {done && (
+        <div className="px-4 pb-4">
+          <button
+            type="button"
+            onClick={finish}
+            disabled={busy}
+            className="inline-flex h-11 w-full items-center justify-center rounded-xl bg-emerald-600 px-5 text-[15px] font-medium text-white transition-colors active:bg-emerald-700 hover:bg-emerald-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 disabled:opacity-60 dark:focus-visible:ring-offset-zinc-950"
+          >
+            {busy ? "Saving…" : "Done"}
+          </button>
+          {err && (
+            <p role="status" className="mt-2 text-sm text-red-600 dark:text-red-400">
+              {err}
+            </p>
+          )}
+        </div>
       )}
     </section>
   );

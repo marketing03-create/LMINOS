@@ -15,7 +15,10 @@ self.addEventListener("push", (event) => {
     self.registration.showNotification(msg.title || "LMIROS", {
       body: msg.body || "",
       icon: "/icon-192.png",
-      badge: "/icon-192.png",
+      // The status-bar icon. Android draws only its SHAPE in one colour, so it
+      // must be white on transparent — the full-colour app icon came out as a
+      // blank square and nobody could tell which app had buzzed.
+      badge: "/badge-96.png",
       tag: msg.tag || undefined,
       renotify: !!msg.tag,
       data: { url: msg.url || "/" },
