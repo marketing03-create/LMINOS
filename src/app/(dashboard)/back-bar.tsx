@@ -30,7 +30,8 @@ const TAB_DESTINATIONS = new Set([
   "/tiktok-live", // streamer Home · admin "Lives"
   "/tiktok-live/profile", // streamer Profile
   "/admin/tiktok/all", // admin "Today" (also homeForRole, so usually already null)
-  "/admin/tiktok", // admin "Streamers"
+  "/admin/users", // admin "Users"
+  "/admin/tiktok", // old "Streamers" address (forwards to Users)
 ]);
 
 export function BackBar({ homeHref }: { homeHref: string }) {

@@ -97,7 +97,7 @@ export function AddUser() {
       const origin =
         typeof window !== "undefined" ? window.location.origin : "https://lmiros.vercel.app";
       setInvite(
-        `You've been added to LMIROS.\n\n` +
+        `You've been added to TT Stars.\n\n` +
           `1. Open ${origin}\n` +
           `2. Enter your email: ${email.trim()}\n` +
           `3. Tap "Email me a code"\n` +

@@ -33,7 +33,7 @@ export default async function NoAccessPage() {
           {email} has no role yet.
         </p>
         <p className="mt-1 text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">
-          Ask your LMIROS administrator to assign your role.
+          Ask your TT Stars administrator to assign your role.
         </p>
         {/* 32px of air above the only button on the page: the gap is what stops
             a thumb aimed at the last line of text signing the person out. */}

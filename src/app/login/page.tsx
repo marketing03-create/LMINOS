@@ -172,7 +172,7 @@ function LoginForm() {
             className="h-14 w-14 rounded-2xl shadow-sm"
             priority
           />
-          <h1 className="mt-3.5 text-[22px] font-semibold tracking-tight">LMIROS</h1>
+          <h1 className="mt-3.5 text-[22px] font-semibold tracking-tight">TT Stars</h1>
         </div>
 
         <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">

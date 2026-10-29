@@ -38,7 +38,6 @@ export function NudgePanel({ rows }: { rows: NudgeRow[] }) {
   const [msg, setMsg] = useState<{ tone: "ok" | "err"; text: string } | null>(null);
 
   const owing = rows.filter((r) => r.owed > 0);
-  const totalLives = owing.reduce((n, r) => n + r.owed, 0);
   // Ticked = will be notified. Everyone who owes is ticked unless the admin
   // unticked them, so "notify all" stays one tap — and the set records the
   // exceptions, not the picks, so a streamer who starts owing after a refresh
@@ -88,17 +87,12 @@ export function NudgePanel({ rows }: { rows: NudgeRow[] }) {
   }
 
   return (
-    <div className="mb-8 flex justify-center">
-      <section className="w-full max-w-md rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-        <div className="flex items-baseline justify-between gap-3">
-          <h2 className="text-lg font-semibold tracking-tight">Missing numbers</h2>
-          <span className="shrink-0 text-sm tabular-nums text-zinc-500 dark:text-zinc-400">
-            {totalLives === 0 ? "All in ✓" : `${totalLives} live${totalLives === 1 ? "" : "s"}`}
-          </span>
-        </div>
-
+    // Rendered inside a collapsible StatusBar (the page owns the headline:
+    // "32 lives missing numbers"), so no card or heading of its own here.
+    <div className="mx-auto max-w-xl">
+      <section>
         {rows.length > 0 && (
-          <ul className="mt-4 divide-y divide-zinc-100 dark:divide-zinc-800">
+          <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
             {rows.map((r) => {
               const status = r.pendingSince
                 ? { tone: "amber", text: `Waiting · sent ${whenFmt.format(new Date(r.pendingSince))}` }

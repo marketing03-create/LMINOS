@@ -8,9 +8,9 @@ import type { MetadataRoute } from "next";
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "LMIROS",
-    short_name: "LMIROS",
-    description: "Loan Marketing Intelligence & Revenue OS",
+    name: "TT Stars",
+    short_name: "TT Stars",
+    description: "TT Stars — TikTok LIVE results",
     start_url: "/",
     scope: "/",
     display: "standalone",

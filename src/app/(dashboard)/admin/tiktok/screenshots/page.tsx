@@ -10,10 +10,10 @@ export default async function TikTokScreenshotsPage() {
   return (
     <div className="px-4 py-5 sm:p-8">
       <Link
-        href="/admin/tiktok"
+        href="/admin/users"
         className="inline-flex min-h-11 items-center text-sm text-zinc-500 hover:underline lg:min-h-0"
       >
-        ← TikTok Live admin
+        ← Users
       </Link>
       <header className="mt-2 mb-6">
         <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">

@@ -10,7 +10,6 @@ const OPERATIONS = [
 ];
 
 const ADMIN = [
-  { href: "/admin/tiktok", label: "Streamers & handles" },
   { href: "/admin/users", label: "Users" },
   { href: "/admin/integrations", label: "Integrations" },
   { href: "/admin/audit", label: "Audit log" },

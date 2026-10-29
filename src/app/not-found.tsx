@@ -15,7 +15,7 @@ export default function NotFound() {
         This page doesn&apos;t exist
       </h1>
       <p className="max-w-sm text-sm text-zinc-500 dark:text-zinc-400">
-        It may have moved, or it belonged to a feature LMIROS no longer has.
+        It may have moved, or it belonged to a feature TT Stars no longer has.
       </p>
       <Link
         href="/"

@@ -13,16 +13,16 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "LMIROS",
-  description: "Loan Marketing Intelligence & Revenue Operating System",
-  applicationName: "LMIROS",
+  title: "TT Stars",
+  description: "TT Stars — TikTok LIVE results",
+  applicationName: "TT Stars",
   // Standalone-app config so "Add to Home Screen" launches its own window
   // instead of just opening the browser. The app/manifest.ts file convention
   // auto-adds the manifest link (Android/Chrome); `appleWebApp` + the legacy
   // meta below cover iOS/Safari (older + newer).
   appleWebApp: {
     capable: true,
-    title: "LMIROS",
+    title: "TT Stars",
     statusBarStyle: "black-translucent",
   },
   other: {

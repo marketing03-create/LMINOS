@@ -101,7 +101,9 @@ export function AdminTabBar({ role, email }: { role?: string; email?: string }) 
   // stay lit on /admin/tiktok/all while "Today" is lit too.
   const todayActive = pathname === "/admin/tiktok/all";
   const livesActive = pathname === "/tiktok-live" || pathname.startsWith("/tiktok-live/");
+  // "Users" (people + their TikTok handles) — also lit on a streamer's page.
   const streamersActive =
+    pathname === "/admin/users" ||
     pathname === "/admin/tiktok" ||
     (pathname.startsWith("/admin/tiktok/") && !todayActive);
 
@@ -114,7 +116,7 @@ export function AdminTabBar({ role, email }: { role?: string; email?: string }) 
         <div className="mx-auto flex h-16 max-w-md items-center px-2">
           <TabLink href="/admin/tiktok/all" label="Today" active={todayActive} icon={<TodayIcon />} />
           <TabLink href="/tiktok-live" label="Lives" active={livesActive} icon={<LivesIcon />} />
-          <TabLink href="/admin/tiktok" label="Streamers" active={streamersActive} icon={<StreamersIcon />} />
+          <TabLink href="/admin/users" label="Users" active={streamersActive} icon={<StreamersIcon />} />
           <TabButton label="More" active={moreOpen} onClick={() => setOpenedFrom(pathname)} icon={<MoreIcon />} />
         </div>
       </nav>

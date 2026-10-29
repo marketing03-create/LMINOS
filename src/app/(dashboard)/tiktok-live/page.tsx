@@ -25,6 +25,7 @@ import { getMyNudge } from "@/lib/tiktok-live/admin-nudge";
 import { METRIC_LABEL } from "@/lib/tiktok-live/completeness";
 import { RemarksInput } from "./remarks-input";
 import { requireLivePage } from "@/lib/auth/page-guard";
+import { ScreenshotSection } from "@/app/(dashboard)/admin/tiktok/history/screenshot-section";
 
 /** Per-column explanations, shown in a “?” beside each header. */
 const HELP: Record<string, string> = {
@@ -114,6 +115,9 @@ export default async function TikTokLivePage({
     }
     scope = selectedHandle !== "all" ? [selectedHandle] : undefined;
   }
+
+  const selectedHandleName =
+    selectedHandle !== "all" ? handles.find((h) => h.id === selectedHandle)?.handle ?? null : null;
 
   // Date params to carry across the streamer picker (and vice-versa).
   const preserve: Record<string, string> = {};
@@ -232,8 +236,8 @@ export default async function TikTokLivePage({
         <div className="mb-8 border border-zinc-200 dark:border-zinc-800 rounded-xl p-10 text-center text-zinc-500">
           No live sessions in this period.{" "}
           Register handles on{" "}
-          <Link href="/admin/tiktok" className="underline">
-            TikTok Live admin
+          <Link href="/admin/users" className="underline">
+            Users
           </Link>{" "}
           and connect a vendor to start pulling data.
         </div>
@@ -329,6 +333,10 @@ export default async function TikTokLivePage({
         />
       )}
 
+      {/* Admin, one streamer picked in the filter: their screenshots too. */}
+      {!isStreamer && selectedHandleName && (
+        <ScreenshotSection handle={selectedHandleName} fromAccountId={selectedHandle} />
+      )}
     </div>
   );
 }

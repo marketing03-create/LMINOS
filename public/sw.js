@@ -9,10 +9,10 @@ self.addEventListener("push", (event) => {
   try {
     msg = event.data ? event.data.json() : {};
   } catch {
-    msg = { title: "LMIROS", body: event.data ? event.data.text() : "" };
+    msg = { title: "TT Stars", body: event.data ? event.data.text() : "" };
   }
   event.waitUntil(
-    self.registration.showNotification(msg.title || "LMIROS", {
+    self.registration.showNotification(msg.title || "TT Stars", {
       body: msg.body || "",
       icon: "/icon-192.png",
       // The status-bar icon. Android draws only its SHAPE in one colour, so it

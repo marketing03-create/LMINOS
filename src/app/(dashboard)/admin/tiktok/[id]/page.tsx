@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { rangeFromParams } from "@/lib/date-range";
 import {
@@ -16,6 +15,7 @@ import { SessionsTable } from "../sessions-table";
 import { LiveAnalysis } from "../live-analysis";
 import { StreamerSwitcher } from "../streamer-switcher";
 import { requireAdminPage } from "@/lib/auth/page-guard";
+import { ScreenshotSection } from "../history/screenshot-section";
 
 /**
  * One live streamer's (handle's) full details — its header, KPIs, session
@@ -109,12 +109,6 @@ export default async function StreamerDetailPage({
             `min-h-11` does the same trick in the other axis: 44px on a thumb,
             back to today's 34px from `lg` up. */}
         <div className="flex flex-wrap items-center gap-2">
-          <Link
-            href={`/admin/tiktok/history?handle=${encodeURIComponent(header.handle)}&from=${id}`}
-            className="inline-flex min-h-11 items-center rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-3 py-1.5 text-sm font-medium text-zinc-700 dark:text-zinc-200 active:bg-zinc-100 dark:active:bg-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900 lg:min-h-0"
-          >
-            Screenshot History
-          </Link>
           <a
             href={exportHref}
             className="inline-flex min-h-11 items-center rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-3 py-1.5 text-sm font-medium text-zinc-700 dark:text-zinc-200 active:bg-zinc-100 dark:active:bg-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900 lg:min-h-0"
@@ -197,6 +191,10 @@ export default async function StreamerDetailPage({
           )}
         </Disclosure>
       </section>
+
+      {/* This streamer's screenshot uploads, right here instead of on a
+          separate page. */}
+      <ScreenshotSection handle={header.handle} fromAccountId={id} />
 
       {/* The screen's single help affordance. Every `?` on the tiles above is
           `lg`-only now, so on a phone this is the one place the definitions

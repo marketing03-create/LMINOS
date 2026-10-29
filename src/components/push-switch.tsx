@@ -156,13 +156,13 @@ export function PushSwitch() {
         <p className="text-sm leading-relaxed">
           <span aria-hidden="true">🔔 </span>
           For notifications, tap <b>Share</b> → <b>Add to Home Screen</b>, then open
-          LMIROS from there.
+          TT Stars from there.
         </p>
       )}
       {state === "blocked" && (
         <p className="text-sm leading-relaxed">
           <span aria-hidden="true">🔕 </span>
-          Notifications are blocked for LMIROS. Allow them in your phone&apos;s
+          Notifications are blocked for TT Stars. Allow them in your phone&apos;s
           settings.
         </p>
       )}

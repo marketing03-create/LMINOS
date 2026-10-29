@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import type { MismatchAlert } from "@/lib/tiktok-live/queries";
 import { NotEntered } from "@/components/mobile/not-entered";
 import { RecordCard, RecordList } from "@/components/mobile/record-card";
+import { StatusBar } from "@/components/status-bar";
 
 const DISMISS_KEY = "lmiros:tiktok-mismatch-dismissed";
 
@@ -77,16 +78,21 @@ export function MismatchAlerts({ alerts }: { alerts: MismatchAlert[] }) {
 
   if (!ready) return null;
   const visible = alerts.filter((a) => !dismissed.includes(a.auditId));
-  if (visible.length === 0) return null;
+  if (visible.length === 0) {
+    return <StatusBar tone="good" title="✅ No screenshot mismatches" detail="Last 7 days" />;
+  }
+  const n = visible.length;
 
+  // A collapsible bar like the tracker status: the headline says whether
+  // anything needs review; the per-live detail opens on tap.
   return (
-    <>
+    <StatusBar
+      tone="warn"
+      title={`⚠️ ${n} saved ${n === 1 ? "live doesn't" : "lives don't"} match the screenshot`}
+      detail="Review before trusting these numbers · tap to see each one"
+    >
       {/* ---- Phone ------------------------------------------------------- */}
-      <section className="mb-6 lg:hidden">
-        <h2 className="mb-3 text-[17px] font-semibold text-amber-700 dark:text-amber-400">
-          <span className="sr-only">Needs attention: </span>
-          Numbers that differ from a screenshot ({visible.length})
-        </h2>
+      <section className="lg:hidden">
         <RecordList>
           {visible.map((a) => (
             <RecordCard
@@ -146,17 +152,7 @@ export function MismatchAlerts({ alerts }: { alerts: MismatchAlert[] }) {
       </section>
 
       {/* ---- Desktop: today's panel, unchanged ---------------------------- */}
-      <div className="mb-6 hidden rounded-xl border border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 p-4 lg:block">
-        <div className="flex items-center gap-2">
-          <span className="text-lg leading-none">⚠️</span>
-          <h2 className="text-sm font-semibold text-amber-900 dark:text-amber-300">
-            Streamer numbers don&apos;t match their screenshot ({visible.length})
-          </h2>
-        </div>
-        <p className="mt-1 mb-3 text-xs text-amber-800/80 dark:text-amber-300/70">
-          A live streamer saved figures different from what their uploaded screenshot
-          read. Review before trusting these numbers.
-        </p>
+      <div className="hidden lg:block">
         <ul className="space-y-2">
           {visible.map((a) => (
             <li
@@ -200,6 +196,6 @@ export function MismatchAlerts({ alerts }: { alerts: MismatchAlert[] }) {
           ))}
         </ul>
       </div>
-    </>
+    </StatusBar>
   );
 }

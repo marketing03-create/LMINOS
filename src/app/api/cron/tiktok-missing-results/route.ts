@@ -105,7 +105,7 @@ export async function GET(request: NextRequest) {
         type: "tiktok_missing_results",
         title: `${rows.length} live${rows.length === 1 ? "" : "s"} missing results`,
         body: `From ${date} — no Total Leads entered yet.`,
-        href: "/admin/tiktok",
+        href: "/admin/users",
         dedupeKey: `missing:${date}`,
       })
       .onConflictDoNothing({

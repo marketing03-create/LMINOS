@@ -61,8 +61,8 @@ export async function POST(request: NextRequest) {
     await reply(
       chatId,
       [
-        "To link this chat to LMIROS:",
-        "open LMIROS → Admin → Integrations → Link my Telegram,",
+        "To link this chat to TT Stars:",
+        "open TT Stars → Admin → Integrations → Link my Telegram,",
         "then tap the link it gives you.",
       ].join("\n")
     );
@@ -82,15 +82,15 @@ export async function POST(request: NextRequest) {
     await reply(
       chatId,
       arg
-        ? "That link has expired or isn't valid. Open LMIROS → Admin → Integrations → Link my Telegram for a new one."
-        : "To link this chat, open LMIROS → Admin → Integrations → Link my Telegram, then tap the link it gives you."
+        ? "That link has expired or isn't valid. Open TT Stars → Admin → Integrations → Link my Telegram for a new one."
+        : "To link this chat, open TT Stars → Admin → Integrations → Link my Telegram, then tap the link it gives you."
     );
     return NextResponse.json({ ok: true, paired: false, reason: arg ? "bad_token" : "no_token" });
   }
 
   const user = await db.query.users.findFirst({ where: eq(users.id, userId) });
   if (!user || !user.isActive) {
-    await reply(chatId, "That LMIROS account isn't active. Ask your admin.");
+    await reply(chatId, "That TT Stars account isn't active. Ask your admin.");
     return NextResponse.json({ ok: true, paired: false, reason: "no_user" });
   }
   const bot = getBot();
@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
     await bot.api
       .sendMessage(
         chatId,
-        `✅ Linked to *${escapeMd(user.email)}*\\. You'll get LMIROS alerts here\\.`,
+        `✅ Linked to *${escapeMd(user.email)}*\\. You'll get TT Stars alerts here\\.`,
         { parse_mode: "MarkdownV2" }
       )
       .catch(() => {});

@@ -86,7 +86,7 @@ export function DashboardShell({
               className="h-7 w-7 rounded-lg"
               priority
             />
-            <span className="font-semibold tracking-tight">LMIROS</span>
+            <span className="font-semibold tracking-tight">TT Stars</span>
           </Link>
           {/* Notification Center — streamers only for now (nothing writes admin
               rows yet, so it would sit permanently at 0). */}
@@ -112,7 +112,7 @@ export function DashboardShell({
             />
             <span>
               <span className="block text-[15px] font-semibold leading-none tracking-tight">
-                LMIROS
+                TT Stars
               </span>
               <span className="mt-1 block text-[10px] uppercase tracking-[0.08em] text-zinc-400 dark:text-zinc-500">
                 Revenue Foundation
