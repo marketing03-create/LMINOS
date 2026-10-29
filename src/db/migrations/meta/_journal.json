@@ -239,6 +239,13 @@
       "when": 1791191650479,
       "tag": "0033_push_subscriptions",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1793253449941,
+      "tag": "0034_enable_rls_late_tables",
+      "breakpoints": true
     }
   ]
 }
