@@ -1,11 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { safeRedirectPath } from "@/lib/auth/safe-redirect";
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = request.nextUrl;
   const code = searchParams.get("code");
   // Default to "/", which resolves the landing page from the user's role.
-  const next = searchParams.get("next") ?? "/";
+  // Never trusted as-is: `next=@evil.com` used to become https://host@evil.com.
+  const next = safeRedirectPath(searchParams.get("next"));
 
   if (code) {
     const supabase = await createSupabaseServerClient();

@@ -4,6 +4,7 @@ import Image from "next/image";
 import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { safeRedirectPath } from "@/lib/auth/safe-redirect";
 
 // Login page reads `?error=…` and `?redirect=…` query params at runtime, so
 // it can't be statically prerendered. Forcing dynamic rendering skips the
@@ -38,7 +39,8 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const urlError = searchParams.get("error");
   // "/" sends the user to the right home for their role (admin vs streamer).
-  const redirect = searchParams.get("redirect") ?? "/";
+  // Only a path on this site — see safeRedirectPath for the attacks it stops.
+  const redirect = safeRedirectPath(searchParams.get("redirect"));
 
   const [loading, setLoading] = useState(false);
   // "email" = asking for the address; "code" = code sent, waiting for it back.
@@ -50,7 +52,7 @@ function LoginForm() {
   async function signInWithGoogle() {
     setLoading(true);
     const supabase = createSupabaseBrowserClient();
-    const redirectTo = `${window.location.origin}/auth/callback?next=${redirect}`;
+    const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(redirect)}`;
     await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {

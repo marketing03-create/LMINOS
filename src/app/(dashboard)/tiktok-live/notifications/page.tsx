@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { getSessionUser } from "@/lib/auth/authorize";
 import { listUserNotifications } from "@/lib/notifications/user-inbox";
 import { MarkReadOnView } from "./mark-read-on-view";
+import { requireLivePage } from "@/lib/auth/page-guard";
 
 /**
  * The streamer's reminder list. A route (not a sheet) so `access.ts` allows it
@@ -32,7 +32,7 @@ const whenFmt = new Intl.DateTimeFormat("en-MY", {
 });
 
 export default async function NotificationsPage() {
-  const me = await getSessionUser();
+  const me = await requireLivePage();
   const rows = me?.userId ? await listUserNotifications(me.userId, 50) : [];
 
   return (

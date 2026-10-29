@@ -1,12 +1,12 @@
 import { notFound } from "next/navigation";
 import { sessionDetail, streamerAccountIds } from "@/lib/tiktok-live/queries";
-import { getSessionUser } from "@/lib/auth/authorize";
 import { SessionEditor } from "./manual-metrics-form";
 import { ProductBadges } from "@/components/product-badges";
 import { MobileTable } from "@/components/mobile/mobile-table";
 import { RecordCard, RecordList } from "@/components/mobile/record-card";
 import { mytDate } from "@/lib/tiktok-live/live-analysis-core";
 import { METRIC_LABEL, missingMetrics } from "@/lib/tiktok-live/completeness";
+import { requireLivePage } from "@/lib/auth/page-guard";
 
 /**
  * MYT, and only MYT — a live's clock time is the streamer's own local time, and
@@ -39,7 +39,7 @@ export default async function TikTokSessionPage({
   // failing on upload (same rule as the streamer's import page).
   const aiConfigured = !!process.env.AI_GATEWAY_API_KEY;
   // Scope streamers to their own handles — a session that isn't theirs 404s.
-  const me = await getSessionUser();
+  const me = await requireLivePage();
   const isStreamer = me?.role === "live_streamer";
   // Fail closed: a streamer with no id gets an empty scope (the live 404s),
   // never `undefined`, which means "every handle".

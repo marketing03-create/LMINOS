@@ -3,13 +3,13 @@ import { ScreenshotImporter } from "@/app/(dashboard)/admin/tiktok/screenshots/s
 import { Disclosure } from "@/components/mobile/disclosure";
 import { ManualEntryForm } from "./manual-entry-form";
 import { AddPastLive } from "./add-past-live";
-import { getSessionUser } from "@/lib/auth/authorize";
 import {
   sessionsForMatching,
   streamerAccountIds,
   tiktokAccountsForPicker,
   type MatchCandidate,
 } from "@/lib/tiktok-live/queries";
+import { requireLivePage } from "@/lib/auth/page-guard";
 
 /**
  * Live-streamer upload page (Feature U). Screenshots first (the fast path, needs
@@ -42,7 +42,7 @@ export default async function StreamerImportPage({
         : "Upload your LIVE results";
 
   // The streamer's own lives (with current values) for the manual form.
-  const me = await getSessionUser();
+  const me = await requireLivePage();
   // Fail closed: a streamer with no id gets an empty scope, never `undefined`
   // ("every handle").
   const scope =

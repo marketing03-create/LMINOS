@@ -6,7 +6,6 @@ import {
   tiktokLiveSessionList,
   type SessionRow,
 } from "@/lib/tiktok-live/queries";
-import { getSessionUser } from "@/lib/auth/authorize";
 import { fmtInt } from "@/lib/date-range";
 import { CompactDateFilter } from "@/components/compact-date-filter";
 import { ProductBadges } from "@/components/product-badges";
@@ -25,6 +24,7 @@ import { PushSwitch } from "@/components/push-switch";
 import { getMyNudge } from "@/lib/tiktok-live/admin-nudge";
 import { METRIC_LABEL } from "@/lib/tiktok-live/completeness";
 import { RemarksInput } from "./remarks-input";
+import { requireLivePage } from "@/lib/auth/page-guard";
 
 /** Per-column explanations, shown in a “?” beside each header. */
 const HELP: Record<string, string> = {
@@ -90,7 +90,7 @@ export default async function TikTokLivePage({
 
   // A live streamer only sees the handle(s) assigned to them; admins see all and
   // can narrow to one streamer with the ?handle picker.
-  const me = await getSessionUser();
+  const me = await requireLivePage();
   const isStreamer = me?.role === "live_streamer";
   const selectedHandle = typeof sp.handle === "string" ? sp.handle : "all";
   const importHref = isStreamer

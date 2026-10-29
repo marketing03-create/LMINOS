@@ -1,9 +1,9 @@
 -- Auto-mirror auth.users → public.users when someone logs in for the
 -- first time via Google SSO. Paste once into Supabase → SQL Editor.
 --
--- Behavior:
+-- Behavior (kept in sync with migration 0035):
 --   * On INSERT into auth.users, we create a matching row in public.users
---     with the same id, the email from auth, and default role = 'viewer'
+--     with the same id, the email from auth, and default role = 'viewer', SWITCHED OFF (is_active = false)
 --     (admins promote to sales_agent / team_lead / hq_admin manually).
 --   * If you re-run this script, it drops + recreates the trigger safely.
 
@@ -20,7 +20,7 @@ begin
       null
     ),
     'viewer',
-    true
+    false
   )
   on conflict (id) do nothing;
   return new;

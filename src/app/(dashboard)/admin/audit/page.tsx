@@ -1,5 +1,6 @@
 import { and, desc, eq, gte, ilike, sql } from "drizzle-orm";
 import { AuditFilters, AuditShowMore } from "./audit-mobile";
+import { requireAdminPage } from "@/lib/auth/page-guard";
 
 type AuditRow = {
   id: string;
@@ -93,6 +94,8 @@ export default async function AuditLogPage({
     days?: string;
   }>;
 }) {
+  // Page-level role check: the layout's check can be skipped (see page-guard.ts).
+  await requireAdminPage();
   const sp = await searchParams;
   const filter: FilterState = {
     q: sp.q || undefined,

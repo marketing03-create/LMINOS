@@ -2,6 +2,7 @@ import { asc } from "drizzle-orm";
 import { getSessionUser } from "@/lib/auth/authorize";
 import { UsersEditor, type UserRow } from "./users-editor";
 import { AddUser } from "./add-user";
+import { requireAdminPage } from "@/lib/auth/page-guard";
 
 async function load(): Promise<{ rows: UserRow[]; error: string | null }> {
   try {
@@ -38,6 +39,8 @@ async function load(): Promise<{ rows: UserRow[]; error: string | null }> {
 }
 
 export default async function AdminUsersPage() {
+  // Page-level role check: the layout's check can be skipped (see page-guard.ts).
+  await requireAdminPage();
   const { rows, error } = await load();
   const me = await getSessionUser();
 

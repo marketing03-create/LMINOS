@@ -14,6 +14,7 @@ import {
   type GalleryItem,
   type UploadMeta,
 } from "./screenshot-gallery";
+import { requireAdminPage } from "@/lib/auth/page-guard";
 
 const FIELDS: { key: string; label: string; locked?: boolean }[] = [
   { key: "totalViews", label: "Views", locked: true },
@@ -77,6 +78,8 @@ export default async function ScreenshotHistoryPage({
 }: {
   searchParams: Promise<{ handle?: string; from?: string }>;
 }) {
+  // Page-level role check: the layout's check can be skipped (see page-guard.ts).
+  await requireAdminPage();
   // Admin-only (defense in depth; the layout already blocks non-admins from /admin).
   const me = await getSessionUser();
   if (!me || !isAdminRole(me.role)) redirect("/no-access");

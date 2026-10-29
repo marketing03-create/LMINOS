@@ -15,6 +15,7 @@ import { NotEntered } from "@/components/mobile/not-entered";
 import { SessionsTable } from "../sessions-table";
 import { LiveAnalysis } from "../live-analysis";
 import { StreamerSwitcher } from "../streamer-switcher";
+import { requireAdminPage } from "@/lib/auth/page-guard";
 
 /**
  * One live streamer's (handle's) full details — its header, KPIs, session
@@ -28,6 +29,8 @@ export default async function StreamerDetailPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ range?: string; start?: string; end?: string }>;
 }) {
+  // Page-level role check: the layout's check can be skipped (see page-guard.ts).
+  await requireAdminPage();
   const { id } = await params;
   const sp = await searchParams;
   const choice = rangeFromParams(sp);

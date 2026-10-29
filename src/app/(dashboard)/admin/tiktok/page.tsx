@@ -11,6 +11,7 @@ import { nudgeStatus } from "@/lib/tiktok-live/admin-nudge";
 import { StreamerChooser, type ChooserOption } from "./streamer-chooser";
 import { Disclosure } from "@/components/mobile/disclosure";
 import { TriageItem } from "@/components/mobile/triage-item";
+import { requireAdminPage } from "@/lib/auth/page-guard";
 
 type Heartbeat = { lastBeatAt: Date | null; note: string | null };
 
@@ -178,6 +179,8 @@ const TONE_CLS: Record<string, string> = {
 };
 
 export default async function AdminTikTokPage() {
+  // Page-level role check: the layout's check can be skipped (see page-guard.ts).
+  await requireAdminPage();
   const { rows, streamers, heartbeat, error } = await load();
   const health = trackerHealth(heartbeat);
   const phoneHealth = trackerLine(heartbeat);

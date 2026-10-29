@@ -18,6 +18,7 @@ import { OverviewCharts } from "./overview-charts";
 import { StreamerTable } from "./streamer-table";
 import { TopLives } from "./top-lives";
 import { DataQuality } from "./data-quality";
+import { requireAdminPage } from "@/lib/auth/page-guard";
 
 const nf = (n: number) => n.toLocaleString("en-MY");
 
@@ -59,6 +60,8 @@ export default async function AdminTikTokOverviewPage({
     agg?: string;
   }>;
 }) {
+  // Page-level role check: the layout's check can be skipped (see page-guard.ts).
+  await requireAdminPage();
   const sp = await searchParams;
 
   // 30 days, not the shared 7-day default: a cross-streamer comparison off ~8

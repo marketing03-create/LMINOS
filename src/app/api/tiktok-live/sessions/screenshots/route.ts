@@ -5,8 +5,14 @@ import { buildReviewFromExtractions } from "@/lib/tiktok-live/import-screenshots
 import { streamerAccountIds } from "@/lib/tiktok-live/queries";
 import {
   extractFromImages,
+  MAX_SCREENSHOTS,
   type UploadedImage,
 } from "@/lib/tiktok-live/screenshot-extract";
+import {
+  detectImageType,
+  MAX_FILE_BYTES,
+  screenshotQuotaError,
+} from "@/lib/tiktok-live/screenshot-guard";
 import { storeUploadedScreenshots } from "@/lib/tiktok-live/screenshot-store";
 
 // Claude vision per image; allow time for a few uploads.
@@ -57,12 +63,37 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const images: UploadedImage[] = await Promise.all(
-    files.map(async (f) => ({
-      bytes: new Uint8Array(await f.arrayBuffer()),
-      mediaType: f.type,
-    }))
-  );
+  // Cheap checks first, before reading a byte or spending on the AI.
+  if (files.length > MAX_SCREENSHOTS) {
+    return NextResponse.json(
+      { ok: false, error: `You can read up to ${MAX_SCREENSHOTS} screenshots at a time.` },
+      { status: 400 }
+    );
+  }
+  if (files.some((f) => f.size > MAX_FILE_BYTES)) {
+    return NextResponse.json(
+      { ok: false, error: "One of the photos is too large. Use a normal screenshot." },
+      { status: 400 }
+    );
+  }
+  if (auth.userId) {
+    const quota = await screenshotQuotaError(auth.userId, files.length);
+    if (quota) return NextResponse.json({ ok: false, error: quota }, { status: 429 });
+  }
+
+  const images: UploadedImage[] = [];
+  for (const f of files) {
+    const bytes = new Uint8Array(await f.arrayBuffer());
+    // The type comes from the file itself, not from what the browser claims.
+    const mediaType = detectImageType(bytes);
+    if (!mediaType) {
+      return NextResponse.json(
+        { ok: false, error: "Only screenshots (PNG, JPG or WebP) can be read." },
+        { status: 400 }
+      );
+    }
+    images.push({ bytes, mediaType });
+  }
 
   try {
     const extractions = await extractFromImages(images);
@@ -76,10 +107,12 @@ export async function POST(request: NextRequest) {
     const payload = await buildReviewFromExtractions(extractions, scope);
     return NextResponse.json({ ok: true, ...payload });
   } catch (err) {
+    // The detail goes to the server log; the person gets a sentence they can act on.
+    console.error("[screenshots] read failed:", err);
     return NextResponse.json(
       {
         ok: false,
-        error: err instanceof Error ? err.message : String(err),
+        error: "Couldn't read those screenshots right now. Try again, or type the numbers in.",
       },
       { status: 502 }
     );

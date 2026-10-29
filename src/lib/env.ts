@@ -33,9 +33,12 @@ const serverSchema = z.object({
   AI_GATEWAY_API_KEY: z.string().min(1).optional(),
   SCREENSHOT_MODEL: z.string().min(1).optional(),
 
-  // Telegram bot: streamer reminders + admin capture alerts. Users pair with
-  // `/start <their email>`.
+  // Telegram bot: admin capture alerts. Users pair with a signed link from
+  // Admin → Integrations → Link my Telegram (lib/telegram/pairing.ts).
   TELEGRAM_BOT_TOKEN: z.string().min(1).optional(),
+  // Checked on every incoming bot update when set (Telegram sends it back in
+  // X-Telegram-Bot-Api-Secret-Token). Set it — see docs on webhook setup.
+  TELEGRAM_WEBHOOK_SECRET: z.string().min(1).optional(),
 
   AUTH_ALLOWED_DOMAINS: z.string().optional(),
 

@@ -5,11 +5,16 @@ import { users } from "@/db/schema";
 import { writeAudit } from "@/lib/audit/write";
 import { getBot } from "@/lib/telegram/bot";
 import { escapeMd } from "@/lib/telegram/send";
+import { verifyPairToken } from "@/lib/telegram/pairing";
 
 /**
  * Telegram bot webhook handler. Commands:
- *   /start <email> — pair this chat to a LMIROS user
+ *   /start <token> — pair this chat to the LMIROS user who made the link
  *   /help          — usage
+ *
+ * Pairing needs a signed link made inside LMIROS (Admin → Integrations → Link
+ * my Telegram), never an email: `/start <email>` used to let anyone redirect
+ * any account's alerts to their own chat. See lib/telegram/pairing.ts.
  *
  * Pairing is what lets a live streamer receive their morning "lives still need
  * numbers" reminder, and admins the TikTok capture alerts. (The old /sale
@@ -56,9 +61,9 @@ export async function POST(request: NextRequest) {
     await reply(
       chatId,
       [
-        "LMIROS bot commands:",
-        "/start your.email@company.com — link your account",
-        "  (links this chat so you get your TikTok Live reminders here)",
+        "To link this chat to LMIROS:",
+        "open LMIROS → Admin → Integrations → Link my Telegram,",
+        "then tap the link it gives you.",
       ].join("\n")
     );
     return NextResponse.json({ ok: true, handled: "help" });
@@ -69,35 +74,26 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, handled: false });
   }
 
-  const email = text.replace(/^\/start\s*/, "").trim().toLowerCase();
-  const bot = getBot();
+  const arg = text.replace(/^\/start\s*/, "").trim();
+  const botToken = process.env.TELEGRAM_BOT_TOKEN ?? "";
+  const userId = arg && botToken ? verifyPairToken(arg, botToken) : null;
 
-  if (!email) {
-    if (bot) {
-      await bot.api
-        .sendMessage(
-          chatId,
-          "Send `/start your.email@company\\.com` to link this Telegram chat to your LMIROS account\\.",
-          { parse_mode: "MarkdownV2" }
-        )
-        .catch(() => {});
-    }
-    return NextResponse.json({ ok: true, handled: false, reason: "no_email" });
+  if (!userId) {
+    await reply(
+      chatId,
+      arg
+        ? "That link has expired or isn't valid. Open LMIROS → Admin → Integrations → Link my Telegram for a new one."
+        : "To link this chat, open LMIROS → Admin → Integrations → Link my Telegram, then tap the link it gives you."
+    );
+    return NextResponse.json({ ok: true, paired: false, reason: arg ? "bad_token" : "no_token" });
   }
 
-  const user = await db.query.users.findFirst({
-    where: eq(users.email, email),
-  });
-  if (!user) {
-    if (bot) {
-      await bot.api
-        .sendMessage(chatId, `No LMIROS user found for *${escapeMd(email)}*\\.`, {
-          parse_mode: "MarkdownV2",
-        })
-        .catch(() => {});
-    }
+  const user = await db.query.users.findFirst({ where: eq(users.id, userId) });
+  if (!user || !user.isActive) {
+    await reply(chatId, "That LMIROS account isn't active. Ask your admin.");
     return NextResponse.json({ ok: true, paired: false, reason: "no_user" });
   }
+  const bot = getBot();
 
   await db
     .update(users)
@@ -116,7 +112,7 @@ export async function POST(request: NextRequest) {
     await bot.api
       .sendMessage(
         chatId,
-        `✅ Linked to *${escapeMd(user.email)}*\\. You'll receive lead alerts here\\.`,
+        `✅ Linked to *${escapeMd(user.email)}*\\. You'll get LMIROS alerts here\\.`,
         { parse_mode: "MarkdownV2" }
       )
       .catch(() => {});

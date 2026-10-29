@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { getSessionUser } from "@/lib/auth/authorize";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { LogoutButton } from "@/app/(dashboard)/logout-button";
+import { requireLivePage } from "@/lib/auth/page-guard";
 
 const ROLE_LABEL: Record<string, string> = {
   live_streamer: "Live Streamer",
@@ -24,7 +24,7 @@ const ROLE_LABEL: Record<string, string> = {
  * the phone one-handed can miss; the tab bar has no slot for it.
  */
 export default async function StreamerProfilePage() {
-  const me = await getSessionUser();
+  const me = await requireLivePage();
   const email = me?.email ?? "(no session)";
   const initial = (email[0] ?? "?").toUpperCase();
   const roleLabel = me?.role ? ROLE_LABEL[me.role] ?? me.role : "—";

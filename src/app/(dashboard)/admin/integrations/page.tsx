@@ -2,6 +2,8 @@ import { isNotNull } from "drizzle-orm";
 import { Disclosure } from "@/components/mobile/disclosure";
 import { IntegrationRows } from "./integration-rows";
 import { SyncNowButton } from "./sync-now-button";
+import { TelegramLinkButton } from "./telegram-link-button";
+import { requireAdminPage } from "@/lib/auth/page-guard";
 
 /**
  * External-service status. LMIROS is TikTok-Live-only — the Zoho, Google Sheets
@@ -42,6 +44,8 @@ async function load(): Promise<{ pairedUsers: PairedUser[]; error: string | null
 }
 
 export default async function IntegrationsPage() {
+  // Page-level role check: the layout's check can be skipped (see page-guard.ts).
+  await requireAdminPage();
   const { pairedUsers, error } = await load();
   const telegramConfigured = !!process.env.TELEGRAM_BOT_TOKEN;
   const tiktokProvider = process.env.TIKTOK_LIVE_PROVIDER ?? null;
@@ -69,7 +73,7 @@ export default async function IntegrationsPage() {
     ? "Reads a streamer's uploaded LIVE screenshots into metrics."
     : "Screenshot reading is off — streamers type numbers by hand.";
   const telegramDetail = telegramConfigured
-    ? "A user pairs by sending /start <their email> to the bot."
+    ? "Each admin taps Link my Telegram once to get alerts in Telegram."
     : "Telegram is off — no reminders or capture alerts are delivered.";
 
   return (
@@ -124,6 +128,12 @@ export default async function IntegrationsPage() {
             ]}
           />
         </div>
+
+        {telegramConfigured && (
+          <div className="mt-6">
+            <TelegramLinkButton />
+          </div>
+        )}
 
         <div className="mt-6 overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
           <Disclosure
@@ -184,6 +194,11 @@ export default async function IntegrationsPage() {
             <StatusDot ok={telegramConfigured} />
           </div>
           <p className="text-sm text-zinc-500 mb-4">{telegramDetail}</p>
+          {telegramConfigured && (
+            <div className="mb-5">
+              <TelegramLinkButton />
+            </div>
+          )}
           <div className="text-xs uppercase tracking-wider text-zinc-500 mb-2">
             Paired users ({pairedUsers.length})
           </div>

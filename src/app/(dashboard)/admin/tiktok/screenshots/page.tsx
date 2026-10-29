@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { ScreenshotImporter } from "./screenshot-importer";
+import { requireAdminPage } from "@/lib/auth/page-guard";
 
-export default function TikTokScreenshotsPage() {
+export default async function TikTokScreenshotsPage() {
+  // Page-level role check: the layout's check can be skipped (see page-guard.ts).
+  await requireAdminPage();
   const aiConfigured = !!process.env.AI_GATEWAY_API_KEY;
 
   return (
