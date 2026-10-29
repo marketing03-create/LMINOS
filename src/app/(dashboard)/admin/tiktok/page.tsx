@@ -214,21 +214,25 @@ export default async function AdminTikTokPage() {
 
   return (
     <div className="px-4 py-5 sm:p-8">
-      <header className="mb-6 flex flex-wrap items-end justify-between gap-3">
+      <header className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold tracking-tight lg:text-2xl">
             TikTok Live
           </h1>
         </div>
-        {/* Reachable on a phone from the tab bar's More sheet ("Sync history"),
-            so a 32px link duplicating it here would only be competing with the
-            chooser for the top of the screen. */}
-        <Link
-          href="/admin/tiktok/history"
-          className="hidden shrink-0 items-center rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-1.5 text-sm font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800 lg:inline-flex"
-        >
-          Screenshot history
-        </Link>
+        <div className="flex shrink-0 items-center gap-2">
+          {/* Pick whose live results to view — a dropdown, so it no longer
+              takes the first screen of the page as a big card. */}
+          <StreamerChooser options={options} />
+          {/* Reachable on a phone from the tab bar's More sheet ("Sync
+              history"), so it stays desktop-only here. */}
+          <Link
+            href="/admin/tiktok/history"
+            className="hidden shrink-0 items-center rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-1.5 text-sm font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800 lg:inline-flex"
+          >
+            Screenshot history
+          </Link>
+        </div>
       </header>
 
       {/*
@@ -276,21 +280,9 @@ export default async function AdminTikTokPage() {
           <MismatchAlerts alerts={mismatches} />
         </div>
 
-        {/* The chooser — pick whose live results to view (login-page style).
-            It stays HERE in source order, after the banner and the alerts,
-            because at `lg` the container is a block box and `order-*` is inert:
-            moving this element up in the JSX would reorder the desktop page,
-            which §5.12's "Desktop preserved" line forbids in as many words
-            ("banner → alerts → chooser → 8-column table … use `order-*`
-            utilities, not a source-order change"). `order-2` is what lifts it
-            above the tracker on a phone. */}
-        <div className="order-2 lg:order-none">
-          <StreamerChooser options={options} />
-        </div>
-
-        {/* Who still owes numbers + the button that tells them. Same `order-2`
-            as the chooser, so on a phone it sits right under it (equal orders
-            keep source order) and at `lg` it is simply next in the flow. */}
+        {/* Who still owes numbers + the button that tells them. `order-2`
+            lifts it above the tracker line on a phone; at `lg` it is simply
+            next in the flow. */}
         {nudgeRows && (
           <div className="order-2 lg:order-none">
             <NudgePanel rows={nudgeRows} />
