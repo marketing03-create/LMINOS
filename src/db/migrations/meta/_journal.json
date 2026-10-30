@@ -253,6 +253,13 @@
       "when": 1793254384117,
       "tag": "0035_signup_starts_inactive",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1793333249183,
+      "tag": "0036_wati_connections",
+      "breakpoints": true
     }
   ]
 }

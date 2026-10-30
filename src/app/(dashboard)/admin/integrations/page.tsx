@@ -1,15 +1,18 @@
-import { isNotNull } from "drizzle-orm";
+import { headers } from "next/headers";
+import { eq, isNotNull, sql } from "drizzle-orm";
 import { Disclosure } from "@/components/mobile/disclosure";
 import { IntegrationRows } from "./integration-rows";
 import { SyncNowButton } from "./sync-now-button";
 import { TelegramLinkButton } from "./telegram-link-button";
+import { WatiConnections, type WatiConnectionView } from "./wati-connections";
 import { requireAdminPage } from "@/lib/auth/page-guard";
 
 /**
  * External-service status. LMIROS is TikTok-Live-only — the Zoho, Google Sheets
  * and Google Ads integrations left with the leads/sales/ads features (they live
- * in Adrify now), so this page covers the TikTok capture vendor and the Telegram
- * bot that delivers streamer reminders + admin alerts.
+ * in Adrify now), so this page covers the TikTok capture vendor, the Telegram
+ * bot that delivers streamer reminders + admin alerts, and the WATI accounts
+ * whose WhatsApp chats become lead counts.
  */
 
 type PairedUser = {
@@ -18,6 +21,8 @@ type PairedUser = {
   role: string;
   telegramChatId: string;
 };
+
+type WatiRow = Omit<WatiConnectionView, "webhookUrl"> & { webhookKey: string };
 
 async function load(): Promise<{ pairedUsers: PairedUser[]; error: string | null }> {
   try {
@@ -43,10 +48,56 @@ async function load(): Promise<{ pairedUsers: PairedUser[]; error: string | null
   }
 }
 
+/**
+ * Separate from `load()` so a failure here can't take the rest of the page with
+ * it — in particular the window between this code shipping and migration 0036
+ * (the WATI tables) being applied. Null = hide the WATI section.
+ */
+async function loadWati(): Promise<WatiRow[] | null> {
+  try {
+    const { db } = await import("@/db/client");
+    const { watiConnections, whatsappContacts } = await import("@/db/schema");
+    // "Today" is Malaysia's day (UTC+8), like every other count in the app.
+    const todayMy = sql`date_trunc('day', now() at time zone 'Asia/Kuala_Lumpur') at time zone 'Asia/Kuala_Lumpur'`;
+    const rows = await db
+      .select({
+        id: watiConnections.id,
+        name: watiConnections.name,
+        webhookKey: watiConnections.webhookKey,
+        apiEndpoint: watiConnections.apiEndpoint,
+        hasToken: sql<boolean>`${watiConnections.apiTokenEnc} is not null`,
+        isActive: watiConnections.isActive,
+        lastEventAt: watiConnections.lastEventAt,
+        contacts: sql<number>`count(${whatsappContacts.id})::int`,
+        contactsToday: sql<number>`(count(${whatsappContacts.id}) filter (where ${whatsappContacts.firstMessageAt} >= ${todayMy}))::int`,
+      })
+      .from(watiConnections)
+      .leftJoin(whatsappContacts, eq(whatsappContacts.connectionId, watiConnections.id))
+      .groupBy(watiConnections.id)
+      .orderBy(watiConnections.createdAt);
+    return rows.map((r) => ({
+      ...r,
+      lastEventAt: r.lastEventAt ? r.lastEventAt.toISOString() : null,
+    }));
+  } catch (err) {
+    console.error("[integrations] WATI load failed:", err);
+    return null;
+  }
+}
+
 export default async function IntegrationsPage() {
   // Page-level role check: the layout's check can be skipped (see page-guard.ts).
   await requireAdminPage();
-  const { pairedUsers, error } = await load();
+  const [{ pairedUsers, error }, wati] = await Promise.all([load(), loadWati()]);
+  // The webhook URL WATI must call, on whatever host this page is served from.
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "lmiros.vercel.app";
+  const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
+  const watiViews: WatiConnectionView[] | null =
+    wati?.map(({ webhookKey, ...r }) => ({
+      ...r,
+      webhookUrl: `${proto}://${host}/api/webhooks/wati/${webhookKey}`,
+    })) ?? null;
   const telegramConfigured = !!process.env.TELEGRAM_BOT_TOKEN;
   const tiktokProvider = process.env.TIKTOK_LIVE_PROVIDER ?? null;
   const tiktokConfigured = !!tiktokProvider && !!process.env.TIKTOK_LIVE_API_KEY;
@@ -162,6 +213,12 @@ export default async function IntegrationsPage() {
             )}
           </Disclosure>
         </div>
+
+        {watiViews && (
+          <div className="mt-8">
+            <WatiConnections connections={watiViews} />
+          </div>
+        )}
       </div>
 
       {/* Desktop: today's three cards, in today's order. */}
@@ -216,6 +273,12 @@ export default async function IntegrationsPage() {
             ))}
           </ul>
         </section>
+
+        {watiViews && (
+          <div className="mt-8">
+            <WatiConnections connections={watiViews} />
+          </div>
+        )}
       </div>
     </div>
   );
