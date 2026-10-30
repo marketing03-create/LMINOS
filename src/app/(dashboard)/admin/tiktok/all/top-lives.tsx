@@ -233,7 +233,7 @@ function LiveCard({ live: l }: { live: RankedLive }) {
       primary={[
         { label: "Views / hr", value: l.viewsPerHour },
         { label: "Views", value: l.totalViews },
-        { label: "Leads", value: l.totalLeads },
+        { label: "Total PM", value: l.totalLeads },
       ]}
     />
   );

@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { tiktokLiveSessions } from "@/db/schema";
 import { ADMIN_ROLES, requireRole } from "@/lib/auth/authorize";
+import { ADMIN_ONLY_MESSAGE, streamerSentAdminOnly } from "@/lib/tiktok-live/completeness";
 import { writeAudit } from "@/lib/audit/write";
 import {
   AUTO_TIKTOK_FIELDS,
@@ -41,6 +42,9 @@ export async function PATCH(
   > | null;
   if (!body) {
     return NextResponse.json({ ok: false, error: "invalid body" }, { status: 400 });
+  }
+  if (auth.role === "live_streamer" && streamerSentAdminOnly(body)) {
+    return NextResponse.json({ ok: false, error: ADMIN_ONLY_MESSAGE }, { status: 403 });
   }
 
   const set: { [K in ManualTikTokField]?: number | null } & {

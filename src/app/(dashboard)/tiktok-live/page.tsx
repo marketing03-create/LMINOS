@@ -26,6 +26,7 @@ import { METRIC_LABEL } from "@/lib/tiktok-live/completeness";
 import { RemarksInput } from "./remarks-input";
 import { requireLivePage } from "@/lib/auth/page-guard";
 import { ScreenshotSection } from "@/app/(dashboard)/admin/tiktok/history/screenshot-section";
+import { waLeadCounts } from "@/lib/wati/leads";
 
 /** Per-column explanations, shown in a “?” beside each header. */
 const HELP: Record<string, string> = {
@@ -45,9 +46,23 @@ const HELP: Record<string, string> = {
   Interested: METRIC_HELP.interested,
   Diamonds: METRIC_HELP.diamonds,
   PMLeads: METRIC_HELP.commentLeads,
+  WhatsAppPm: METRIC_HELP.whatsappPm,
   TotalLeads: METRIC_HELP.totalLeads,
   FilteredLeads: METRIC_HELP.filteredLeads,
 };
+
+/**
+ * When + Handle stay pinned while the 20-odd metric columns scroll under them.
+ * When has a fixed width so Handle knows where to stick; the edge line marks
+ * where the pinned block ends. Sticky cells need an opaque background, and it
+ * has to follow the row's hover colour.
+ */
+const WHEN_W = "w-[10.5rem] min-w-[10.5rem] max-w-[10.5rem]";
+const HANDLE_LEFT = "left-[10.5rem]";
+const STICKY_EDGE =
+  "shadow-[inset_-1px_0_0_var(--color-zinc-200)] dark:shadow-[inset_-1px_0_0_var(--color-zinc-800)]";
+const STICKY_BG =
+  "bg-white dark:bg-zinc-950 group-hover:bg-zinc-50 dark:group-hover:bg-zinc-900/50";
 
 function fmtDuration(sec: number): string {
   if (!sec) return "—";
@@ -132,6 +147,13 @@ export default async function TikTokLivePage({
   } catch (err) {
     error = err instanceof Error ? err.message : String(err);
   }
+  // Total PM is admin-only. A streamer's rows lose it HERE, on the server,
+  // before anything is rendered or serialised to their browser — hiding a
+  // column would still ship the number in the page payload.
+  if (isStreamer) sessions = sessions.map((s) => ({ ...s, totalLeads: null }));
+  // WhatsApp PM per live (admins). Always an object, so the column is always
+  // there; a live with no WATI tracking reads "—".
+  const wa = isStreamer ? {} : ((await waLeadCounts(sessions.map((s) => s.id))) ?? {});
 
   // The admin's "fill your numbers in" reminder, if one is open for this
   // streamer. Non-fatal: a failed lookup just means no card.
@@ -255,8 +277,8 @@ export default async function TikTokLivePage({
               <table className="w-full text-sm">
                 <thead className="bg-zinc-50 dark:bg-zinc-900 text-zinc-500 text-left">
                   <tr>
-                    <Th className="sticky left-0 z-30">When</Th>
-                    <Th>Handle</Th>
+                    <Th className={`sticky left-0 z-30 ${WHEN_W}`}>When</Th>
+                    <Th className={`sticky ${HANDLE_LEFT} z-30 ${STICKY_EDGE}`}>Handle</Th>
                     <Th>Title</Th>
                     <Th>Product</Th>
                     <Th className="text-right" help={HELP.Duration}>Duration</Th>
@@ -274,8 +296,9 @@ export default async function TikTokLivePage({
                     <Th className="text-right" help={HELP.BioViews}>Bio views</Th>
                     <Th className="text-right" help={HELP.Interested}>Interested</Th>
                     <Th className="text-right" help={HELP.Diamonds}>Diamonds</Th>
-                    <Th className="text-right" help={HELP.TotalLeads}>Total leads</Th>
-                    <Th className="text-right" help={HELP.FilteredLeads}>Filtered leads</Th>
+                    <Th className="text-right" help={HELP.WhatsAppPm}>WhatsApp PM</Th>
+                    <Th className="text-right" help={HELP.TotalLeads}>Total PM</Th>
+                    <Th className="text-right" help={HELP.FilteredLeads}>Document Collect</Th>
                     <Th>Remarks</Th>
                   </tr>
                 </thead>
@@ -286,7 +309,7 @@ export default async function TikTokLivePage({
                       id={`session-${s.id}`}
                       className="group scroll-mt-24 border-t border-zinc-100 dark:border-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-900/50"
                     >
-                      <Td className="sticky left-0 z-10 bg-white dark:bg-zinc-950 group-hover:bg-zinc-50 dark:group-hover:bg-zinc-900/50 text-xs text-zinc-500 tabular-nums whitespace-nowrap">
+                      <Td className={`sticky left-0 z-10 ${WHEN_W} ${STICKY_BG} text-xs text-zinc-500 tabular-nums whitespace-nowrap`}>
                         <Link
                           href={`/tiktok-live/${s.id}`}
                           className="underline underline-offset-2 decoration-zinc-300 dark:decoration-zinc-600 hover:text-blue-600 dark:hover:text-blue-400 hover:decoration-blue-400"
@@ -296,7 +319,9 @@ export default async function TikTokLivePage({
                             : "—"}
                         </Link>
                       </Td>
-                      <Td className="font-mono text-xs">@{s.handle}</Td>
+                      <Td className={`sticky ${HANDLE_LEFT} z-10 ${STICKY_BG} ${STICKY_EDGE} font-mono text-xs whitespace-nowrap`}>
+                        @{s.handle}
+                      </Td>
                       <Td className="max-w-[110px] sm:max-w-[220px] truncate">{s.title ?? "—"}</Td>
                       <Td className="whitespace-nowrap">
                         <ProductBadges products={s.products} />
@@ -318,6 +343,7 @@ export default async function TikTokLivePage({
                       <Td className="text-right tabular-nums text-zinc-500">{fmtN(s.serviceBioViews)}</Td>
                       <Td className="text-right tabular-nums text-zinc-500">{fmtN(s.interestedViewers)}</Td>
                       <Td className="text-right tabular-nums text-zinc-500">{fmtN(s.diamonds)}</Td>
+                      <Td className="text-right tabular-nums text-emerald-600 dark:text-emerald-400">{fmtN(wa[s.id] ?? null)}</Td>
                       <Td className="text-right tabular-nums text-indigo-600 dark:text-indigo-400 font-semibold">{fmtN(s.totalLeads)}</Td>
                       <Td className="text-right tabular-nums text-zinc-500">{fmtN(s.filteredLeads)}</Td>
                       <Td className="align-top">
@@ -329,7 +355,7 @@ export default async function TikTokLivePage({
               </table>
             </div>
           }
-          cards={<SessionCards sessions={sessions} />}
+          cards={<SessionCards sessions={sessions} wa={wa} />}
         />
       )}
 
@@ -353,7 +379,13 @@ export default async function TikTokLivePage({
  * `SessionHighlighter` two elements to choose from and it would pick the hidden
  * one.
  */
-function SessionCards({ sessions }: { sessions: SessionRow[] }) {
+function SessionCards({
+  sessions,
+  wa,
+}: {
+  sessions: SessionRow[];
+  wa: Record<string, number>;
+}) {
   return (
     <div className="space-y-3">
       <RecordList legend="Not entered means nobody has keyed that number in yet — it is not a zero.">
@@ -372,8 +404,8 @@ function SessionCards({ sessions }: { sessions: SessionRow[] }) {
             badges={<ProductBadges products={s.products} />}
             primary={[
               { label: "Views", value: s.totalViews },
-              { label: "Total leads", value: s.totalLeads, tone: "accent" },
-              { label: "Filtered leads", value: s.filteredLeads },
+              { label: "Total PM", value: s.totalLeads, tone: "accent" },
+              { label: "Document Collect", value: s.filteredLeads },
             ]}
             detail={[
               { label: "Duration", value: fmtDuration(s.durationSeconds) },
@@ -393,6 +425,7 @@ function SessionCards({ sessions }: { sessions: SessionRow[] }) {
               { label: "Bio views", value: s.serviceBioViews },
               { label: "Interested", value: s.interestedViewers },
               { label: "Diamonds", value: s.diamonds },
+              { label: "WhatsApp PM", value: wa[s.id] ?? null },
             ]}
             /* Remarks stays editable on a phone. It is the one column of this
                table that is an input rather than a reading, and dropping it

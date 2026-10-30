@@ -69,8 +69,8 @@ const auto = (
 
 /** Fields a person is expected to fill in — the chase-able ones. */
 export const TYPED_FIELDS: CoverageField[] = [
-  typed("totalLeads", "Total Leads", (s) => s.totalLeads),
-  typed("filteredLeads", "Filtered Leads", (s) => s.filteredLeads),
+  typed("totalLeads", "Total PM", (s) => s.totalLeads),
+  typed("filteredLeads", "Document Collect", (s) => s.filteredLeads),
   typed("directMessages", "Direct messages", (s) => s.directMessages),
   typed("serviceBioViews", "Bio views", (s) => s.serviceBioViews),
   typed("avgWatchSeconds", "Avg watch time", (s) => s.avgWatchSeconds),
@@ -480,8 +480,8 @@ export type ChaseRow = {
 export const MIN_CHASE_SECONDS = 300;
 
 const CHASE_FIELDS: { key: keyof AnalysisSession; label: string }[] = [
-  { key: "totalLeads", label: "Total Leads" },
-  { key: "filteredLeads", label: "Filtered Leads" },
+  { key: "totalLeads", label: "Total PM" },
+  { key: "filteredLeads", label: "Document Collect" },
   { key: "directMessages", label: "DMs" },
   { key: "serviceBioViews", label: "Bio views" },
 ];

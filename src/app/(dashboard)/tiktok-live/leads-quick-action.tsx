@@ -25,19 +25,16 @@ import { LeadsQuickSheet } from "@/components/mobile/leads-quick-sheet";
 export function LeadsQuickAction({
   sessionId,
   when,
-  totalLeads,
   filteredLeads,
 }: {
   sessionId: string;
   when: string;
-  totalLeads: number | null;
   filteredLeads: number | null;
 }) {
   return (
     <LeadsQuickSheet
       sessionId={sessionId}
       when={when}
-      totalLeads={totalLeads}
       filteredLeads={filteredLeads}
       onSaved={() => void refreshEverywhere()}
     />

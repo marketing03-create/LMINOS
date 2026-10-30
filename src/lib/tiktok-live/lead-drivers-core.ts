@@ -240,8 +240,8 @@ const round2 = (n: number) => Math.round(n * 100) / 100;
  */
 export function computeLeadDrivers(rows: DriverRow[]): GoalDrivers[] {
   const goals: { goal: "totalLeads" | "filteredLeads"; goalLabel: string }[] = [
-    { goal: "totalLeads", goalLabel: "Total Leads" },
-    { goal: "filteredLeads", goalLabel: "Filtered Leads" },
+    { goal: "totalLeads", goalLabel: "Total PM" },
+    { goal: "filteredLeads", goalLabel: "Document Collect" },
   ];
 
   return goals.map(({ goal, goalLabel }) => {

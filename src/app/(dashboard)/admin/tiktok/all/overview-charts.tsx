@@ -50,8 +50,8 @@ const TITLES = [
 const nf = (n: number) => n.toLocaleString("en-MY");
 
 const LEADS: Series[] = [
-  { key: "totalLeads", name: "Total Leads", color: BLUE },
-  { key: "filteredLeads", name: "Filtered Leads", color: RED },
+  { key: "totalLeads", name: "Total PM", color: BLUE },
+  { key: "filteredLeads", name: "Document Collect", color: RED },
 ];
 
 const MIN_LEAD_LIVES = 5;

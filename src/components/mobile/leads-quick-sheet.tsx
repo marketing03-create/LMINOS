@@ -62,7 +62,7 @@ export type LeadsQuickSheetProps = {
   sessionId: string;
   /** "8 Sep, 9:15 pm" — a feed has many cards; the sheet must say which live. */
   when: string;
-  totalLeads: number | null;
+  /** Streamer-only sheet, and Total PM is admin-only — so Document Collect alone. */
   filteredLeads: number | null;
   /** Caller refreshes its own data (router.refresh()). */
   onSaved?: () => void;
@@ -131,17 +131,15 @@ function stackedAbove(): boolean {
 export function LeadsQuickSheet({
   sessionId,
   when,
-  totalLeads,
   filteredLeads,
   onSaved,
 }: LeadsQuickSheetProps): React.JSX.Element {
   const [open, setOpen] = useState(false);
-  const [total, setTotal] = useState("");
   const [filtered, setFiltered] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const needsResults = totalLeads == null;
+  const needsResults = filteredLeads == null;
 
   // Subscribe only — no synchronous "are we at lg already?" read. The trigger is
   // `display:none` at `lg`, so `open` can only ever be set from below the
@@ -159,23 +157,20 @@ export function LeadsQuickSheet({
   // Seed on open rather than in an effect, so re-opening after a refresh always
   // shows what is actually saved and never a stale draft.
   function openSheet() {
-    setTotal(totalLeads == null ? "" : String(totalLeads));
     setFiltered(filteredLeads == null ? "" : String(filteredLeads));
     setError(null);
     setBusy(false);
     setOpen(true);
   }
 
-  function onChange(col: string, v: string) {
-    if (col === "totalLeads") setTotal(v);
-    else setFiltered(v);
+  function onChange(_col: string, v: string) {
+    setFiltered(v);
     if (error) setError(null);
   }
 
   async function save() {
-    const t = parse(total);
     const f = parse(filtered);
-    if (!t.ok || !f.ok) {
+    if (!f.ok) {
       setError("Use a whole number, or leave it blank.");
       return;
     }
@@ -183,7 +178,6 @@ export function LeadsQuickSheet({
     // Only the changed keys. Unchanged keys are absent from the body, so the
     // route leaves those columns alone and the audit row records the edit.
     const body: Record<string, number | null> = {};
-    if (t.value !== totalLeads) body.totalLeads = t.value;
     if (f.value !== filteredLeads) body.filteredLeads = f.value;
     if (Object.keys(body).length === 0) {
       setOpen(false);
@@ -212,15 +206,6 @@ export function LeadsQuickSheet({
       setBusy(false);
     }
   }
-
-  const parsedTotal = parse(total);
-  const parsedFiltered = parse(filtered);
-  const overFiltered =
-    parsedTotal.ok &&
-    parsedFiltered.ok &&
-    parsedTotal.value != null &&
-    parsedFiltered.value != null &&
-    parsedFiltered.value > parsedTotal.value;
 
   const chipLabel = needsResults ? "Add results" : "Edit results";
   const chipTone = needsResults
@@ -280,40 +265,17 @@ export function LeadsQuickSheet({
       >
         <div className="space-y-3 py-1">
           <NumberField
-            col="totalLeads"
-            label="Total leads"
-            value={total}
-            current={totalLeads}
-            onChange={onChange}
-            disabled={busy}
-            autoFocus
-          />
-          <NumberField
             col="filteredLeads"
-            label="Filtered leads"
+            label="Document Collect"
             value={filtered}
             current={filteredLeads}
             onChange={onChange}
             disabled={busy}
+            autoFocus
           />
 
-          {/* Mounted even when it has nothing to say: a live region that appears
-              at the same instant as its text is routinely missed, and this line
-              is the only warning a screen-reader user gets about two numbers
-              that contradict each other. `empty:mt-0` keeps it costing nothing
-              in the `space-y-3` flow while it is silent. */}
-          <p
-            role="status"
-            aria-live="polite"
-            className="text-sm leading-relaxed text-amber-700 empty:mt-0 dark:text-amber-400"
-          >
-            {overFiltered
-              ? "Filtered is higher than Total — filtered leads are a subset."
-              : null}
-          </p>
-
           <div className="pt-1">
-            <HelpChip keys={["totalLeads", "filteredLeads"]} />
+            <HelpChip keys={["filteredLeads"]} />
           </div>
         </div>
       </Sheet>

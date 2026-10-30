@@ -12,6 +12,11 @@
  *                 existing 10am morning check, since leads arrive over hours/days.
  *
  * A legitimate zero must be entered as `0`; a blank keeps the live flagged.
+ *
+ * Total PM (`totalLeads`) is ADMIN-ONLY: a streamer never sees it, so nothing a
+ * streamer is shown — their reminders, badges, "Missing:" lines, the admin's
+ * nudge to them — may count it. Those use the STREAMER_* sets below; admin
+ * views keep the full REQUIRED_METRICS.
  */
 import { and, gte, isNull, lt, or, type SQL } from "drizzle-orm";
 import { tiktokLiveSessions } from "@/db/schema";
@@ -21,14 +26,34 @@ export const LIVE_METRICS = ["directMessages", "serviceBioViews"] as const;
 /** Customer-Service-owned — chased on the 10am morning check. */
 export const LEAD_METRICS = ["totalLeads", "filteredLeads"] as const;
 
-/** Everything a live needs before it's considered done. */
+/** Everything a live needs before it's considered done (the admin view). */
 export const REQUIRED_METRICS = [...LEAD_METRICS, ...LIVE_METRICS] as const;
 export type RequiredMetric = (typeof REQUIRED_METRICS)[number];
 
+/** The lead metric a streamer may see and is chased for — not Total PM. */
+export const STREAMER_LEAD_METRICS = ["filteredLeads"] as const;
+/** Everything a streamer is asked to fill in. */
+export const STREAMER_METRICS = [...STREAMER_LEAD_METRICS, ...LIVE_METRICS] as const;
+
+/**
+ * Fields only admins may read or write. Total PM (`totalLeads`) is admin-only:
+ * a streamer's screens never show it, and every write route refuses it from a
+ * streamer — even a hand-built request — via `streamerSentAdminOnly`.
+ */
+export const ADMIN_ONLY_TIKTOK_FIELDS = ["totalLeads"] as const;
+
+/** True when a streamer's request body tries to set an admin-only field. */
+export function streamerSentAdminOnly(obj: unknown): boolean {
+  if (!obj || typeof obj !== "object") return false;
+  return ADMIN_ONLY_TIKTOK_FIELDS.some((f) => f in (obj as Record<string, unknown>));
+}
+
+export const ADMIN_ONLY_MESSAGE = "Total PM can only be entered by an admin.";
+
 /** Human labels, for "missing DMs, Bio views" style summaries. */
 export const METRIC_LABEL: Record<RequiredMetric, string> = {
-  totalLeads: "Total Leads",
-  filteredLeads: "Filtered Leads",
+  totalLeads: "Total PM",
+  filteredLeads: "Document Collect",
   directMessages: "DMs",
   serviceBioViews: "Bio views",
 };
@@ -65,7 +90,21 @@ export function liveMetricsIncompleteCondition(): SQL {
   ) as SQL;
 }
 
-/** A lead metric (Total or Filtered Leads) is still NULL. */
+/** Everything a streamer owes (Document Collect, DMs, Bio views) — no Total PM. */
+export function streamerIncompleteCondition(): SQL {
+  return or(
+    isNull(tiktokLiveSessions.filteredLeads),
+    isNull(tiktokLiveSessions.directMessages),
+    isNull(tiktokLiveSessions.serviceBioViews)
+  ) as SQL;
+}
+
+/** The streamer's lead metric (Document Collect) is still NULL. */
+export function streamerLeadMetricsIncompleteCondition(): SQL {
+  return isNull(tiktokLiveSessions.filteredLeads) as SQL;
+}
+
+/** A lead metric (Total PM or Document Collect) is still NULL. */
 export function leadMetricsIncompleteCondition(): SQL {
   return or(
     isNull(tiktokLiveSessions.totalLeads),
@@ -101,6 +140,12 @@ export const missingMetrics = (row: MetricRow) => missingFrom(row, REQUIRED_METR
 export const missingLiveMetrics = (row: MetricRow) => missingFrom(row, LIVE_METRICS);
 /** Lead metrics still blank. */
 export const missingLeadMetrics = (row: MetricRow) => missingFrom(row, LEAD_METRICS);
+/** What a streamer still owes — never Total PM, which they can't see. */
+export const missingStreamerMetrics = (row: Omit<MetricRow, "totalLeads">) =>
+  STREAMER_METRICS.filter((m) => row[m] == null);
+/** The streamer's lead metric still blank (Document Collect). */
+export const missingStreamerLeadMetrics = (row: Omit<MetricRow, "totalLeads">) =>
+  STREAMER_LEAD_METRICS.filter((m) => row[m] == null);
 
 /** True when every required metric is filled in. */
 export function isComplete(row: MetricRow): boolean {

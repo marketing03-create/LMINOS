@@ -36,8 +36,8 @@ import {
 import { LIVE_ANALYSIS_CHART_TITLES as TITLES } from "./live-analysis-chart-titles";
 
 const LEADS: Series[] = [
-  { key: "totalLeads", name: "Total Leads", color: BLUE },
-  { key: "filteredLeads", name: "Filtered Leads", color: RED },
+  { key: "totalLeads", name: "Total PM", color: BLUE },
+  { key: "filteredLeads", name: "Document Collect", color: RED },
 ];
 
 /** Below this, a per-hour lead breakdown is 1–2 lives per bar. */

@@ -29,9 +29,11 @@ export const METRIC_HELP = {
   commentLeads:
     "Viewers who typed your keyword (e.g. “PM”) in the chat — captured automatically. A follow-up list, not your final lead count.",
   totalLeads:
-    "Unique customers who contacted you from this live — counted once per phone number, so the same person on DM and WhatsApp counts once.",
+    "Formerly “Total Leads”. Unique customers who PM'd from this live — counted once per phone number, so the same person on DM and WhatsApp counts once. Admins only.",
   filteredLeads:
-    "Of those leads, how many passed screening and submitted their documents.",
+    "Formerly “Filtered Leads”. Of those customers, how many passed screening and submitted their documents.",
+  whatsappPm:
+    "Customers who WhatsApp'd from this live, counted automatically from WATI — once per phone number.",
   sessions: "Number of lives in this date range.",
   liveHours: "Total hours streamed in this date range.",
 

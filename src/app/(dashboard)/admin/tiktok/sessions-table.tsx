@@ -81,7 +81,7 @@ export function SessionsTable({
 }: {
   sessions: SessionRow[];
   linkHandle?: boolean;
-  /** Session id → WhatsApp leads from WATI. Omitted = no WhatsApp column. */
+  /** Session id → WhatsApp PM from WATI. Omitted = no WhatsApp PM column. */
   wa?: Record<string, number>;
 }) {
   return (
@@ -149,8 +149,8 @@ export function SessionCardList({
             }
             primary={[
               { label: "Views", value: s.totalViews },
-              { label: "Total leads", value: s.totalLeads, tone: "accent" },
-              { label: "Filtered leads", value: s.filteredLeads },
+              { label: "Total PM", value: s.totalLeads, tone: "accent" },
+              { label: "Document Collect", value: s.filteredLeads },
             ]}
             detail={[
               { label: "Duration", value: fmtDuration(s.durationSeconds) },
@@ -171,7 +171,7 @@ export function SessionCardList({
               { label: "Interested", value: s.interestedViewers },
               { label: "Diamonds", value: s.diamonds },
               { label: "Comment leads", value: s.keywordLeads },
-              ...(wa ? [{ label: "WhatsApp", value: wa[s.id] ?? null }] : []),
+              ...(wa ? [{ label: "WhatsApp PM", value: wa[s.id] ?? null }] : []),
             ]}
             detailLabel={`All ${wa ? 23 : 22} numbers`}
             /* Only the second destination needs a footer link. "Open live" is
@@ -216,8 +216,8 @@ function SessionsGrid({
       <table className="w-full text-sm">
         <thead className="bg-zinc-50 dark:bg-zinc-900 text-zinc-500 text-left">
           <tr>
-            <Th className="sticky left-0 z-30">When</Th>
-            <Th>Handle</Th>
+            <Th className={`sticky left-0 z-30 ${WHEN_W}`}>When</Th>
+            <Th className={`sticky ${HANDLE_LEFT} z-30 ${STICKY_EDGE}`}>Handle</Th>
             <Th>Title</Th>
             <Th help="The loan product(s) this live promoted.">Product</Th>
             <Th className="text-right" help={METRIC_HELP.duration}>Duration</Th>
@@ -238,9 +238,11 @@ function SessionsGrid({
             {/* Renders keywordLeads — was mislabelled "Comments", which clashed
                 with the chat-comments column above. */}
             <Th className="text-right" help={METRIC_HELP.commentLeads}>Comment leads</Th>
-            <Th className="text-right" help={METRIC_HELP.totalLeads}>Total leads</Th>
-            <Th className="text-right" help={METRIC_HELP.filteredLeads}>Filtered leads</Th>
-            {wa && <Th className="text-right">WhatsApp</Th>}
+            {wa && (
+              <Th className="text-right" help={METRIC_HELP.whatsappPm}>WhatsApp PM</Th>
+            )}
+            <Th className="text-right" help={METRIC_HELP.totalLeads}>Total PM</Th>
+            <Th className="text-right" help={METRIC_HELP.filteredLeads}>Document Collect</Th>
           </tr>
         </thead>
         <tbody>
@@ -250,14 +252,14 @@ function SessionsGrid({
               id={`session-${s.id}`}
               className="group scroll-mt-24 border-t border-zinc-100 dark:border-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-900/50"
             >
-              <Td className="sticky left-0 z-10 bg-white dark:bg-zinc-950 group-hover:bg-zinc-50 dark:group-hover:bg-zinc-900/50 text-xs text-zinc-500 tabular-nums whitespace-nowrap">
+              <Td className={`sticky left-0 z-10 ${WHEN_W} ${STICKY_BG} text-xs text-zinc-500 tabular-nums whitespace-nowrap`}>
                 <Link href={`/tiktok-live/${s.id}`} className="hover:underline">
                   {s.startedAt
                     ? new Date(s.startedAt).toLocaleString("en-MY", { hour12: false })
                     : dash}
                 </Link>
               </Td>
-              <Td className="font-mono text-xs whitespace-nowrap">
+              <Td className={`sticky ${HANDLE_LEFT} z-10 ${STICKY_BG} ${STICKY_EDGE} font-mono text-xs whitespace-nowrap`}>
                 {linkHandle ? (
                   <Link
                     href={`/admin/tiktok/${s.accountId}`}
@@ -297,13 +299,13 @@ function SessionsGrid({
                   {fmtInt(s.keywordLeads)}
                 </Link>
               </Td>
-              <Td className="text-right tabular-nums text-indigo-600 dark:text-indigo-400 font-semibold">{fmtN(s.totalLeads)}</Td>
-              <Td className="text-right tabular-nums text-zinc-500">{fmtN(s.filteredLeads)}</Td>
               {wa && (
                 <Td className="text-right tabular-nums text-emerald-600 dark:text-emerald-400">
                   {fmtN(wa[s.id] ?? null)}
                 </Td>
               )}
+              <Td className="text-right tabular-nums text-indigo-600 dark:text-indigo-400 font-semibold">{fmtN(s.totalLeads)}</Td>
+              <Td className="text-right tabular-nums text-zinc-500">{fmtN(s.filteredLeads)}</Td>
             </tr>
           ))}
         </tbody>
@@ -311,6 +313,18 @@ function SessionsGrid({
     </div>
   );
 }
+
+/**
+ * When + Handle stay pinned while the metric columns scroll under them. When
+ * has a fixed width so Handle knows where to stick; the edge line marks where
+ * the pinned block ends. Sticky cells need an opaque, hover-following background.
+ */
+const WHEN_W = "w-[10.5rem] min-w-[10.5rem] max-w-[10.5rem]";
+const HANDLE_LEFT = "left-[10.5rem]";
+const STICKY_EDGE =
+  "shadow-[inset_-1px_0_0_var(--color-zinc-200)] dark:shadow-[inset_-1px_0_0_var(--color-zinc-800)]";
+const STICKY_BG =
+  "bg-white dark:bg-zinc-950 group-hover:bg-zinc-50 dark:group-hover:bg-zinc-900/50";
 
 function Th({
   children,

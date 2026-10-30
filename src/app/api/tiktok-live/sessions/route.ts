@@ -3,6 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { tiktokAccounts, tiktokLiveSessions } from "@/db/schema";
 import { ADMIN_ROLES, requireRole } from "@/lib/auth/authorize";
+import { ADMIN_ONLY_MESSAGE, streamerSentAdminOnly } from "@/lib/tiktok-live/completeness";
 import { writeAudit } from "@/lib/audit/write";
 import {
   AUTO_TIKTOK_FIELDS,
@@ -80,6 +81,9 @@ export async function POST(request: NextRequest) {
   // Metric values (AUTO ∪ MANUAL). Absent AUTO cols fall back to the schema
   // default (0); MANUAL cols stay null.
   const values = body.values && typeof body.values === "object" ? body.values : {};
+  if (auth.role === "live_streamer" && streamerSentAdminOnly(values)) {
+    return NextResponse.json({ ok: false, error: ADMIN_ONLY_MESSAGE }, { status: 403 });
+  }
   const metrics: Record<string, number | null> = {};
   for (const [col, raw] of Object.entries(values)) {
     if (!AUTO.has(col) && !MANUAL.has(col)) continue;

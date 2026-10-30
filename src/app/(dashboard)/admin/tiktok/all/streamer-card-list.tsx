@@ -113,7 +113,7 @@ export function StreamerCardList({
           rest.push({ label: "Median peak", value: r.medianPeak });
           rest.push({ label: "Comments / 1k views", value: r.commentsPer1kViews });
           rest.push({ label: "Followers / hr", value: r.followersPerHour });
-          rest.push({ label: "Total Leads", value: r.totalLeads });
+          rest.push({ label: "Total PM", value: r.totalLeads });
           if (metric !== "leads")
             rest.push({ label: "Leads / hr", value: r.leadsPerHour });
           if (metric !== "quality")

@@ -94,7 +94,7 @@ export default async function AdminTikTokOverviewPage({
   } catch (err) {
     error = err instanceof Error ? err.message : String(err);
   }
-  const waCounts = await waLeadCounts(sessions.map((s) => s.id));
+  const waCounts = (await waLeadCounts(sessions.map((s) => s.id))) ?? {};
 
   const slim = sessions.map(toAnalysisSession);
   const keywordsByAccount = new Map(handles.map((h) => [h.id, h.hasKeywords]));

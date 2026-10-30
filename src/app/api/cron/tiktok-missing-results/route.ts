@@ -1,11 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { isNull, type SQL } from "drizzle-orm";
 import { db } from "@/db/client";
-import { appNotifications } from "@/db/schema";
+import { appNotifications, tiktokLiveSessions } from "@/db/schema";
 import { cronAuthorized } from "@/lib/auth/cron";
 import { alertAdmins } from "@/lib/telegram/alert";
 import {
   lookbackWindow,
-  leadMetricsIncompleteCondition,
+  streamerLeadMetricsIncompleteCondition,
 } from "@/lib/tiktok-live/completeness";
 import { findOutstanding, notifyStreamers } from "@/lib/tiktok-live/reminders";
 import { autoFillTotalLeads } from "@/lib/wati/leads";
@@ -65,20 +66,19 @@ export async function GET(request: NextRequest) {
     console.error("[cron] WhatsApp auto-fill failed:", err);
   }
 
-  // ONE scan for lives still missing LEAD numbers; both audiences derive from it.
-  const outstanding = await findOutstanding(since, until, leadMetricsIncompleteCondition());
+  // Streamers are chased only for Document Collect — Total PM is admin-only, so
+  // a live missing just Total PM must not reach a streamer's reminder. The
+  // admin summary below has its own Total PM query.
+  const outstanding = await findOutstanding(since, until, streamerLeadMetricsIncompleteCondition());
 
   // ── Streamers: reminded in-app + Telegram (idempotent, once-a-day DM gate) ──
   const streamer = await notifyStreamers(outstanding, "leads");
 
-  // ── Admins: UNCHANGED — yesterday only, "no Total Leads" only ──
-  const rows = outstanding.filter(
-    (r) =>
-      r.totalLeads == null &&
-      r.startedAt != null &&
-      r.startedAt >= start &&
-      r.startedAt < end
-  );
+  // ── Admins: yesterday only, "no Total PM" only — its own query, since the
+  // streamer list above no longer covers Total PM ──
+  const rows = (
+    await findOutstanding(start, end, isNull(tiktokLiveSessions.totalLeads) as SQL)
+  ).filter((r) => r.startedAt != null);
 
   if (rows.length === 0) {
     return NextResponse.json({
@@ -104,7 +104,7 @@ export async function GET(request: NextRequest) {
   const more = rows.length - lines.length;
   const text =
     `📝 Missing live results — ${date}\n` +
-    `${rows.length} live${rows.length === 1 ? "" : "s"} still have no Total Leads:\n` +
+    `${rows.length} live${rows.length === 1 ? "" : "s"} still have no Total PM:\n` +
     `${lines.join("\n")}` +
     `${more > 0 ? `\n…and ${more} more` : ""}\n\n` +
     `${outstanding.length} live(s) in the last 14 days still owe lead numbers; ` +
@@ -118,7 +118,7 @@ export async function GET(request: NextRequest) {
       .values({
         type: "tiktok_missing_results",
         title: `${rows.length} live${rows.length === 1 ? "" : "s"} missing results`,
-        body: `From ${date} — no Total Leads entered yet.`,
+        body: `From ${date} — no Total PM entered yet.`,
         href: "/admin/users",
         dedupeKey: `missing:${date}`,
       })

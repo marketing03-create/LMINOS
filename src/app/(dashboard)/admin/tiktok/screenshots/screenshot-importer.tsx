@@ -50,8 +50,8 @@ const LABELS: Record<string, string> = {
   serviceBioViews: "Service bio views",
   interestedViewers: "Interested viewers",
   diamonds: "Diamonds",
-  totalLeads: "Total Leads",
-  filteredLeads: "Filtered Leads",
+  totalLeads: "Total PM",
+  filteredLeads: "Document Collect",
 };
 
 /**
@@ -909,7 +909,7 @@ export function ScreenshotImporter() {
                 </div>
                 <div className="flex flex-wrap gap-3">
                   <label className="block sm:w-48">
-                    <div className="text-sm font-medium mb-1">Total Leads</div>
+                    <div className="text-sm font-medium mb-1">Total PM</div>
                     <input
                       inputMode="numeric"
                       value={row.values.totalLeads ?? ""}
@@ -923,7 +923,7 @@ export function ScreenshotImporter() {
                     </div>
                   </label>
                   <label className="block sm:w-48">
-                    <div className="text-sm font-medium mb-1">Filtered Leads</div>
+                    <div className="text-sm font-medium mb-1">Document Collect</div>
                     <input
                       inputMode="numeric"
                       value={row.values.filteredLeads ?? ""}

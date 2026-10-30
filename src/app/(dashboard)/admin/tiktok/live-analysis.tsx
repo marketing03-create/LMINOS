@@ -93,7 +93,7 @@ export function LiveAnalysis({
   const metrics: MetricItem[] = [
     { label: "Sessions", value: k.sessions },
     {
-      label: "Total Leads",
+      label: "Total PM",
       value: k.livesWithLeads > 0 ? k.totalLeads : null,
       hero: true,
       tone: k.livesWithLeads > 0 ? "accent" : "warn",
@@ -103,7 +103,7 @@ export function LiveAnalysis({
           : `0 of ${lives(k.sessions)} — not recorded`,
     },
     {
-      label: "Filtered Leads",
+      label: "Document Collect",
       value: k.livesWithFiltered > 0 ? k.filteredLeads : null,
       denominator:
         k.livesWithFiltered > 0
@@ -148,7 +148,7 @@ export function LiveAnalysis({
           tone="blue"
           icon={<IconUsers />}
           value={nf(k.totalLeads)}
-          label="Total Leads"
+          label="Total PM"
           hint={`from ${k.livesWithLeads} live${k.livesWithLeads === 1 ? "" : "s"}`}
           help={METRIC_HELP.totalLeads}
         />
@@ -156,7 +156,7 @@ export function LiveAnalysis({
           tone="amber"
           icon={<IconDocument />}
           value={nf(k.filteredLeads)}
-          label="Filtered Leads"
+          label="Document Collect"
           // No hint: "documents submitted" is the first clause of this tile's
           // own help sentence.
           help={METRIC_HELP.filteredLeads}

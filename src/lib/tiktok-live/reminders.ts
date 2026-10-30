@@ -6,7 +6,9 @@
  * Three triggers, two metric groups (see completeness.ts):
  *   post-live  ~1h after a live ends  → LIVE metrics (DMs, Bio views), once
  *   10pm       daily re-check          → LIVE metrics, re-nag if still blank
- *   10am       daily                   → LEAD metrics (Total/Filtered Leads)
+ *   10am       daily                   → the streamer's lead metric (Document
+ *                                        Collect). Total PM is admin-only and
+ *                                        never chased from a streamer.
  *
  * Each group is its own Notification Center row (its own `type`), so filling in
  * DMs clears the live-metrics reminder even while leads are still outstanding.
@@ -19,8 +21,8 @@ import { upsertUserNotification } from "@/lib/notifications/user-inbox";
 import {
   MIN_DURATION_SECONDS,
   liveMetricsIncompleteCondition,
-  missingLeadMetrics,
   missingLiveMetrics,
+  missingStreamerLeadMetrics,
   outstandingCondition,
 } from "./completeness";
 
@@ -44,11 +46,11 @@ export const TRACKS = {
   leads: {
     type: "tiktok_missing_leads",
     dedupeKey: "leads",
-    missing: missingLeadMetrics,
-    title: (n: number) => `${n} live${n === 1 ? "" : "s"} need lead numbers`,
+    missing: missingStreamerLeadMetrics,
+    title: (n: number) => `${n} live${n === 1 ? "" : "s"} need Document Collect`,
     body: (n: number) =>
-      `${n === 1 ? "This live" : "These lives"} still ${n === 1 ? "needs" : "need"} Total Leads ` +
-      `and Filtered Leads entered.`,
+      `${n === 1 ? "This live" : "These lives"} still ${n === 1 ? "needs" : "need"} ` +
+      `Document Collect entered.`,
   },
 } as const;
 

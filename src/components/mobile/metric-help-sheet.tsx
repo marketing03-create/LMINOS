@@ -20,7 +20,7 @@ import { METRIC_HELP, type MetricHelpKey } from "@/lib/tiktok-live/metric-help";
  * (§4.16, desktop untouched) and each screen mounts exactly one 44px chip that
  * opens the whole set at once, at 15px, in a scrollable sheet. Reading five
  * definitions in a row is also the honest use case — nobody wonders what
- * "Filtered Leads" means without also wondering about "Total Leads".
+ * "Document Collect" means without also wondering about "Total PM".
  *
  * The text is read straight out of `METRIC_HELP` and never copied, which is the
  * point of that module: admin and streamer cannot end up with different words
@@ -58,8 +58,9 @@ export const METRIC_HELP_LABEL: Record<MetricHelpKey, string> = {
   interested: "Interested",
   diamonds: "Diamonds",
   commentLeads: "Comment leads",
-  totalLeads: "Total Leads",
-  filteredLeads: "Filtered Leads",
+  totalLeads: "Total PM",
+  filteredLeads: "Document Collect",
+  whatsappPm: "WhatsApp PM",
   sessions: "Lives",
   liveHours: "Live hours",
   leadQuality: "Lead Quality",

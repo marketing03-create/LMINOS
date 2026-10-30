@@ -10,9 +10,9 @@ import { desc, eq, inArray, isNull, and } from "drizzle-orm";
 import { db } from "@/db/client";
 import { tiktokLiveSessions, userNotifications } from "@/db/schema";
 import {
-  missingLeadMetrics,
   missingLiveMetrics,
-  missingMetrics,
+  missingStreamerLeadMetrics,
+  missingStreamerMetrics,
 } from "@/lib/tiktok-live/completeness";
 
 export type InboxRow = {
@@ -39,9 +39,11 @@ function stillOwes(type: string, row: MetricRow): boolean {
   // see admin-nudge.ts. (A literal, not the import: admin-nudge imports this
   // module, and the string is the stored `type`, which can never change.)
   if (type === "tiktok_admin_nudge") return true;
-  if (type === "tiktok_missing_leads") return missingLeadMetrics(row).length > 0;
+  // These reminders are a streamer's, and a streamer never owes Total PM (it is
+  // admin-only), so it can't hold one open.
+  if (type === "tiktok_missing_leads") return missingStreamerLeadMetrics(row).length > 0;
   if (type === "tiktok_missing_metrics") return missingLiveMetrics(row).length > 0;
-  return missingMetrics(row).length > 0;
+  return missingStreamerMetrics(row).length > 0;
 }
 
 type MetricRow = {

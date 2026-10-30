@@ -83,7 +83,7 @@ export function StreamerTable({
                   <Th right>Comments / 1k views</Th>
                   <Th right>Followers / hr</Th>
                   <Th>Lead data</Th>
-                  <Th right>Total Leads</Th>
+                  <Th right>Total PM</Th>
                   <Th right>Leads / hr</Th>
                   <Th right>Quality</Th>
                   <Th>Keyword capture</Th>

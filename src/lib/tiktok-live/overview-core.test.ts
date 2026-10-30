@@ -312,7 +312,7 @@ describe("chaseList", () => {
     ]);
     expect(totalIncomplete).toBe(2);
     expect(rows.map((r) => r.id)).toEqual(["big", "small"]);
-    expect(rows[0].missing).toContain("Total Leads");
+    expect(rows[0].missing).toContain("Total PM");
   });
 
   it("flags the pairing that corrupts a quality percentage", () => {

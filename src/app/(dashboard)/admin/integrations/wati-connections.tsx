@@ -413,7 +413,7 @@ function HandleRow({
               onChange={(e) => setAutoFill(e.target.checked)}
               className="h-5 w-5"
             />
-            Auto-fill blank Total Leads
+            Auto-fill blank Total PM
           </label>
           {err && (
             <p role="status" className="text-sm text-red-600 dark:text-red-400">

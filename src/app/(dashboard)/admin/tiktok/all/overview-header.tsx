@@ -73,7 +73,7 @@ export function OverviewHeader({ sessions }: { sessions: AnalysisSession[] }) {
 
   const outcomes: MetricItem[] = [
     {
-      label: "Filtered Leads",
+      label: "Document Collect",
       value: k.livesWithFiltered === 0 ? null : k.filteredLeads,
       // livesWithFiltered, not livesWithBoth — the sum comes from every live
       // with Filtered entered, so the two must match exactly.
@@ -169,7 +169,7 @@ export function OverviewHeader({ sessions }: { sessions: AnalysisSession[] }) {
           <div className="border-b border-zinc-100 dark:border-zinc-800">
             <MetricLine
               hero
-              label="Total Leads"
+              label="Total PM"
               value={k.livesWithLeads === 0 ? null : k.totalLeads}
               denominator={
                 k.livesWithLeads === 0
@@ -221,7 +221,7 @@ export function OverviewHeader({ sessions }: { sessions: AnalysisSession[] }) {
           <Card
             tone="blue"
             value={nf(k.totalLeads)}
-            label="Total Leads"
+            label="Total PM"
             hint={`recorded on ${k.livesWithLeads} of ${nf(k.sessions)} lives`}
             weak={k.livesWithLeads === 0}
             help={METRIC_HELP.totalLeads}
@@ -229,7 +229,7 @@ export function OverviewHeader({ sessions }: { sessions: AnalysisSession[] }) {
           <Card
             tone="amber"
             value={nf(k.filteredLeads)}
-            label="Filtered Leads"
+            label="Document Collect"
             // livesWithFiltered, not livesWithBoth — the sum above comes from
             // every live with Filtered entered, so the two must match exactly.
             hint={`documents submitted · ${k.livesWithFiltered} of ${nf(k.sessions)} lives`}

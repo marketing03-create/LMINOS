@@ -221,8 +221,8 @@ const DMS: SeriesDef = {
   get: (s) => s.directMessages,
 };
 const LEAD_SERIES: SeriesDef[] = [
-  { key: "totalLeads", name: "Total Leads", get: (s) => s.totalLeads },
-  { key: "filteredLeads", name: "Filtered Leads", get: (s) => s.filteredLeads },
+  { key: "totalLeads", name: "Total PM", get: (s) => s.totalLeads },
+  { key: "filteredLeads", name: "Document Collect", get: (s) => s.filteredLeads },
 ];
 
 // ── The four charts ──

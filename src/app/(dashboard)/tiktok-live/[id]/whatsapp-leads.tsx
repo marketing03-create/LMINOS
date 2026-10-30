@@ -7,7 +7,8 @@ import type { LiveWa } from "@/lib/wati/leads";
  * was connected. A live that was running when WATI was connected is marked
  * Partial: its count only starts from that moment.
  *
- * Streamers see the numbers; only admins see the people (names and phones).
+ * Streamers see the numbers; only admins see the people (names and phones)
+ * and Total PM.
  */
 
 const timeFmt = new Intl.DateTimeFormat("en-MY", {
@@ -53,9 +54,9 @@ export function WhatsAppLeads({
   const funnel: { label: string; value: number | null; of: number | null }[] = [
     { label: "Viewers", value: viewers, of: null },
     { label: "Commented", value: commentLeads, of: viewers },
-    { label: "WhatsApp", value: wa.waLeads, of: viewers },
+    { label: "WhatsApp PM", value: wa.waLeads, of: viewers },
     { label: "Replied", value: wa.replied, of: wa.waLeads },
-    { label: "Filtered", value: filteredLeads, of: wa.waLeads },
+    { label: "Document Collect", value: filteredLeads, of: wa.waLeads },
   ];
 
   return (
@@ -70,8 +71,11 @@ export function WhatsAppLeads({
       </h2>
 
       <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label="WhatsApp leads" value={String(wa.waLeads)} accent />
-        <Stat label="Total leads entered" value={totalLeads === null ? "—" : String(totalLeads)} />
+        <Stat label="WhatsApp PM" value={String(wa.waLeads)} accent />
+        {/* Total PM is admin-only. */}
+        {!isStreamer && (
+          <Stat label="Total PM" value={totalLeads === null ? "—" : String(totalLeads)} />
+        )}
         <Stat label="Replied" value={`${wa.replied}/${wa.waLeads}`} />
         <Stat label="Median reply" value={fmtMinutes(wa.medianReplyMinutes)} />
       </dl>

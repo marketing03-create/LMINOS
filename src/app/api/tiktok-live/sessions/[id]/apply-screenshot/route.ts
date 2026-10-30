@@ -3,6 +3,7 @@ import { and, eq, gte, isNull } from "drizzle-orm";
 import { db } from "@/db/client";
 import { tiktokLiveSessions, tiktokScreenshotUploads } from "@/db/schema";
 import { ADMIN_ROLES, requireRole } from "@/lib/auth/authorize";
+import { ADMIN_ONLY_MESSAGE, streamerSentAdminOnly } from "@/lib/tiktok-live/completeness";
 import { writeAudit } from "@/lib/audit/write";
 import {
   AUTO_TIKTOK_FIELDS,
@@ -48,6 +49,9 @@ export async function POST(
   const values = body?.values;
   if (!values || typeof values !== "object") {
     return NextResponse.json({ ok: false, error: "values required" }, { status: 400 });
+  }
+  if (auth.role === "live_streamer" && streamerSentAdminOnly(values)) {
+    return NextResponse.json({ ok: false, error: ADMIN_ONLY_MESSAGE }, { status: 403 });
   }
 
   // AUTO columns are NOT NULL (typed `number`); MANUAL columns are nullable.

@@ -68,7 +68,7 @@ export default async function StreamerDetailPage({
   } catch (err) {
     error = err instanceof Error ? err.message : String(err);
   }
-  const waCounts = await waLeadCounts(sessions.map((s) => s.id));
+  const waCounts = (await waLeadCounts(sessions.map((s) => s.id))) ?? {};
 
   const keywords = header.leadKeywords ?? [];
 

@@ -316,6 +316,7 @@ export const MANUAL_TIKTOK_FIELDS = [
 ] as const;
 export type ManualTikTokField = (typeof MANUAL_TIKTOK_FIELDS)[number];
 
+
 /**
  * The connector-captured fields. A screenshot import may overwrite these with
  * TikTok's official figures (the apply-screenshot route allow-lists MANUAL ∪ AUTO).

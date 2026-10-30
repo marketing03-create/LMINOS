@@ -38,8 +38,8 @@ const LABELS: Record<string, string> = {
   serviceBioViews: "Service bio views",
   interestedViewers: "Interested viewers",
   diamonds: "Diamonds",
-  totalLeads: "Total Leads",
-  filteredLeads: "Filtered Leads",
+  totalLeads: "Total PM",
+  filteredLeads: "Document Collect",
 };
 
 /**
@@ -91,8 +91,11 @@ function stateFor(s: MatchCandidate | null) {
 export function ManualEntryForm({
   sessions,
   autoSelect = false,
+  showTotalPm,
 }: {
   sessions: MatchCandidate[];
+  /** Total PM is admin-only: false for a streamer, whose rows arrive without it. */
+  showTotalPm: boolean;
   /**
    * Fix F4, and deliberately opt-in rather than always-on. `?mode=manual` is
    * the route the tab bar's "+" points at, and there the streamer has exactly
@@ -104,8 +107,10 @@ export function ManualEntryForm({
   autoSelect?: boolean;
 }) {
   const router = useRouter();
+  const leadKey = showTotalPm ? "totalLeads" : "filteredLeads";
 
-  // The newest live still missing its Total Leads is, by definition, the one
+  // The newest live still missing its lead number (Total PM for an admin,
+  // Document Collect for a streamer) is, by definition, the one
   // the streamer came here to fill in — Home computes the same set to build its
   // "needs numbers" list. `sessionsForMatching` returns newest first, so the
   // first match is the newest one. Falling back to the newest live overall
@@ -115,10 +120,10 @@ export function ManualEntryForm({
     () =>
       stateFor(
         autoSelect
-          ? sessions.find((s) => s.current.totalLeads == null) ?? sessions[0] ?? null
+          ? sessions.find((s) => s.current[leadKey] == null) ?? sessions[0] ?? null
           : null
       ),
-    [sessions, autoSelect]
+    [sessions, autoSelect, leadKey]
   );
 
   const [sessionId, setSessionId] = useState(initial.sessionId);
@@ -210,6 +215,7 @@ export function ManualEntryForm({
       payload[col] = n;
     }
     for (const col of MANUAL_COLUMNS) {
+      if (col === "totalLeads" && !showTotalPm) continue; // admin-only
       const raw = (values[col] ?? "").trim();
       const next = raw === "" ? null : Math.max(0, Math.round(Number(raw) || 0));
       const cur = selected.current[col] ?? null;
@@ -424,7 +430,7 @@ export function ManualEntryForm({
                       {s.title ? ` · ${s.title}` : ""}
                     </span>
                   </span>
-                  {s.current.totalLeads == null && (
+                  {s.current[leadKey] == null && (
                     <span className="shrink-0 whitespace-nowrap rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
                       Needs numbers
                     </span>
@@ -444,24 +450,26 @@ export function ManualEntryForm({
               <div className="text-sm font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-400">
                 Your results
               </div>
-              <HelpChip keys={["totalLeads", "filteredLeads"]} />
+              <HelpChip keys={showTotalPm ? ["totalLeads", "filteredLeads"] : ["filteredLeads"]} />
             </div>
             {/* One column on a phone: two 48px boxes side by side at 375px
                 leaves each `Now 1,234` chip wrapping to three lines under a
                 145px input. Two columns from `sm` up is what this grid has
                 always been. */}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-3">
-              <NumberField
-                col="totalLeads"
-                label="Total Leads"
-                value={values.totalLeads ?? ""}
-                current={selected.current.totalLeads}
-                onChange={setVal}
-                disabled={busy || applied}
-              />
+              {showTotalPm && (
+                <NumberField
+                  col="totalLeads"
+                  label="Total PM"
+                  value={values.totalLeads ?? ""}
+                  current={selected.current.totalLeads}
+                  onChange={setVal}
+                  disabled={busy || applied}
+                />
+              )}
               <NumberField
                 col="filteredLeads"
-                label="Filtered Leads"
+                label="Document Collect"
                 value={values.filteredLeads ?? ""}
                 current={selected.current.filteredLeads}
                 onChange={setVal}

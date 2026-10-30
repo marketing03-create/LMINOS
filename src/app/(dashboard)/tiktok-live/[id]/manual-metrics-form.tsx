@@ -94,8 +94,8 @@ const BACKEND_FIELDS: Field[] = [
 ];
 
 const LEAD_FIELDS: Field[] = [
-  { key: "totalLeads", label: "Total leads", help: "totalLeads" },
-  { key: "filteredLeads", label: "Filtered leads", help: "filteredLeads" },
+  { key: "totalLeads", label: "Total PM", help: "totalLeads" },
+  { key: "filteredLeads", label: "Document Collect", help: "filteredLeads" },
 ];
 
 // Admins additionally see/edit the auto keyword-comment count.
@@ -200,7 +200,11 @@ export function SessionEditor({
   remarks: string | null;
   initial: Record<string, number | null>;
 }) {
-  const leadFields = isStreamer ? LEAD_FIELDS : [...LEAD_FIELDS, ...ADMIN_LEAD_FIELDS];
+  // Total PM is admin-only: a streamer's form neither shows nor sends it (the
+  // PATCH route refuses it from a streamer anyway).
+  const leadFields = isStreamer
+    ? LEAD_FIELDS.filter((f) => f.key !== "totalLeads")
+    : [...LEAD_FIELDS, ...ADMIN_LEAD_FIELDS];
   const allFields = [...leadFields, ...LIVE_FIELDS, ...BACKEND_FIELDS];
 
   // What the database holds, as far as we know. Kept in state rather than read

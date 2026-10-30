@@ -5,7 +5,11 @@ import { ProductBadges } from "@/components/product-badges";
 import { MobileTable } from "@/components/mobile/mobile-table";
 import { RecordCard, RecordList } from "@/components/mobile/record-card";
 import { mytDate } from "@/lib/tiktok-live/live-analysis-core";
-import { METRIC_LABEL, missingMetrics } from "@/lib/tiktok-live/completeness";
+import {
+  METRIC_LABEL,
+  missingMetrics,
+  missingStreamerMetrics,
+} from "@/lib/tiktok-live/completeness";
 import { requireLivePage } from "@/lib/auth/page-guard";
 import { waLeadsForLives, type LiveWa } from "@/lib/wati/leads";
 import { WhatsAppLeads } from "./whatsapp-leads";
@@ -58,7 +62,13 @@ export default async function TikTokSessionPage({
     error = err instanceof Error ? err.message : String(err);
   }
   if (data && !data.session && !error) notFound();
-  const s = data?.session ?? null;
+  // Total PM is admin-only — a streamer's copy of the row never carries it, so
+  // it can't reach their browser through any prop below.
+  const s = data?.session
+    ? isStreamer
+      ? { ...data.session, totalLeads: null }
+      : data.session
+    : null;
   const leads = data?.leads ?? [];
 
   // WhatsApp leads from WATI. Optional: a handle with no WATI link, or the
@@ -75,7 +85,9 @@ export default async function TikTokSessionPage({
   // The same four nullable columns the reminder jobs and the Home feed read,
   // through the same pure function — so the 10pm nudge and this strip can never
   // disagree about whether this live still owes numbers. Costs no query.
-  const missing = s ? missingMetrics(s).map((m) => METRIC_LABEL[m]) : [];
+  const missing = s
+    ? (isStreamer ? missingStreamerMetrics(s) : missingMetrics(s)).map((m) => METRIC_LABEL[m])
+    : [];
 
   return (
     <div className="px-4 py-5 sm:p-8">
@@ -165,7 +177,7 @@ export default async function TikTokSessionPage({
               serviceBioViews: s.serviceBioViews,
               interestedViewers: s.interestedViewers,
               diamonds: s.diamonds,
-              totalLeads: s.totalLeads,
+              ...(isStreamer ? {} : { totalLeads: s.totalLeads }),
               filteredLeads: s.filteredLeads,
               keywordLeads: s.keywordLeads,
             }}

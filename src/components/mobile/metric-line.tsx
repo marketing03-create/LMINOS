@@ -8,7 +8,7 @@ import { NotEntered } from "@/components/mobile/not-entered";
  * costs us real information rather than just looking cramped:
  *
  *  - `streamer-home-feed.tsx` puts five metrics in `grid-cols-5 gap-1`. On a
- *    375px phone that is ~60px per column, so "Filtered leads" wraps to three
+ *    375px phone that is ~60px per column, so "Document Collect" wraps to three
  *    lines and every value below 1,000 looks like a different font size.
  *  - `live-analysis.tsx`'s seven cards carry an 11px `truncate` hint. The hint
  *    is where the honesty lives — `12 of 40 · from 6 lives` — and truncate
