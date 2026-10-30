@@ -4,7 +4,11 @@ import { Disclosure } from "@/components/mobile/disclosure";
 import { IntegrationRows } from "./integration-rows";
 import { SyncNowButton } from "./sync-now-button";
 import { TelegramLinkButton } from "./telegram-link-button";
-import { WatiConnections, type WatiConnectionView } from "./wati-connections";
+import {
+  WatiConnections,
+  type HandleLinkView,
+  type WatiConnectionView,
+} from "./wati-connections";
 import { requireAdminPage } from "@/lib/auth/page-guard";
 
 /**
@@ -23,6 +27,7 @@ type PairedUser = {
 };
 
 type WatiRow = Omit<WatiConnectionView, "webhookUrl"> & { webhookKey: string };
+type WatiData = { rows: WatiRow[]; handles: HandleLinkView[] };
 
 async function load(): Promise<{ pairedUsers: PairedUser[]; error: string | null }> {
   try {
@@ -41,6 +46,7 @@ async function load(): Promise<{ pairedUsers: PairedUser[]; error: string | null
 
     return { pairedUsers, error: null };
   } catch (err) {
+    console.error("[integrations] load failed:", err);
     return {
       pairedUsers: [],
       error: err instanceof Error ? err.message : String(err),
@@ -53,32 +59,76 @@ async function load(): Promise<{ pairedUsers: PairedUser[]; error: string | null
  * it — in particular the window between this code shipping and migration 0036
  * (the WATI tables) being applied. Null = hide the WATI section.
  */
-async function loadWati(): Promise<WatiRow[] | null> {
+function ago(ms: number): string {
+  const mins = Math.max(0, Math.round(ms / 60_000));
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 48) return `${hrs}h ago`;
+  return `${Math.round(hrs / 24)}d ago`;
+}
+
+async function loadWati(): Promise<WatiData | null> {
   try {
     const { db } = await import("@/db/client");
-    const { watiConnections, whatsappContacts } = await import("@/db/schema");
+    const { tiktokAccounts, tiktokWaLinks, watiConnections, whatsappContacts } = await import(
+      "@/db/schema"
+    );
     // "Today" is Malaysia's day (UTC+8), like every other count in the app.
     const todayMy = sql`date_trunc('day', now() at time zone 'Asia/Kuala_Lumpur') at time zone 'Asia/Kuala_Lumpur'`;
-    const rows = await db
-      .select({
-        id: watiConnections.id,
-        name: watiConnections.name,
-        webhookKey: watiConnections.webhookKey,
-        apiEndpoint: watiConnections.apiEndpoint,
-        hasToken: sql<boolean>`${watiConnections.apiTokenEnc} is not null`,
-        isActive: watiConnections.isActive,
-        lastEventAt: watiConnections.lastEventAt,
-        contacts: sql<number>`count(${whatsappContacts.id})::int`,
-        contactsToday: sql<number>`(count(${whatsappContacts.id}) filter (where ${whatsappContacts.firstMessageAt} >= ${todayMy}))::int`,
-      })
-      .from(watiConnections)
-      .leftJoin(whatsappContacts, eq(whatsappContacts.connectionId, watiConnections.id))
-      .groupBy(watiConnections.id)
-      .orderBy(watiConnections.createdAt);
-    return rows.map((r) => ({
-      ...r,
-      lastEventAt: r.lastEventAt ? r.lastEventAt.toISOString() : null,
-    }));
+    const [rows, handles] = await Promise.all([
+      db
+        .select({
+          id: watiConnections.id,
+          name: watiConnections.name,
+          webhookKey: watiConnections.webhookKey,
+          apiEndpoint: watiConnections.apiEndpoint,
+          hasToken: sql<boolean>`${watiConnections.apiTokenEnc} is not null`,
+          isActive: watiConnections.isActive,
+          lastEventAt: watiConnections.lastEventAt,
+          repliesTracked: sql<boolean>`${watiConnections.repliesSeenAt} is not null`,
+          contacts: sql<number>`count(${whatsappContacts.id})::int`,
+          contactsToday: sql<number>`(count(${whatsappContacts.id}) filter (where ${whatsappContacts.firstMessageAt} >= ${todayMy}))::int`,
+          numbers: sql<string[]>`coalesce(array_agg(distinct ${whatsappContacts.channelPhone}) filter (where ${whatsappContacts.channelPhone} is not null), '{}')`,
+        })
+        .from(watiConnections)
+        .leftJoin(whatsappContacts, eq(whatsappContacts.connectionId, watiConnections.id))
+        .groupBy(watiConnections.id)
+        .orderBy(watiConnections.createdAt),
+      db
+        .select({
+          accountId: tiktokAccounts.id,
+          handle: tiktokAccounts.handle,
+          connectionId: tiktokWaLinks.connectionId,
+          channelPhone: tiktokWaLinks.channelPhone,
+          code: tiktokWaLinks.code,
+          autoFillTotalLeads: tiktokWaLinks.autoFillTotalLeads,
+        })
+        .from(tiktokAccounts)
+        .leftJoin(tiktokWaLinks, eq(tiktokWaLinks.accountId, tiktokAccounts.id))
+        .where(eq(tiktokAccounts.isActive, true))
+        .orderBy(tiktokAccounts.handle),
+    ]);
+    const now = Date.now();
+    return {
+      rows: rows.map((r) => ({
+        ...r,
+        lastEventAt: r.lastEventAt ? r.lastEventAt.toISOString() : null,
+        lastEventAgo: r.lastEventAt ? ago(now - r.lastEventAt.getTime()) : null,
+      })),
+      handles: handles.map(({ accountId, handle, connectionId, ...link }) => ({
+        accountId,
+        handle,
+        link: connectionId
+          ? {
+              connectionId,
+              channelPhone: link.channelPhone,
+              code: link.code,
+              autoFillTotalLeads: link.autoFillTotalLeads ?? false,
+            }
+          : null,
+      })),
+    };
   } catch (err) {
     console.error("[integrations] WATI load failed:", err);
     return null;
@@ -94,7 +144,7 @@ export default async function IntegrationsPage() {
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "lmiros.vercel.app";
   const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
   const watiViews: WatiConnectionView[] | null =
-    wati?.map(({ webhookKey, ...r }) => ({
+    wati?.rows.map(({ webhookKey, ...r }) => ({
       ...r,
       webhookUrl: `${proto}://${host}/api/webhooks/wati/${webhookKey}`,
     })) ?? null;
@@ -214,11 +264,6 @@ export default async function IntegrationsPage() {
           </Disclosure>
         </div>
 
-        {watiViews && (
-          <div className="mt-8">
-            <WatiConnections connections={watiViews} />
-          </div>
-        )}
       </div>
 
       {/* Desktop: today's three cards, in today's order. */}
@@ -274,12 +319,15 @@ export default async function IntegrationsPage() {
           </ul>
         </section>
 
-        {watiViews && (
-          <div className="mt-8">
-            <WatiConnections connections={watiViews} />
-          </div>
-        )}
       </div>
+
+      {/* Once, below both renderings: its rows already collapse, and two copies
+          would mean two sets of form ids on the page. */}
+      {watiViews && wati && (
+        <div className="mt-8">
+          <WatiConnections connections={watiViews} handles={wati.handles} />
+        </div>
+      )}
     </div>
   );
 }

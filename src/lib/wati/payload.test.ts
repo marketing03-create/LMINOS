@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { eventTypeOf, normalizePhone, parseInbound } from "./payload";
+import {
+  countsAsReply,
+  eventTypeOf,
+  keysOf,
+  normalizePhone,
+  parseInbound,
+  parseOutbound,
+} from "./payload";
 
 const NOW = new Date("2026-10-30T12:00:00Z");
 
@@ -80,5 +87,80 @@ describe("parseInbound", () => {
     expect(parseInbound(null, NOW)).toBeNull();
     expect(parseInbound("hello", NOW)).toBeNull();
     expect(eventTypeOf([])).toBeNull();
+  });
+});
+
+describe("parseOutbound", () => {
+  const reply = {
+    eventType: "sessionMessageSent",
+    waId: "60123456789",
+    owner: true,
+    text: "Hi, boleh share IC?",
+    timestamp: "1793361600",
+    operatorName: "Ain",
+    operatorEmail: "ain@example.com",
+  };
+
+  it("reads a CS reply and who sent it", () => {
+    expect(parseOutbound(reply, NOW)).toEqual({
+      phone: "60123456789",
+      at: new Date(1793361600 * 1000),
+      by: "Ain",
+      human: true,
+      operatorUnknown: false,
+    });
+  });
+
+  it("treats owner messages and template sends as ours", () => {
+    expect(parseOutbound({ ...reply, eventType: "message" }, NOW)?.by).toBe("Ain");
+    expect(parseOutbound({ ...reply, eventType: "templateMessageSent" }, NOW)?.by).toBe("Ain");
+  });
+
+  it("ignores customer messages and receipts", () => {
+    expect(parseOutbound({ ...reply, eventType: "message", owner: false }, NOW)).toBeNull();
+    expect(parseOutbound({ ...reply, eventType: "sentMessageREAD" }, NOW)).toBeNull();
+    expect(parseOutbound({ ...reply, waId: "x" }, NOW)).toBeNull();
+  });
+
+  it("marks automations as not human", () => {
+    expect(parseOutbound({ ...reply, operatorName: "Bot", operatorEmail: null }, NOW)?.human).toBe(false);
+    expect(parseOutbound({ ...reply, operatorName: "WATI Chatbot" }, NOW)?.human).toBe(false);
+    expect(parseOutbound({ ...reply, operatorName: "Robert" }, NOW)?.human).toBe(true);
+  });
+
+  it("flags a reply with no operator", () => {
+    const r = parseOutbound({ ...reply, operatorName: null, operatorEmail: "" }, NOW);
+    expect(r?.by).toBeNull();
+    expect(r?.operatorUnknown).toBe(true);
+    expect(r?.human).toBe(true);
+  });
+});
+
+describe("countsAsReply", () => {
+  const first = new Date("2026-10-30T10:00:00Z");
+  const at = (s: number) => new Date(first.getTime() + s * 1000);
+  const out = { phone: "60123456789", by: "Ain", human: true, operatorUnknown: false };
+
+  it("counts a named human reply after the first message", () => {
+    expect(countsAsReply({ ...out, at: at(5) }, first)).toBe(true);
+  });
+  it("never counts a message before the lead wrote", () => {
+    expect(countsAsReply({ ...out, at: at(-60) }, first)).toBe(false);
+  });
+  it("never counts automations", () => {
+    expect(countsAsReply({ ...out, human: false, at: at(600) }, first)).toBe(false);
+  });
+  it("with no operator, only counts slow replies", () => {
+    const anon = { ...out, by: null, operatorUnknown: true };
+    expect(countsAsReply({ ...anon, at: at(2) }, first)).toBe(false);
+    expect(countsAsReply({ ...anon, at: at(45) }, first)).toBe(true);
+  });
+});
+
+describe("keysOf", () => {
+  it("lists field names only", () => {
+    expect(keysOf({ waId: "601", text: "secret" })).toEqual(["waId", "text"]);
+    expect(keysOf([1, 2])).toBeNull();
+    expect(keysOf("x")).toBeNull();
   });
 });

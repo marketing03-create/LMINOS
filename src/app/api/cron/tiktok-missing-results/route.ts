@@ -8,6 +8,7 @@ import {
   leadMetricsIncompleteCondition,
 } from "@/lib/tiktok-live/completeness";
 import { findOutstanding, notifyStreamers } from "@/lib/tiktok-live/reminders";
+import { autoFillTotalLeads } from "@/lib/wati/leads";
 
 /**
  * The 10am Malaysia-time LEADS check. Leads arrive over hours/days as Customer
@@ -18,6 +19,9 @@ import { findOutstanding, notifyStreamers } from "@/lib/tiktok-live/reminders";
  * Streamers: one Notification Center row each for lives still missing Total or
  * Filtered Leads, re-surfaced until filled (+ a Telegram DM, once per morning).
  * Admins: the existing summary, UNCHANGED — yesterday only, "no Total Leads".
+ *
+ * First, handles with WhatsApp auto-fill on get their blank Total Leads
+ * written from WATI (lib/wati/leads.ts), so those lives are not chased.
  *
  * Fail-closed on CRON_SECRET.
  */
@@ -52,6 +56,15 @@ export async function GET(request: NextRequest) {
   const { start, end, date } = yesterdayMyt();
   const { since, until } = lookbackWindow();
 
+  // Best-effort: a WATI hiccup (or the WATI tables not existing yet) must
+  // never stop the morning reminders.
+  let autoFilled = 0;
+  try {
+    autoFilled = await autoFillTotalLeads();
+  } catch (err) {
+    console.error("[cron] WhatsApp auto-fill failed:", err);
+  }
+
   // ONE scan for lives still missing LEAD numbers; both audiences derive from it.
   const outstanding = await findOutstanding(since, until, leadMetricsIncompleteCondition());
 
@@ -70,6 +83,7 @@ export async function GET(request: NextRequest) {
   if (rows.length === 0) {
     return NextResponse.json({
       ok: true,
+      autoFilled,
       date,
       missing: 0,
       alertsSent: 0,
@@ -119,6 +133,7 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({
     ok: true,
+    autoFilled,
     date,
     missing: rows.length,
     outstanding: outstanding.length,

@@ -58,9 +58,85 @@ function str(v: unknown): string | null {
   return typeof v === "string" && v.trim() !== "" ? v.trim() : null;
 }
 
+/** Top-level field names of a body (never values) — for diagnosing new shapes. */
+export function keysOf(body: unknown): string[] | null {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return null;
+  return Object.keys(body).slice(0, 60).map((k) => k.slice(0, 64));
+}
+
 export function eventTypeOf(body: unknown): string | null {
   if (!body || typeof body !== "object") return null;
   return str((body as Record<string, unknown>).eventType)?.slice(0, 64) ?? null;
+}
+
+/**
+ * Our side of a chat: a message CS sent. WATI calls a typed reply
+ * "sessionMessageSent" (a template reply "templateMessageSent"), and some
+ * accounts deliver it as a "message" with `owner: true`.
+ */
+const OUTBOUND_EVENTS = new Set(["sessionMessageSent", "templateMessageSent"]);
+
+/** Names WATI gives its own automations when they send for us. */
+const AUTOMATED_RE = /\b(bot|chatbot|automation|system|wati|auto[- ]?reply|flow)\b/i;
+
+/**
+ * A chatbot answers in about a second; a person rarely inside 20. Used only when
+ * WATI sends no operator at all — with an operator, the name decides.
+ */
+const HUMAN_MIN_DELAY_MS = 20_000;
+
+export type OutboundMessage = {
+  phone: string;
+  at: Date;
+  /** Operator name or email, when WATI says who sent it. */
+  by: string | null;
+  /** False when the sender is clearly an automation. */
+  human: boolean;
+  /** True when WATI named no operator — the 20s rule applies downstream. */
+  operatorUnknown: boolean;
+};
+
+/**
+ * A message we sent, or null. Who sent it matters: the reply-speed numbers are
+ * about people, and a chatbot's instant "Hi, how can we help?" would make every
+ * lead look answered in one second.
+ */
+export function parseOutbound(body: unknown, now: Date = new Date()): OutboundMessage | null {
+  if (!body || typeof body !== "object") return null;
+  const b = body as Record<string, unknown>;
+  const eventType = eventTypeOf(b);
+  if (!eventType) return null;
+  const outbound = OUTBOUND_EVENTS.has(eventType) || (eventType === "message" && b.owner === true);
+  if (!outbound) return null;
+
+  const phone = normalizePhone(b.waId);
+  if (!phone) return null;
+
+  const at = parseTime(b.timestamp) ?? parseTime(b.created) ?? now;
+  const name = str(b.operatorName);
+  const email = str(b.operatorEmail);
+  const by = (name ?? email)?.slice(0, 120) ?? null;
+  const automated = !!by && AUTOMATED_RE.test(`${name ?? ""} ${email ?? ""}`);
+
+  return {
+    phone,
+    at: at.getTime() > now.getTime() + 5 * 60_000 ? now : at,
+    by,
+    human: !automated,
+    operatorUnknown: !by,
+  };
+}
+
+/**
+ * Whether an outbound message counts as the lead's first human reply. Needs to
+ * come after their first message; with no operator named, it must also be slow
+ * enough not to be an auto-reply.
+ */
+export function countsAsReply(out: OutboundMessage, firstMessageAt: Date): boolean {
+  if (!out.human) return false;
+  const delay = out.at.getTime() - firstMessageAt.getTime();
+  if (delay < 0) return false;
+  return out.operatorUnknown ? delay >= HUMAN_MIN_DELAY_MS : true;
 }
 
 /**

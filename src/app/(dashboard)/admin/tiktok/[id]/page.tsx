@@ -12,6 +12,7 @@ import { Disclosure } from "@/components/mobile/disclosure";
 import { HelpChip } from "@/components/mobile/metric-help-sheet";
 import { NotEntered } from "@/components/mobile/not-entered";
 import { SessionsTable } from "../sessions-table";
+import { waLeadCounts } from "@/lib/wati/leads";
 import { LiveAnalysis } from "../live-analysis";
 import { StreamerSwitcher } from "../streamer-switcher";
 import { requireAdminPage } from "@/lib/auth/page-guard";
@@ -67,6 +68,7 @@ export default async function StreamerDetailPage({
   } catch (err) {
     error = err instanceof Error ? err.message : String(err);
   }
+  const waCounts = await waLeadCounts(sessions.map((s) => s.id));
 
   const keywords = header.leadKeywords ?? [];
 
@@ -183,7 +185,7 @@ export default async function StreamerDetailPage({
           headingLevel={2}
         >
           {sessions.length > 0 ? (
-            <SessionsTable sessions={sessions} linkHandle={false} />
+            <SessionsTable sessions={sessions} linkHandle={false} wa={waCounts} />
           ) : (
             <div className="border border-zinc-200 dark:border-zinc-800 rounded-xl p-8 text-center text-sm text-zinc-500">
               No lives in the selected range.

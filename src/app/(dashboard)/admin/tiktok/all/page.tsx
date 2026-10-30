@@ -11,6 +11,7 @@ import { NoticeStrip, type NoticeItem } from "@/components/mobile/notice-strip";
 import { PaneSwitcher, type Pane } from "@/components/mobile/pane-switcher";
 import { SessionHighlighter } from "@/app/(dashboard)/tiktok-live/session-highlighter";
 import { SessionsTable } from "../sessions-table";
+import { waLeadCounts } from "@/lib/wati/leads";
 import { toAnalysisSession } from "../live-analysis";
 import { OverviewFilters } from "./overview-filters";
 import { OverviewHeader } from "./overview-header";
@@ -93,6 +94,7 @@ export default async function AdminTikTokOverviewPage({
   } catch (err) {
     error = err instanceof Error ? err.message : String(err);
   }
+  const waCounts = await waLeadCounts(sessions.map((s) => s.id));
 
   const slim = sessions.map(toAnalysisSession);
   const keywordsByAccount = new Map(handles.map((h) => [h.id, h.hasKeywords]));
@@ -263,6 +265,7 @@ export default async function AdminTikTokOverviewPage({
                       <SessionsTable
                         sessions={sessions}
                         linkHandle={streamer === "all"}
+                        wa={waCounts}
                       />
                     </section>
                   ),

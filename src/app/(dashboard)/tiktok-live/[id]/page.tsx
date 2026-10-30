@@ -7,6 +7,8 @@ import { RecordCard, RecordList } from "@/components/mobile/record-card";
 import { mytDate } from "@/lib/tiktok-live/live-analysis-core";
 import { METRIC_LABEL, missingMetrics } from "@/lib/tiktok-live/completeness";
 import { requireLivePage } from "@/lib/auth/page-guard";
+import { waLeadsForLives, type LiveWa } from "@/lib/wati/leads";
+import { WhatsAppLeads } from "./whatsapp-leads";
 
 /**
  * MYT, and only MYT — a live's clock time is the streamer's own local time, and
@@ -58,6 +60,17 @@ export default async function TikTokSessionPage({
   if (data && !data.session && !error) notFound();
   const s = data?.session ?? null;
   const leads = data?.leads ?? [];
+
+  // WhatsApp leads from WATI. Optional: a handle with no WATI link, or the
+  // WATI tables not migrated yet, just leaves the section out.
+  let wa: LiveWa | null = null;
+  if (s) {
+    try {
+      wa = (await waLeadsForLives([s.id])).get(s.id) ?? null;
+    } catch (err) {
+      console.error("[live] WhatsApp leads failed:", err);
+    }
+  }
 
   // The same four nullable columns the reminder jobs and the Home feed read,
   // through the same pure function — so the 10pm nudge and this strip can never
@@ -156,6 +169,15 @@ export default async function TikTokSessionPage({
               filteredLeads: s.filteredLeads,
               keywordLeads: s.keywordLeads,
             }}
+          />
+
+          <WhatsAppLeads
+            wa={wa}
+            isStreamer={isStreamer}
+            viewers={s.uniqueViewers ?? (s.totalViews || null)}
+            commentLeads={s.keywordLeads}
+            totalLeads={s.totalLeads}
+            filteredLeads={s.filteredLeads}
           />
 
           {/* The keyword-comment worklist is an ADMIN follow-up tool — hidden

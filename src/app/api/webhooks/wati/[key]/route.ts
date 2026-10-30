@@ -1,8 +1,15 @@
-import { NextResponse, type NextRequest } from "next/server";
-import { and, eq, sql } from "drizzle-orm";
+import { after, NextResponse, type NextRequest } from "next/server";
+import { and, eq, gte, isNull, lt, or, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { watiConnections, whatsappContacts } from "@/db/schema";
-import { eventTypeOf, parseInbound } from "@/lib/wati/payload";
+import {
+  countsAsReply,
+  eventTypeOf,
+  keysOf,
+  parseInbound,
+  parseOutbound,
+} from "@/lib/wati/payload";
+import { sweepMissedLeads } from "@/lib/wati/missed";
 
 /**
  * WATI webhook — one URL per connected WATI account:
@@ -13,9 +20,11 @@ import { eventTypeOf, parseInbound } from "@/lib/wati/payload";
  * URL from Admin → Integrations into WATI → Webhooks.
  *
  * Every call stamps the connection's last event (so WATI's "sample callback"
- * flips the card to connected). A customer message also upserts that phone into
+ * flips the card to connected). A customer message upserts that phone into
  * `whatsapp_contacts`, keeping the EARLIEST message as first contact no matter
  * what order WATI delivers or retries in — a lead is counted once per phone.
+ * A CS message sets that lead's first human reply (see countsAsReply). After
+ * responding, the missed-lead sweep may run (lib/wati/missed.ts).
  */
 const KEY_RE = /^[A-Za-z0-9_-]{32,100}$/;
 
@@ -42,8 +51,48 @@ export async function POST(
   const now = new Date();
   await db
     .update(watiConnections)
-    .set({ lastEventAt: now, lastEventType: eventTypeOf(body), updatedAt: now })
+    .set({
+      lastEventAt: now,
+      lastEventType: eventTypeOf(body),
+      lastEventKeys: keysOf(body),
+      updatedAt: now,
+    })
     .where(eq(watiConnections.id, connection.id));
+
+  after(() => sweepMissedLeads(connection.id));
+
+  const out = parseOutbound(body, now);
+  if (out) {
+    // Reply tracking is on from the first time WATI sends us one of ours.
+    await db
+      .update(watiConnections)
+      .set({ repliesSeenAt: now })
+      .where(and(eq(watiConnections.id, connection.id), isNull(watiConnections.repliesSeenAt)));
+
+    const lead = await db.query.whatsappContacts.findFirst({
+      where: and(
+        eq(whatsappContacts.connectionId, connection.id),
+        eq(whatsappContacts.phone, out.phone)
+      ),
+      columns: { id: true, firstMessageAt: true },
+    });
+    // CS writing first (no lead row yet), a bot, or a message from before the
+    // lead wrote: none of these is a reply to a lead.
+    if (!lead || !countsAsReply(out, lead.firstMessageAt)) {
+      return NextResponse.json({ ok: true, stored: false });
+    }
+    await db
+      .update(whatsappContacts)
+      .set({ firstReplyAt: out.at, firstReplyBy: out.by, updatedAt: now })
+      .where(
+        and(
+          eq(whatsappContacts.id, lead.id),
+          gte(sql`${out.at.toISOString()}::timestamptz`, whatsappContacts.firstMessageAt),
+          or(isNull(whatsappContacts.firstReplyAt), lt(sql`${out.at.toISOString()}::timestamptz`, whatsappContacts.firstReplyAt))
+        )
+      );
+    return NextResponse.json({ ok: true, stored: true });
+  }
 
   const msg = parseInbound(body, now);
   if (!msg) return NextResponse.json({ ok: true, stored: false });

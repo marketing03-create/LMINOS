@@ -8,6 +8,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { id, timestamps } from "./columns";
+import { tiktokAccounts } from "./tiktok-accounts";
 
 /**
  * One row per WATI account (WhatsApp Business API inbox) connected to TT Stars.
@@ -31,6 +32,15 @@ export const watiConnections = pgTable("wati_connections", {
   // admin card from "waiting" to "connected" after WATI's sample callback.
   lastEventAt: timestamp("last_event_at", { withTimezone: true }),
   lastEventType: text("last_event_type"),
+  // Field names (never values) of the last body WATI sent — enough to see what
+  // shape an unfamiliar event has without storing anyone's phone or text.
+  lastEventKeys: text("last_event_keys").array(),
+  // First time a CS reply event arrived. Until then reply tracking is off for
+  // this account (WATI isn't sending "message sent" events), so a lead with no
+  // reply means "unknown", not "ignored", and no missed-lead alert may fire.
+  repliesSeenAt: timestamp("replies_seen_at", { withTimezone: true }),
+  // Last missed-lead sweep — throttles the sweep the webhook runs to one per 5 min.
+  missedCheckedAt: timestamp("missed_checked_at", { withTimezone: true }),
   ...timestamps(),
 });
 
@@ -60,10 +70,51 @@ export const whatsappContacts = pgTable(
     firstMessageAt: timestamp("first_message_at", { withTimezone: true }).notNull(),
     lastMessageAt: timestamp("last_message_at", { withTimezone: true }).notNull(),
     firstMessageText: text("first_message_text"),
+    // First human CS reply after their first message, and who sent it (WATI's
+    // operator name/email). Null = not replied yet, or reply tracking is off.
+    firstReplyAt: timestamp("first_reply_at", { withTimezone: true }),
+    firstReplyBy: text("first_reply_by"),
+    // When admins were alerted that this lead was waiting. Set once — a lead is
+    // alerted about at most one time.
+    missedAlertedAt: timestamp("missed_alerted_at", { withTimezone: true }),
     ...timestamps(),
   },
   (t) => ({
     uq: uniqueIndex("whatsapp_contacts_uq").on(t.connectionId, t.phone),
     firstIdx: index("whatsapp_contacts_first_idx").on(t.firstMessageAt),
+  })
+);
+
+/**
+ * Which WATI account (and which of its numbers) carries a TikTok handle's
+ * leads — one row per handle. This is what turns WhatsApp contacts into a
+ * per-live lead count: a contact on this number whose first message lands in
+ * one of the handle's live windows belongs to that live.
+ *
+ * `code` is an optional short word (e.g. "AIN") prefilled into the handle's
+ * click-to-WhatsApp link. A first message containing it is credited to this
+ * handle even when several handles share one number. `autoFillTotalLeads`
+ * lets the 10am job write the WhatsApp count into a live's blank Total Leads.
+ *
+ * A separate table rather than columns on tiktok_accounts, so pages that read
+ * tiktok_accounts never depend on this migration.
+ */
+export const tiktokWaLinks = pgTable(
+  "tiktok_wa_links",
+  {
+    accountId: uuid("account_id")
+      .primaryKey()
+      .references(() => tiktokAccounts.id, { onDelete: "cascade" }),
+    connectionId: uuid("connection_id")
+      .notNull()
+      .references(() => watiConnections.id, { onDelete: "cascade" }),
+    // Digits only (60164328160). Null = any number on that WATI account.
+    channelPhone: text("channel_phone"),
+    code: text("code"),
+    autoFillTotalLeads: boolean("auto_fill_total_leads").notNull().default(false),
+    ...timestamps(),
+  },
+  (t) => ({
+    codeUq: uniqueIndex("tiktok_wa_links_code_uq").on(t.code),
   })
 );

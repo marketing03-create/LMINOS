@@ -77,14 +77,17 @@ const cardWhen = new Intl.DateTimeFormat("en-GB", {
 export function SessionsTable({
   sessions,
   linkHandle = true,
+  wa,
 }: {
   sessions: SessionRow[];
   linkHandle?: boolean;
+  /** Session id → WhatsApp leads from WATI. Omitted = no WhatsApp column. */
+  wa?: Record<string, number>;
 }) {
   return (
     <MobileTable
-      table={<SessionsGrid sessions={sessions} linkHandle={linkHandle} />}
-      cards={<SessionCardList sessions={sessions} linkHandle={linkHandle} />}
+      table={<SessionsGrid sessions={sessions} linkHandle={linkHandle} wa={wa} />}
+      cards={<SessionCardList sessions={sessions} linkHandle={linkHandle} wa={wa} />}
     />
   );
 }
@@ -109,9 +112,11 @@ export function SessionsTable({
 export function SessionCardList({
   sessions,
   linkHandle = true,
+  wa,
 }: {
   sessions: SessionRow[];
   linkHandle?: boolean;
+  wa?: Record<string, number>;
 }) {
   return (
     <RecordList legend="Not entered means nobody has keyed that number in yet — it is not a zero.">
@@ -166,8 +171,9 @@ export function SessionCardList({
               { label: "Interested", value: s.interestedViewers },
               { label: "Diamonds", value: s.diamonds },
               { label: "Comment leads", value: s.keywordLeads },
+              ...(wa ? [{ label: "WhatsApp", value: wa[s.id] ?? null }] : []),
             ]}
-            detailLabel="All 22 numbers"
+            detailLabel={`All ${wa ? 23 : 22} numbers`}
             /* Only the second destination needs a footer link. "Open live" is
                the card itself — a whole-card tap is the target P2 asks for, and
                repeating it as a 44px link below the numbers would put two
@@ -199,9 +205,11 @@ export function SessionCardList({
 function SessionsGrid({
   sessions,
   linkHandle,
+  wa,
 }: {
   sessions: SessionRow[];
   linkHandle: boolean;
+  wa?: Record<string, number>;
 }) {
   return (
     <div className="border border-zinc-200 dark:border-zinc-800 rounded-xl bg-white dark:bg-zinc-950 overflow-auto max-h-[70vh]">
@@ -232,6 +240,7 @@ function SessionsGrid({
             <Th className="text-right" help={METRIC_HELP.commentLeads}>Comment leads</Th>
             <Th className="text-right" help={METRIC_HELP.totalLeads}>Total leads</Th>
             <Th className="text-right" help={METRIC_HELP.filteredLeads}>Filtered leads</Th>
+            {wa && <Th className="text-right">WhatsApp</Th>}
           </tr>
         </thead>
         <tbody>
@@ -290,6 +299,11 @@ function SessionsGrid({
               </Td>
               <Td className="text-right tabular-nums text-indigo-600 dark:text-indigo-400 font-semibold">{fmtN(s.totalLeads)}</Td>
               <Td className="text-right tabular-nums text-zinc-500">{fmtN(s.filteredLeads)}</Td>
+              {wa && (
+                <Td className="text-right tabular-nums text-emerald-600 dark:text-emerald-400">
+                  {fmtN(wa[s.id] ?? null)}
+                </Td>
+              )}
             </tr>
           ))}
         </tbody>
