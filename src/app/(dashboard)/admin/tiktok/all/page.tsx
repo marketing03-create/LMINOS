@@ -11,7 +11,8 @@ import { NoticeStrip, type NoticeItem } from "@/components/mobile/notice-strip";
 import { PaneSwitcher, type Pane } from "@/components/mobile/pane-switcher";
 import { SessionHighlighter } from "@/app/(dashboard)/tiktok-live/session-highlighter";
 import { SessionsTable } from "../sessions-table";
-import { waLeadCounts } from "@/lib/wati/leads";
+import { replySpeedFor, waLeadCounts } from "@/lib/wati/leads";
+import { ReplySpeedPane } from "./reply-speed";
 import { toAnalysisSession } from "../live-analysis";
 import { OverviewFilters } from "./overview-filters";
 import { OverviewHeader } from "./overview-header";
@@ -95,6 +96,9 @@ export default async function AdminTikTokOverviewPage({
     error = err instanceof Error ? err.message : String(err);
   }
   const waCounts = (await waLeadCounts(sessions.map((s) => s.id))) ?? {};
+  // CS reply speed for the same period (and streamer's WATI account, if one is
+  // picked). Null when no account tracks replies — the pane says so.
+  const replies = await replySpeedFor(choice.range, scope?.[0]);
 
   const slim = sessions.map(toAnalysisSession);
   const keywordsByAccount = new Map(handles.map((h) => [h.id, h.hasKeywords]));
@@ -205,6 +209,11 @@ export default async function AdminTikTokOverviewPage({
                   id: "results",
                   label: "Results",
                   children: <OverviewHeader sessions={slim} />,
+                },
+                {
+                  id: "replies",
+                  label: "CS replies",
+                  children: <ReplySpeedPane data={replies} periodLabel={choice.label} />,
                 },
                 {
                   id: "charts",

@@ -22,6 +22,7 @@ import {
   summarize,
   type LiveWaSummary,
 } from "./attribution";
+import { replySpeed, type ReplySpeed } from "./reply-speed";
 
 const DAY = 86_400_000;
 
@@ -234,5 +235,53 @@ export async function waLeadCounts(liveIds: string[]): Promise<Record<string, nu
   } catch (err) {
     console.error("[wati] lead counts failed:", err);
     return undefined;
+  }
+}
+
+/**
+ * CS reply speed for the Dashboard's period (see reply-speed.ts). `accountId`
+ * narrows to the WATI account that TikTok handle is linked to. Null when no
+ * WATI account is tracking replies yet, or anything fails.
+ */
+export async function replySpeedFor(
+  range: { start: Date; end: Date },
+  accountId?: string
+): Promise<ReplySpeed | null> {
+  try {
+    let connections = await db
+      .select({
+        id: watiConnections.id,
+        name: watiConnections.name,
+        repliesSeenAt: watiConnections.repliesSeenAt,
+      })
+      .from(watiConnections)
+      .orderBy(watiConnections.createdAt);
+    if (accountId) {
+      const link = await db.query.tiktokWaLinks.findFirst({
+        where: eq(tiktokWaLinks.accountId, accountId),
+        columns: { connectionId: true },
+      });
+      connections = connections.filter((c) => c.id === link?.connectionId);
+    }
+    if (!connections.some((c) => c.repliesSeenAt)) return null;
+
+    const rows = await db
+      .select({
+        connectionId: whatsappContacts.connectionId,
+        firstMessageAt: whatsappContacts.firstMessageAt,
+        firstReplyAt: whatsappContacts.firstReplyAt,
+      })
+      .from(whatsappContacts)
+      .where(
+        and(
+          inArray(whatsappContacts.connectionId, connections.map((c) => c.id)),
+          gte(whatsappContacts.firstMessageAt, range.start),
+          lt(whatsappContacts.firstMessageAt, range.end)
+        )
+      );
+    return replySpeed(rows, connections);
+  } catch (err) {
+    console.error("[wati] reply speed failed:", err);
+    return null;
   }
 }

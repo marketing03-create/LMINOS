@@ -91,6 +91,8 @@ async function loadWati(): Promise<WatiData | null> {
           // New today = first-EVER contact today; a returning customer's
           // earlier history (firstContactAt) keeps them out.
           contactsToday: sql<number>`(count(${whatsappContacts.id}) filter (where coalesce(${whatsappContacts.firstContactAt}, ${whatsappContacts.firstMessageAt}) >= ${todayMy}))::int`,
+          // Today's median first-reply time (minutes), from leads that got one.
+          replyMedianToday: sql<number | null>`percentile_cont(0.5) within group (order by extract(epoch from (${whatsappContacts.firstReplyAt} - ${whatsappContacts.firstMessageAt})) / 60) filter (where ${whatsappContacts.firstMessageAt} >= ${todayMy} and ${whatsappContacts.firstReplyAt} >= ${whatsappContacts.firstMessageAt})`,
           numbers: sql<string[]>`coalesce(array_agg(distinct ${whatsappContacts.channelPhone}) filter (where ${whatsappContacts.channelPhone} is not null), '{}')`,
         })
         .from(watiConnections)
@@ -117,6 +119,10 @@ async function loadWati(): Promise<WatiData | null> {
         ...r,
         lastEventAt: r.lastEventAt ? r.lastEventAt.toISOString() : null,
         lastEventAgo: r.lastEventAt ? ago(now - r.lastEventAt.getTime()) : null,
+        replyMedianToday:
+          r.replyMedianToday === null || r.replyMedianToday === undefined
+            ? null
+            : Math.round(Number(r.replyMedianToday) * 10) / 10,
       })),
       handles: handles.map(({ accountId, handle, connectionId, ...link }) => ({
         accountId,

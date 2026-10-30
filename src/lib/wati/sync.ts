@@ -14,7 +14,7 @@
  * LOOKBACK_HOURS, a few at a time. Runs from `maintainConnection` (missed.ts),
  * which the webhook triggers at most once every few minutes per account.
  */
-import { and, desc, eq, gte, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, gte, isNull } from "drizzle-orm";
 import { db } from "@/db/client";
 import { watiConnections, whatsappContacts } from "@/db/schema";
 import { decryptToken } from "@/lib/crypto/envelope";
@@ -61,7 +61,9 @@ export async function syncRepliesFromApi(
         gte(whatsappContacts.firstMessageAt, new Date(now.getTime() - LOOKBACK_HOURS * 3_600_000))
       )
     )
-    .orderBy(desc(whatsappContacts.firstMessageAt))
+    // Least recently checked first (every check stamps updatedAt below), so a
+    // batch of still-unanswered new leads can't starve the older ones.
+    .orderBy(asc(whatsappContacts.updatedAt), desc(whatsappContacts.firstMessageAt))
     .limit(MAX_PER_RUN);
 
   const result: SyncResult = { checked: 0, replied: 0, movedBack: 0 };
@@ -74,21 +76,21 @@ export async function syncRepliesFromApi(
         anyOk = true;
         result.checked += 1;
         const { items } = parseMessages(body);
-        if (items.length === 0) return;
-        const h = analyzeHistory(items, lead.firstMessageAt);
+        const h = items.length > 0 ? analyzeHistory(items, lead.firstMessageAt) : null;
 
         const set: Partial<typeof whatsappContacts.$inferInsert> = {};
-        if (lead.firstMessageAt.getTime() - h.firstContactAt.getTime() > MOVE_BACK_MIN_MS) {
+        if (h && lead.firstMessageAt.getTime() - h.firstContactAt.getTime() > MOVE_BACK_MIN_MS) {
           // Its own column: firstMessageAt stays "first message we saw".
           set.firstContactAt = h.firstContactAt;
           result.movedBack += 1;
         }
-        if (h.firstReply) {
+        if (h?.firstReply) {
           set.firstReplyAt = h.firstReply.at;
           set.firstReplyBy = h.firstReply.by;
           result.replied += 1;
         }
-        if (Object.keys(set).length === 0) return;
+        // Always written, even with nothing found: the updatedAt stamp is what
+        // moves this lead to the back of the queue.
         await db
           .update(whatsappContacts)
           .set({ ...set, updatedAt: now })

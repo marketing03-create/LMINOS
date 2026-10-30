@@ -32,6 +32,14 @@ export const METRIC_HELP = {
     "Formerly “Total Leads”. Unique customers who PM'd from this live — counted once per phone number, so the same person on DM and WhatsApp counts once. Admins only.",
   filteredLeads:
     "Formerly “Filtered Leads”. Of those customers, how many passed screening and submitted their documents.",
+  replyMedian:
+    "Half of customers got their first CS reply faster than this, half slower. Counted from their WhatsApp message to the first reply a person sent.",
+  replyAverage:
+    "The plain average. A few chats answered the next morning pull it far above what a typical customer waited — read it beside the median.",
+  replyWithin:
+    "Of the customers CS replied to, the share answered within 5 and within 15 minutes.",
+  noReply:
+    "Customers who messaged in this period and have no CS reply yet.",
   whatsappPm:
     "Customers who WhatsApp'd from this live, counted automatically from WATI — once per phone number.",
   sessions: "Number of lives in this date range.",

@@ -26,6 +26,8 @@ export type WatiConnectionView = {
    *  between the server render and hydration and break it. */
   lastEventAgo: string | null;
   repliesTracked: boolean;
+  /** Median minutes to first CS reply, today's leads. Null = none replied yet. */
+  replyMedianToday: number | null;
   contacts: number;
   contactsToday: number;
   /** Business numbers seen on this account (digits). */
@@ -50,6 +52,13 @@ const solidBtnCls =
   "inline-flex h-11 items-center justify-center rounded-xl bg-blue-600 px-5 text-[15px] font-medium text-white transition-colors hover:bg-blue-500 active:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:opacity-50 dark:focus-visible:ring-offset-zinc-950 lg:h-9 lg:text-sm";
 const ghostBtnCls =
   "inline-flex h-11 items-center justify-center rounded-xl border border-zinc-300 px-4 text-[15px] font-medium text-zinc-800 active:bg-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-200 dark:active:bg-zinc-800 lg:h-9 lg:text-sm";
+
+function fmtReply(m: number): string {
+  if (m < 1) return "<1 min";
+  if (m < 60) return `${Math.round(m)} min`;
+  const h = Math.floor(m / 60);
+  return `${h}h ${Math.round(m % 60)}m`;
+}
 
 /** 60164328160 → +60 16-432 8160 (Malaysian mobiles); anything else as +digits. */
 function fmtPhone(d: string): string {
@@ -205,6 +214,11 @@ function ConnectionRow({
               {statusText}
               {linkedHere.length > 0 && ` · ${linkedHere.map((h) => `@${h.handle}`).join(", ")}`}
             </span>
+            {c.repliesTracked && c.replyMedianToday !== null && (
+              <span className="mt-0.5 block text-sm text-indigo-600 dark:text-indigo-400">
+                Median reply today {fmtReply(c.replyMedianToday)}
+              </span>
+            )}
           </span>
           <span className="shrink-0 text-right">
             <span className="block text-base font-semibold tabular-nums">{c.contacts}</span>
