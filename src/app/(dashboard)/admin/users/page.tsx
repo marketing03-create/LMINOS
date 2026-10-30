@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { asc, eq, sql } from "drizzle-orm";
-import { TikTokAdmin, type StreamerOption, type TikTokRow } from "../tiktok/tiktok-admin";
+import { AddHandle, type StreamerOption, type TikTokRow } from "../tiktok/tiktok-admin";
 import {
   recentScreenshotMismatches,
   type MismatchAlert,
@@ -9,13 +9,13 @@ import { MismatchAlerts } from "../tiktok/mismatch-alerts";
 import { NudgePanel, type NudgeRow } from "../tiktok/nudge-panel";
 import { nudgeStatus } from "@/lib/tiktok-live/admin-nudge";
 import { StreamerChooser, type ChooserOption } from "../tiktok/streamer-chooser";
-import { Disclosure } from "@/components/mobile/disclosure";
 import { TriageItem } from "@/components/mobile/triage-item";
 import { requireAdminPage } from "@/lib/auth/page-guard";
 import { getSessionUser } from "@/lib/auth/authorize";
 import { StatusBar } from "@/components/status-bar";
-import { UsersEditor, type UserRow } from "./users-editor";
+import { type UserRow } from "./users-editor";
 import { AddUser } from "./add-user";
+import { PeopleTable } from "./people-table";
 
 type Heartbeat = { lastBeatAt: Date | null; note: string | null };
 
@@ -334,59 +334,34 @@ export default async function AdminUsersPage() {
         {/* Admin-only: streamer numbers that differ from their screenshot. */}
         <MismatchAlerts alerts={mismatches} />
 
-        {/* People: who can sign in, their role, switched on/off. */}
+        {/* People and their TikTok handles: one table. A streamer's handle
+            sits on their own row; handles nobody is assigned to follow. */}
         <section className="mt-10">
           <h2 className="mb-3 text-[17px] font-semibold lg:text-sm lg:uppercase lg:tracking-wider lg:text-zinc-500">
-            People
+            People &amp; TikTok handles
             {!people.error && (
-              <span className="font-normal text-zinc-400"> ({people.rows.length})</span>
+              <span className="font-normal text-zinc-400">
+                {" "}
+                ({people.rows.length} people · {rows.length}{" "}
+                {rows.length === 1 ? "handle" : "handles"})
+              </span>
             )}
           </h2>
-          <div className="mb-4">
+          <div className="mb-4 grid gap-3 lg:grid-cols-2">
             <AddUser />
+            <AddHandle />
           </div>
           {people.error && (
             <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
               Couldn&apos;t load the user list. Refresh to try again.
             </div>
           )}
-          <UsersEditor rows={people.rows} currentUserId={me?.userId ?? null} />
-        </section>
-
-        {/* TikTok handles: register, keywords, assign streamer, pause. */}
-        <section className="mt-10">
-          {/*
-            `Disclosure` owns 16px of horizontal padding so its summary can be a
-            full-bleed 48px tap target, which is why this is pulled flush on a
-            phone. At `lg` the body is forced open, and the arbitrary variants
-            below zero that padding again so the eight-column table lands on
-            exactly the pixel it lands on today — the `pt-3` standing in for the
-            `mb-3` the old heading block carried.
-
-            `content-visibility` is not belt-and-braces, it is the load-bearing
-            half. globals.css opens the section at `lg` with
-            `.lm-sec > .lm-body { display: block }`, and that rule ALONE no
-            longer works: every current engine implements a closed <details> as
-            `details::details-content { content-visibility: hidden }`, which
-            skips the whole subtree regardless of what `display` its children
-            ask for. Measured in Chrome 148 on this exact CSS —
-            `checkVisibility()` false, the text absent from `innerText`, and a
-            layout box still reporting a height, which is why it reads as
-            working until you look. Unfixed, the desktop table and the
-            add-handle form on this page render as nothing at 1024px. The
-            override is scoped here rather than fixed once in globals.css
-            because that file is not this owner's; it should move there, and
-            this variant should then be deleted.
-          */}
-          <div className="-mx-4 sm:mx-0 lg:[&>details::details-content]:[content-visibility:visible] lg:[&>details>summary]:px-0 lg:[&>details>.lm-body]:px-0 lg:[&>details>.lm-body]:pb-0 lg:[&>details>.lm-body]:pt-3">
-            <Disclosure
-              title="TikTok handles"
-              count={`${rows.length} ${rows.length === 1 ? "handle" : "handles"}`}
-              headingLevel={2}
-            >
-              <TikTokAdmin rows={rows} streamers={streamers} />
-            </Disclosure>
-          </div>
+          <PeopleTable
+            users={people.rows}
+            handles={rows}
+            streamers={streamers}
+            currentUserId={me?.userId ?? null}
+          />
         </section>
       </div>
     </div>

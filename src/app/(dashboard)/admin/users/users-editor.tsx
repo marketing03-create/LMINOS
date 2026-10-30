@@ -58,12 +58,31 @@ function roleOptionsFor(current: string): string[] {
   return ROLES.includes(current) ? ROLES : [...ROLES, current];
 }
 
+/**
+ * Optional extra columns per person — the Users page puts each person's TikTok
+ * handle(s) on their own row with these, instead of a second table that
+ * repeated every streamer's name. `lines(r)` returns one fragment of <td>s per
+ * handle line (at least one); the person's own cells span all of them.
+ */
+export type PersonColumns = {
+  headers: React.ReactNode;
+  count: number;
+  lines: (r: UserRow) => React.ReactNode[];
+  /** Rows after everyone (handles nobody is assigned to). */
+  trailingRows?: React.ReactNode;
+  /** Phone: shown under each person's card, and after the whole list. */
+  cardAfter?: (r: UserRow) => React.ReactNode;
+  cardTrailing?: React.ReactNode;
+};
+
 export function UsersEditor({
   rows,
   currentUserId,
+  columns,
 }: {
   rows: UserRow[];
   currentUserId: string | null;
+  columns?: PersonColumns;
 }) {
   return (
     <MobileTable
@@ -72,8 +91,8 @@ export function UsersEditor({
       // reported bug — Save and Remove sit in column 6 of a 640px table inside
       // a 375px viewport — so offering it back would be offering the bug back.
       allowEscape={false}
-      table={<UsersTable rows={rows} currentUserId={currentUserId} />}
-      cards={<UsersCardList rows={rows} currentUserId={currentUserId} />}
+      table={<UsersTable rows={rows} currentUserId={currentUserId} columns={columns} />}
+      cards={<UsersCardList rows={rows} currentUserId={currentUserId} columns={columns} />}
     />
   );
 }
@@ -83,9 +102,11 @@ export function UsersEditor({
 function UsersTable({
   rows,
   currentUserId,
+  columns,
 }: {
   rows: UserRow[];
   currentUserId: string | null;
+  columns?: PersonColumns;
 }) {
   return (
     <div className="border border-zinc-200 dark:border-zinc-800 rounded-xl bg-white dark:bg-zinc-950 overflow-x-auto">
@@ -97,27 +118,43 @@ function UsersTable({
             <Th>Role</Th>
             <Th>Active</Th>
             <Th>Telegram</Th>
+            {columns?.headers}
             <Th></Th>
           </tr>
         </thead>
         <tbody>
           {rows.length === 0 && (
             <tr>
-              <td colSpan={6} className="px-4 py-10 text-center text-zinc-500">
+              <td colSpan={6 + (columns?.count ?? 0)} className="px-4 py-10 text-center text-zinc-500">
                 No users yet.
               </td>
             </tr>
           )}
           {rows.map((r) => (
-            <Row key={r.id} r={r} isSelf={r.id === currentUserId} />
+            <Row
+              key={r.id}
+              r={r}
+              isSelf={r.id === currentUserId}
+              lines={columns?.lines(r)}
+            />
           ))}
+          {columns?.trailingRows}
         </tbody>
       </table>
     </div>
   );
 }
 
-function Row({ r, isSelf }: { r: UserRow; isSelf: boolean }) {
+function Row({
+  r,
+  isSelf,
+  lines,
+}: {
+  r: UserRow;
+  isSelf: boolean;
+  /** Extra cells, one fragment per line; the person's cells span them all. */
+  lines?: React.ReactNode[];
+}) {
   const router = useRouter();
   const [fullName, setFullName] = useState(r.fullName ?? "");
   const [role, setRole] = useState(r.role);
@@ -182,10 +219,13 @@ function Row({ r, isSelf }: { r: UserRow; isSelf: boolean }) {
     }
   }
 
+  const span = Math.max(1, lines?.length ?? 1);
+  const cell = "px-4 py-2.5 align-top";
   return (
+    <>
     <tr className="border-t border-zinc-100 dark:border-zinc-900">
-      <td className="px-4 py-2.5 font-mono text-xs">{r.email}</td>
-      <td className="px-4 py-2.5">
+      <td rowSpan={span} className={`${cell} font-mono text-xs`}>{r.email}</td>
+      <td rowSpan={span} className={cell}>
         <input
           type="text"
           value={fullName}
@@ -195,7 +235,7 @@ function Row({ r, isSelf }: { r: UserRow; isSelf: boolean }) {
           className="w-full max-w-[220px] rounded-md border border-zinc-200 dark:border-zinc-800 bg-transparent px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40"
         />
       </td>
-      <td className="px-4 py-2.5">
+      <td rowSpan={span} className={cell}>
         <select value={role} onChange={(e) => setRole(e.target.value)} className={selectCls}>
           {roleOptionsFor(r.role).map((x) => (
             <option key={x} value={x}>
@@ -204,7 +244,7 @@ function Row({ r, isSelf }: { r: UserRow; isSelf: boolean }) {
           ))}
         </select>
       </td>
-      <td className="px-4 py-2.5">
+      <td rowSpan={span} className={cell}>
         {/* Not your own: switching yourself off locks you out of the one page
             that can switch you back on. The API refuses it as well. */}
         <input
@@ -214,8 +254,9 @@ function Row({ r, isSelf }: { r: UserRow; isSelf: boolean }) {
           onChange={(e) => setActive(e.target.checked)}
         />
       </td>
-      <td className="px-4 py-2.5">{r.telegramPaired ? "✓" : "—"}</td>
-      <td className="px-4 py-2.5 text-right whitespace-nowrap">
+      <td rowSpan={span} className={cell}>{r.telegramPaired ? "✓" : "—"}</td>
+      {lines?.[0]}
+      <td rowSpan={span} className={`${cell} text-right whitespace-nowrap`}>
         {err && <span className="text-xs text-red-500 mr-2">{err}</span>}
         {dirty && (
           <button
@@ -239,6 +280,12 @@ function Row({ r, isSelf }: { r: UserRow; isSelf: boolean }) {
         )}
       </td>
     </tr>
+    {lines?.slice(1).map((line, i) => (
+      <tr key={i} className="border-t border-zinc-50 dark:border-zinc-900/60">
+        {line}
+      </tr>
+    ))}
+    </>
   );
 }
 
@@ -319,9 +366,11 @@ function Chip({
 function UsersCardList({
   rows,
   currentUserId,
+  columns,
 }: {
   rows: UserRow[];
   currentUserId: string | null;
+  columns?: PersonColumns;
 }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
@@ -469,9 +518,10 @@ function UsersCardList({
             const dirty = isDirty(r, d);
             const err = errors[r.id];
             const isSelf = r.id === currentUserId;
+            const after = columns?.cardAfter?.(r);
             return (
+              <div key={r.id} className="space-y-2">
               <RecordCard
-                key={r.id}
                 onClick={() => setEditingId(r.id)}
                 tone={dirty ? "warn" : "neutral"}
                 title={<span className="break-all text-base">{r.email}</span>}
@@ -496,8 +546,12 @@ function UsersCardList({
                   ) : undefined
                 }
               />
+              {/* This person's TikTok handle(s), indented under them. */}
+              {after && <div className="ml-4 space-y-2">{after}</div>}
+              </div>
             );
           })}
+          {columns?.cardTrailing}
         </RecordList>
       )}
 

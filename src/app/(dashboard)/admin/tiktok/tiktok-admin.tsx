@@ -1,10 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { refreshEverywhere } from "@/app/actions/refresh-everywhere";
 import { useId, useState } from "react";
-import { MobileTable } from "@/components/mobile/mobile-table";
-import { RecordCard, RecordList } from "@/components/mobile/record-card";
+import { RecordCard } from "@/components/mobile/record-card";
 import { Sheet } from "@/components/mobile/sheet";
 
 export type TikTokRow = {
@@ -28,42 +26,16 @@ export type StreamerOption = {
 const ADD_KEY = "__add__";
 
 /**
- * Handle management: register a handle, assign it a streamer, set its lead
- * keywords, pause it, stop tracking it.
+ * Handle writes: register, assign a streamer, set lead keywords, pause, stop
+ * tracking. The Users page shows handles on their streamer's own row (one
+ * table, see users/people-table.tsx); these are the pieces it is built from.
  *
- * The eight-column table below `lg` was the worst control surface in the admin
- * area: about 1,000px of grid inside `overflow-x-auto`, with a 160px <select>
- * and a 176px text input parked in columns three and four. At 375px you could
- * see the handle or you could see the controls, never both, and the two you
- * could eventually reach — Pause and Delete — were 24px tall and 8px apart, so
- * the irreversible one sat inside the mis-tap radius of the reversible one.
- *
- * `MobileTable` keeps that table exactly as it is for the laptop and hands the
- * phone a card per handle instead: three labelled rows that open a `Sheet`
- * apiece, and Delete moved behind "More" and a confirm sheet, which is the only
- * arrangement where a destructive action cannot be reached by a slipped thumb.
- * Every write is the same request it always was — the sheets change where you
- * press, never what gets sent.
- *
- * One real behaviour change, deliberate: `busy` used to be a single flag for
- * the whole component, so saving one handle's keywords greyed out every control
- * on the page. On a table that read as "the app is thinking". On a list of
- * cards it reads as "everything broke", so it is now scoped to the row that is
- * actually in flight.
+ * `busyId` is scoped to the handle in flight: one row saving must not grey
+ * out every other control on the page.
  */
-export function TikTokAdmin({
-  rows,
-  streamers,
-}: {
-  rows: TikTokRow[];
-  streamers: StreamerOption[];
-}) {
-  const [handle, setHandle] = useState("");
-  const [displayName, setDisplayName] = useState("");
+export function useHandleActions() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [addOpen, setAddOpen] = useState(false);
-  const addFormId = useId();
 
   async function call(url: string, method: string, who: string, body?: unknown) {
     setBusyId(who);
@@ -89,6 +61,25 @@ export function TikTokAdmin({
     }
   }
 
+  const patch = (id: string, body: Record<string, unknown>) =>
+    call(`/api/tiktok-accounts/${id}`, "PATCH", id, body);
+  const remove = (id: string) => call(`/api/tiktok-accounts/${id}`, "DELETE", id);
+
+  return { busyId, error, call, patch, remove };
+}
+
+/**
+ * Track a new handle. Below `lg` it is one button and a sheet: the desktop
+ * form is a `flex-wrap` row of fixed-width inputs that stacks into ragged
+ * half-width boxes on a phone, and the sheet's 16px type stops iOS zooming.
+ */
+export function AddHandle() {
+  const { busyId, error, call } = useHandleActions();
+  const [handle, setHandle] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [addOpen, setAddOpen] = useState(false);
+  const addFormId = useId();
+
   async function add(e: React.FormEvent) {
     e.preventDefault();
     const ok = await call("/api/tiktok-accounts", "POST", ADD_KEY, {
@@ -104,157 +95,20 @@ export function TikTokAdmin({
 
   const adding = busyId === ADD_KEY;
 
-  // The existing grid, byte for byte. `MobileTable` renders it inside its own
-  // `hidden lg:block` wrapper, so at `lg` this is the same table in the same
-  // place with the same widths.
-  const table = (
-    <div className="border border-zinc-200 dark:border-zinc-800 rounded-xl bg-white dark:bg-zinc-950 overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead className="bg-zinc-50 dark:bg-zinc-900 text-zinc-500 text-left">
-          <tr>
-            <Th>Handle</Th>
-            <Th>Name</Th>
-            <Th>Streamer</Th>
-            <Th>Lead keywords</Th>
-            <Th className="text-right">Sessions</Th>
-            <Th>Last synced</Th>
-            <Th>Status</Th>
-            <Th className="text-right">Actions</Th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.length === 0 && (
-            <tr>
-              <td colSpan={8} className="px-4 py-10 text-center text-zinc-500">
-                No handles tracked yet. Add one above.
-              </td>
-            </tr>
-          )}
-          {rows.map((r) => (
-            <tr key={r.id} className="border-t border-zinc-100 dark:border-zinc-900">
-              <Td className="font-mono">
-                <Link
-                  href={`/admin/tiktok/${r.id}`}
-                  className="text-blue-600 dark:text-blue-400 hover:underline"
-                >
-                  @{r.handle}
-                </Link>
-              </Td>
-              <Td>{r.displayName}</Td>
-              <Td>
-                <StreamerCell
-                  value={r.assignedStreamerId}
-                  streamers={streamers}
-                  busy={busyId === r.id}
-                  onSave={(val) =>
-                    call(`/api/tiktok-accounts/${r.id}`, "PATCH", r.id, {
-                      assignedStreamerId: val,
-                    })
-                  }
-                />
-              </Td>
-              <Td>
-                <KeywordsCell
-                  initial={(r.leadKeywords ?? []).join(", ")}
-                  busy={busyId === r.id}
-                  onSave={(val) =>
-                    call(`/api/tiktok-accounts/${r.id}`, "PATCH", r.id, {
-                      leadKeywords: val,
-                    })
-                  }
-                />
-              </Td>
-              <Td className="text-right tabular-nums">{r.sessions}</Td>
-              <Td className="text-xs text-zinc-500">
-                {r.lastSyncedAt
-                  ? new Date(r.lastSyncedAt).toLocaleString("en-MY", { hour12: false })
-                  : "—"}
-              </Td>
-              <Td>
-                <span
-                  className={`text-xs px-2 py-0.5 rounded-full ${
-                    r.isActive
-                      ? "bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400"
-                      : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500"
-                  }`}
-                >
-                  {r.isActive ? "active" : "paused"}
-                </span>
-              </Td>
-              <Td className="text-right">
-                <div className="inline-flex gap-2 justify-end">
-                  <button
-                    onClick={() =>
-                      call(`/api/tiktok-accounts/${r.id}`, "PATCH", r.id, {
-                        isActive: !r.isActive,
-                      })
-                    }
-                    disabled={busyId === r.id}
-                    className={btnSmall}
-                  >
-                    {r.isActive ? "Pause" : "Resume"}
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (confirm(`Stop tracking @${r.handle} and delete its sessions?`))
-                        call(`/api/tiktok-accounts/${r.id}`, "DELETE", r.id);
-                    }}
-                    disabled={busyId === r.id}
-                    className={btnSmall}
-                  >
-                    Delete
-                  </button>
-                </div>
-              </Td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-
-  const cards = (
-    <RecordList>
-      {rows.length === 0 ? (
-        <p className="rounded-2xl border border-dashed border-zinc-300 px-4 py-8 text-center text-sm text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
-          No handles tracked yet.
-        </p>
-      ) : (
-        rows.map((r) => (
-          <HandleCard
-            key={r.id}
-            row={r}
-            streamers={streamers}
-            busy={busyId === r.id}
-            onPatch={(body) =>
-              call(`/api/tiktok-accounts/${r.id}`, "PATCH", r.id, body)
-            }
-            onDelete={() => call(`/api/tiktok-accounts/${r.id}`, "DELETE", r.id)}
-          />
-        ))
-      )}
-    </RecordList>
-  );
-
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       {error && (
         <div className="rounded-md bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 px-3 py-2 text-sm text-red-800 dark:text-red-300">
           {error}
         </div>
       )}
 
-      {/* Below `lg` the add form is one button and a sheet. The desktop form is
-          a `flex-wrap` row of fixed-width inputs with no `w-full` anywhere, so
-          on a phone it stacks into three ragged half-width boxes; a sheet gives
-          the two fields the full width and the 16px type that stops iOS zooming
-          the page the moment you tap one. */}
       <button
         type="button"
         onClick={() => setAddOpen(true)}
-        className="flex h-12 w-full items-center justify-center rounded-xl bg-zinc-900 text-base font-medium text-zinc-50 active:bg-zinc-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 lg:hidden dark:bg-zinc-50 dark:text-zinc-900 dark:active:bg-zinc-300 dark:focus-visible:ring-offset-zinc-950"
+        className="flex h-12 w-full items-center justify-center rounded-xl border border-zinc-300 text-base font-medium active:bg-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 lg:hidden dark:border-zinc-700 dark:active:bg-zinc-800"
       >
-        + Add handle
+        + Track TikTok handle
       </button>
 
       <Sheet
@@ -327,12 +181,6 @@ export function TikTokAdmin({
           {adding ? "Saving…" : "+ Track handle"}
         </button>
       </form>
-
-      {/* No "show the full grid" escape here. Everywhere else that hatch reveals
-          numbers to read; this table is controls, and revealing it on a phone
-          would hand back the 160px select and the 24px Delete this card list
-          exists to replace. */}
-      <MobileTable table={table} cards={cards} allowEscape={false} />
     </div>
   );
 }
@@ -345,18 +193,21 @@ type SheetKind = "streamer" | "keywords" | "more" | "delete";
  * field are precisely what made the table unusable at 375px — and because a
  * sheet can show a streamer's full email instead of truncating it to fit 160px.
  */
-function HandleCard({
+export function HandleCard({
   row,
   streamers,
   busy,
   onPatch,
   onDelete,
+  showStreamer = true,
 }: {
   row: TikTokRow;
   streamers: StreamerOption[];
   busy: boolean;
   onPatch: (body: Record<string, unknown>) => Promise<boolean>;
   onDelete: () => Promise<boolean>;
+  /** Off when the card sits under its streamer: the row would repeat them. */
+  showStreamer?: boolean;
 }) {
   const [sheet, setSheet] = useState<SheetKind | null>(null);
   const [keywords, setKeywords] = useState((row.leadKeywords ?? []).join(", "));
@@ -386,7 +237,7 @@ function HandleCard({
         meta={
           <>
             <span className="block">
-              {row.displayName || "No display name"} · {row.sessions} {lives}
+              {row.sessions} {lives}
             </span>
             {/* "Never synced", not "—". A dash here reads as zero, and zero
                 would be a claim about the connector that nobody has made. */}
@@ -407,18 +258,20 @@ function HandleCard({
           // Pulled back out to the card's edges so each row's press state runs
           // full bleed while its text still lines up with the title above it.
           <div className="-mx-4 w-[calc(100%+2rem)] divide-y divide-zinc-100 dark:divide-zinc-800">
-            <button
-              type="button"
-              disabled={busy || noLogins}
-              onClick={() => setSheet("streamer")}
-              className={settingRow}
-            >
-              <span className={settingLabel}>Streamer</span>
-              <span className={settingValue}>
-                <span className="min-w-0 break-words">{streamerLabel}</span>
-                <Chevron />
-              </span>
-            </button>
+            {showStreamer && (
+              <button
+                type="button"
+                disabled={busy || noLogins}
+                onClick={() => setSheet("streamer")}
+                className={settingRow}
+              >
+                <span className={settingLabel}>Assign to</span>
+                <span className={settingValue}>
+                  <span className="min-w-0 break-words">{streamerLabel}</span>
+                  <Chevron />
+                </span>
+              </button>
+            )}
 
             <button
               type="button"
@@ -546,7 +399,16 @@ function HandleCard({
         onClose={() => setSheet(null)}
         title={`@${row.handle}`}
       >
-        <div className="pb-2">
+        <div className="space-y-2 pb-2">
+          {row.assignedStreamerId && (
+            <button
+              type="button"
+              onClick={() => close(() => onPatch({ assignedStreamerId: null }))}
+              className="flex h-12 w-full items-center justify-center rounded-xl border border-zinc-300 text-base font-medium active:bg-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-zinc-700 dark:active:bg-zinc-800"
+            >
+              Unassign from {assigned?.fullName || assigned?.email || "streamer"}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setSheet("delete")}
@@ -616,42 +478,7 @@ function Tick() {
   );
 }
 
-function StreamerCell({
-  value,
-  streamers,
-  busy,
-  onSave,
-}: {
-  value: string | null;
-  streamers: StreamerOption[];
-  busy: boolean;
-  onSave: (val: string | null) => void;
-}) {
-  if (streamers.length === 0) {
-    return (
-      <span className="text-xs text-zinc-400">
-        No streamer logins yet
-      </span>
-    );
-  }
-  return (
-    <select
-      value={value ?? ""}
-      disabled={busy}
-      onChange={(e) => onSave(e.target.value || null)}
-      className="w-40 rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-2 py-1 text-xs disabled:opacity-50"
-    >
-      <option value="">— none —</option>
-      {streamers.map((s) => (
-        <option key={s.id} value={s.id}>
-          {s.fullName ? `${s.fullName} (${s.email})` : s.email}
-        </option>
-      ))}
-    </select>
-  );
-}
-
-function KeywordsCell({
+export function KeywordsCell({
   initial,
   busy,
   onSave,
@@ -683,7 +510,7 @@ const inputCls =
   "rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100";
 const btnPrimary =
   "inline-flex items-center rounded-md bg-zinc-900 dark:bg-zinc-50 text-zinc-50 dark:text-zinc-900 px-4 py-2 text-sm font-medium disabled:opacity-50";
-const btnSmall =
+export const btnSmall =
   "inline-flex items-center rounded-md bg-zinc-100 dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 px-2.5 py-1 text-xs disabled:opacity-50";
 
 /** 16px on the phone so iOS Safari does not zoom the page on focus. */
@@ -698,13 +525,3 @@ const settingValue =
 const pickRow =
   "flex min-h-12 w-full items-center justify-between gap-3 px-1 py-2 text-left text-base active:bg-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500 dark:active:bg-zinc-800";
 
-function Th({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return (
-    <th className={`px-4 py-2.5 font-medium text-xs uppercase tracking-wider ${className}`}>
-      {children}
-    </th>
-  );
-}
-function Td({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <td className={`px-4 py-2.5 ${className}`}>{children}</td>;
-}
