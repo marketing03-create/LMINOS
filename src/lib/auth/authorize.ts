@@ -50,7 +50,13 @@ function devBypassRole(): Role {
  */
 export async function requireRole(roles: Role[]): Promise<AuthResult> {
   if (devBypass()) {
-    return { ok: true, userId: null, role: devBypassRole() };
+    // The impersonated role is still held to `roles`. This used to return ok
+    // for any route, so a local "streamer" could call every admin API — which
+    // made role testing meaningless and, on 2026-10-30, let a leak probe write
+    // to the real database. (Dev only: devBypass() is off in production.)
+    const role = devBypassRole();
+    if (!roles.includes(role)) return { ok: false, status: 403, error: "forbidden" };
+    return { ok: true, userId: null, role };
   }
 
   const supabase = await createSupabaseServerClient();
