@@ -10,7 +10,6 @@ import { METRIC_HELP } from "@/lib/tiktok-live/metric-help";
 import { AGG_LABEL, AGGREGATIONS, type Agg } from "@/lib/tiktok-live/live-analysis-core";
 import type { RangeChoice } from "@/lib/date-range";
 
-const BASE = "/admin/tiktok/all";
 
 /**
  * The Overview's three filters: date, streamer, and how to combine the charts.
@@ -32,12 +31,15 @@ const BASE = "/admin/tiktok/all";
  * and nothing about the URL it emits changes.
  */
 export function OverviewFilters({
+  basePath = "/admin/tiktok/all",
   choice,
   handles,
   streamer,
   agg,
   exportHref,
 }: {
+  /** Which route the filters navigate within (Dashboard or Analytics). */
+  basePath?: string;
   choice: RangeChoice;
   handles: { id: string; handle: string }[];
   /** Selected account id, or "all". */
@@ -74,7 +76,7 @@ export function OverviewFilters({
       ...rest,
     });
     startTransition(() => {
-      router.push(`${BASE}?${qs.toString()}`, { scroll: false });
+      router.push(`${basePath}?${qs.toString()}`, { scroll: false });
     });
   }
 
@@ -130,7 +132,7 @@ export function OverviewFilters({
                   already here, and it opens its own sheet on top of this one
                   (Sheet stacks — see `sheetStack` in sheet.tsx). */}
               <CompactDateFilter
-                basePath={BASE}
+                basePath={basePath}
                 choice={choice}
                 extraParams={{ streamer, agg }}
                 align="start"
@@ -214,7 +216,7 @@ export function OverviewFilters({
           {/* align="start": this is the leftmost control, so the panel must open
               rightwards into the page. Right-aligned it runs off the side. */}
           <CompactDateFilter
-            basePath={BASE}
+            basePath={basePath}
             choice={choice}
             extraParams={{ streamer, agg }}
             align="start"

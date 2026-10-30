@@ -51,8 +51,28 @@ const nf = (n: number) => n.toLocaleString("en-MY");
  *    for the pane chip — recomputation of a count, no extra query, and no
  *    second copy of ten links to the same lives on the phone.
  */
-export default async function AdminTikTokOverviewPage({
+export type OverviewVariant = "dashboard" | "analytics";
+
+/**
+ * Two routes share this body and its filters:
+ *  - Dashboard (/admin/tiktok/all): the daily screen — Results, CS replies and
+ *    the session history.
+ *  - Analytics (/admin/analytics): every card and chart — Results, CS replies,
+ *    Charts, Streamers and the Chase queue.
+ */
+const PANES: Record<OverviewVariant, string[]> = {
+  dashboard: ["results", "replies", "lives"],
+  analytics: ["results", "replies", "charts", "streamers", "chase"],
+};
+
+const BASE_PATH: Record<OverviewVariant, string> = {
+  dashboard: "/admin/tiktok/all",
+  analytics: "/admin/analytics",
+};
+
+export async function OverviewView({
   searchParams,
+  variant,
 }: {
   searchParams: Promise<{
     range?: string;
@@ -61,6 +81,7 @@ export default async function AdminTikTokOverviewPage({
     streamer?: string;
     agg?: string;
   }>;
+  variant: OverviewVariant;
 }) {
   // Page-level role check: the layout's check can be skipped (see page-guard.ts).
   await requireAdminPage();
@@ -95,7 +116,9 @@ export default async function AdminTikTokOverviewPage({
   } catch (err) {
     error = err instanceof Error ? err.message : String(err);
   }
-  const waCounts = (await waLeadCounts(sessions.map((s) => s.id))) ?? {};
+  // Only the Dashboard shows the session table, and with it the WhatsApp PM column.
+  const waCounts =
+    variant === "dashboard" ? ((await waLeadCounts(sessions.map((s) => s.id))) ?? {}) : {};
   // CS reply speed for the same period (and streamer's WATI account, if one is
   // picked). Null when no account tracks replies — the pane says so.
   const replies = await replySpeedFor(choice.range, scope?.[0]);
@@ -163,10 +186,13 @@ export default async function AdminTikTokOverviewPage({
       <SessionHighlighter />
 
       <header className="mb-4">
-        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Dashboard</h1>
+        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">
+          {variant === "dashboard" ? "Dashboard" : "Analytics"}
+        </h1>
       </header>
 
       <OverviewFilters
+        basePath={BASE_PATH[variant]}
         choice={choice}
         handles={handles}
         streamer={streamer}
@@ -204,7 +230,7 @@ export default async function AdminTikTokOverviewPage({
             // pane is CSS-hidden and stays mounted.
             mountGatedIds={["charts"]}
             panes={
-              [
+              ([
                 {
                   id: "results",
                   label: "Results",
@@ -280,6 +306,7 @@ export default async function AdminTikTokOverviewPage({
                   ),
                 },
               ] satisfies Pane[]
+              ).filter((p) => PANES[variant].includes(p.id))
             }
           />
         </>
