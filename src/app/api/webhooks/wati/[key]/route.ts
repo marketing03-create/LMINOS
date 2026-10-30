@@ -9,7 +9,7 @@ import {
   parseInbound,
   parseOutbound,
 } from "@/lib/wati/payload";
-import { sweepMissedLeads } from "@/lib/wati/missed";
+import { maintainConnection } from "@/lib/wati/missed";
 
 /**
  * WATI webhook — one URL per connected WATI account:
@@ -23,8 +23,10 @@ import { sweepMissedLeads } from "@/lib/wati/missed";
  * flips the card to connected). A customer message upserts that phone into
  * `whatsapp_contacts`, keeping the EARLIEST message as first contact no matter
  * what order WATI delivers or retries in — a lead is counted once per phone.
- * A CS message sets that lead's first human reply (see countsAsReply). After
- * responding, the missed-lead sweep may run (lib/wati/missed.ts).
+ * A CS message sets that lead's first human reply (see countsAsReply) — though
+ * WATI turns out not to send these for Team Inbox / app replies, so reply times
+ * mostly come from the API read in `maintainConnection` (lib/wati/missed.ts),
+ * which runs after the response.
  */
 const KEY_RE = /^[A-Za-z0-9_-]{32,100}$/;
 
@@ -59,7 +61,8 @@ export async function POST(
     })
     .where(eq(watiConnections.id, connection.id));
 
-  after(() => sweepMissedLeads(connection.id));
+  // Reply times from the API, then missed-lead alerts — throttled inside.
+  after(() => maintainConnection(connection.id));
 
   const out = parseOutbound(body, now);
   if (out) {

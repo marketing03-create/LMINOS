@@ -1,0 +1,1 @@
+ALTER TABLE "whatsapp_contacts" ADD COLUMN "first_contact_at" timestamp with time zone;

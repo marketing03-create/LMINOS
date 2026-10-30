@@ -88,7 +88,9 @@ async function loadWati(): Promise<WatiData | null> {
           lastEventAt: watiConnections.lastEventAt,
           repliesTracked: sql<boolean>`${watiConnections.repliesSeenAt} is not null`,
           contacts: sql<number>`count(${whatsappContacts.id})::int`,
-          contactsToday: sql<number>`(count(${whatsappContacts.id}) filter (where ${whatsappContacts.firstMessageAt} >= ${todayMy}))::int`,
+          // New today = first-EVER contact today; a returning customer's
+          // earlier history (firstContactAt) keeps them out.
+          contactsToday: sql<number>`(count(${whatsappContacts.id}) filter (where coalesce(${whatsappContacts.firstContactAt}, ${whatsappContacts.firstMessageAt}) >= ${todayMy}))::int`,
           numbers: sql<string[]>`coalesce(array_agg(distinct ${whatsappContacts.channelPhone}) filter (where ${whatsappContacts.channelPhone} is not null), '{}')`,
         })
         .from(watiConnections)

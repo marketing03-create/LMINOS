@@ -39,6 +39,34 @@ export function cleanToken(raw: unknown): string | null {
 }
 
 /**
+ * One chat's latest messages (newest first), or null on any failure. Accounts
+ * with several numbers need `channelPhone`, or WATI answers "Can't find
+ * Conversation". Never throws, and never logs WATI's error text — it echoes
+ * the customer's phone number back.
+ */
+export async function fetchChat(
+  endpoint: string,
+  token: string,
+  phone: string,
+  channelPhone: string | null
+): Promise<unknown | null> {
+  const qs = new URLSearchParams({ pageSize: "50", pageNumber: "1" });
+  if (channelPhone) qs.set("channelPhoneNumber", channelPhone);
+  try {
+    const res = await fetch(`${endpoint}/api/v1/getMessages/${phone}?${qs}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(10_000),
+      cache: "no-store",
+    });
+    if (!res.ok) return null;
+    const body = (await res.json().catch(() => null)) as { result?: unknown } | null;
+    return body && body.result !== false ? body : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Asks WATI for one contact — the cheapest call that proves the endpoint and
  * token work together. Never throws.
  */

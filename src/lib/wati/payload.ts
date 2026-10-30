@@ -80,10 +80,12 @@ const OUTBOUND_EVENTS = new Set(["sessionMessageSent", "templateMessageSent"]);
 const AUTOMATED_RE = /\b(bot|chatbot|automation|system|wati|auto[- ]?reply|flow)\b/i;
 
 /**
- * A chatbot answers in about a second; a person rarely inside 20. Used only when
- * WATI sends no operator at all — with an operator, the name decides.
+ * An automatic greeting goes out within a second or two; a person needs more
+ * than 10. Used only when WATI names no operator — with an operator, the name
+ * decides. (On a number running the WhatsApp Business app alongside WATI, no
+ * reply carries an operator, so this is what separates greetings from people.)
  */
-const HUMAN_MIN_DELAY_MS = 20_000;
+export const HUMAN_MIN_DELAY_MS = 10_000;
 
 export type OutboundMessage = {
   phone: string;

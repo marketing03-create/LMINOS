@@ -267,6 +267,13 @@
       "when": 1793341997186,
       "tag": "0037_wati_leads",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1793350631600,
+      "tag": "0038_wati_first_contact",
+      "breakpoints": true
     }
   ]
 }

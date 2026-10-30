@@ -70,6 +70,13 @@ export const whatsappContacts = pgTable(
     firstMessageAt: timestamp("first_message_at", { withTimezone: true }).notNull(),
     lastMessageAt: timestamp("last_message_at", { withTimezone: true }).notNull(),
     firstMessageText: text("first_message_text"),
+    // The customer's real first message, read from WATI's chat history — set
+    // only when it is earlier than `firstMessageAt` (TT Stars only hears chats
+    // from the day it was connected). A lead is counted for the live their
+    // FIRST contact falls in, so a returning customer isn't a new lead again.
+    // `firstMessageAt` stays "first message TT Stars saw": reply times run
+    // from it. Null = no earlier history found.
+    firstContactAt: timestamp("first_contact_at", { withTimezone: true }),
     // First human CS reply after their first message, and who sent it (WATI's
     // operator name/email). Null = not replied yet, or reply tracking is off.
     firstReplyAt: timestamp("first_reply_at", { withTimezone: true }),

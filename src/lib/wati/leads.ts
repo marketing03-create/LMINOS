@@ -104,6 +104,7 @@ export async function waLeadsForLives(liveIds: string[]): Promise<Map<string, Li
       name: whatsappContacts.name,
       phone: whatsappContacts.phone,
       firstMessageAt: whatsappContacts.firstMessageAt,
+      firstContactAt: whatsappContacts.firstContactAt,
       firstMessageText: whatsappContacts.firstMessageText,
       firstReplyAt: whatsappContacts.firstReplyAt,
       firstReplyBy: whatsappContacts.firstReplyBy,
@@ -118,10 +119,13 @@ export async function waLeadsForLives(liveIds: string[]): Promise<Map<string, Li
     )
     .orderBy(desc(whatsappContacts.firstMessageAt));
 
+  // A lead belongs to the live their FIRST-EVER contact falls in — a returning
+  // customer (firstContactAt from WATI's history) isn't a new lead again.
+  // Reply times (summarize) still run from the message TT Stars saw.
   const assigned = attributeContacts(
     lives.filter((l) => l.startedAt).map((l) => ({ ...l, startedAt: l.startedAt! })),
     links,
-    contacts
+    contacts.map((c) => ({ ...c, firstMessageAt: c.firstContactAt ?? c.firstMessageAt }))
   );
 
   const windows = liveWindows(lives.filter((l) => l.startedAt).map((l) => ({ ...l, startedAt: l.startedAt! })));
