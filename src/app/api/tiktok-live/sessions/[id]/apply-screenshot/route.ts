@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { and, eq, gte, isNull } from "drizzle-orm";
+import { and, eq, gte, inArray, isNull } from "drizzle-orm";
 import { db } from "@/db/client";
 import { tiktokLiveSessions, tiktokScreenshotUploads } from "@/db/schema";
 import { ADMIN_ROLES, requireRole } from "@/lib/auth/authorize";
@@ -12,6 +12,7 @@ import {
   type ManualTikTokField,
 } from "@/lib/tiktok-live/queries";
 import { markUserEntered } from "@/lib/tiktok-live/user-entered-sql";
+import { uploadsForSession } from "@/lib/tiktok-live/screenshot-link-core";
 
 const AUTO = new Set<string>(AUTO_TIKTOK_FIELDS);
 const MANUAL = new Set<string>(MANUAL_TIKTOK_FIELDS);
@@ -175,12 +176,17 @@ export async function POST(
   // Best-effort: link this uploader's recent, still-unlinked screenshot uploads
   // to the session they were just applied to, so the audit history shows which
   // live each screenshot backs. (Import → review → apply happens within minutes.)
+  // Only uploads dated this live's day — see uploadsForSession.
   if (auth.userId) {
     try {
       const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
-      await db
-        .update(tiktokScreenshotUploads)
-        .set({ appliedSessionId: id })
+      const recent = await db
+        .select({
+          id: tiktokScreenshotUploads.id,
+          detectedDate: tiktokScreenshotUploads.detectedDate,
+          createdAt: tiktokScreenshotUploads.createdAt,
+        })
+        .from(tiktokScreenshotUploads)
         .where(
           and(
             eq(tiktokScreenshotUploads.uploaderUserId, auth.userId),
@@ -188,6 +194,13 @@ export async function POST(
             gte(tiktokScreenshotUploads.createdAt, twoHoursAgo)
           )
         );
+      const linkIds = uploadsForSession(recent, beforeRow.startedAt);
+      if (linkIds.length > 0) {
+        await db
+          .update(tiktokScreenshotUploads)
+          .set({ appliedSessionId: id })
+          .where(inArray(tiktokScreenshotUploads.id, linkIds));
+      }
     } catch {
       // linking is a convenience for the audit view — never fail the apply
     }
