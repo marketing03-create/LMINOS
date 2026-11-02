@@ -1,54 +1,33 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { refreshEverywhere } from "@/app/actions/refresh-everywhere";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AUTO_COLUMNS, MANUAL_COLUMNS } from "@/lib/tiktok-live/screenshot-extract-core";
+import {
+  AUTO_FIELDS,
+  FIELD_LABEL,
+  REQUIRED_FIELDS,
+  STUDIO_FIELDS,
+  filledCount,
+  missingRequired,
+} from "@/lib/tiktok-live/input-fields";
 import { ProductPicker } from "@/components/product-picker";
-import { LivePicker } from "@/components/live-picker";
 import { Sheet } from "@/components/mobile/sheet";
-import { Disclosure } from "@/components/mobile/disclosure";
 import { NumberField } from "@/components/mobile/number-field";
 import { StickyAction } from "@/components/mobile/sticky-action";
 import { HelpChip } from "@/components/mobile/metric-help-sheet";
+import { FormSection } from "@/components/mobile/form-section";
 import type { MatchCandidate } from "@/lib/tiktok-live/queries";
 
 const sameProducts = (a: string[], b: string[]) =>
   [...a].sort().join("|") === [...b].sort().join("|");
 
-// The lead counts get their own prominent "Your results" section at the top, so
-// exclude them from the general extras grid (apply() still reads them from the
-// same values map, so nothing changes in what gets saved).
-const EXTRA_COLUMNS = MANUAL_COLUMNS.filter(
-  (c) => c !== "totalLeads" && c !== "filteredLeads"
-);
-
-const LABELS: Record<string, string> = {
-  totalViews: "Views",
-  peakViewers: "Peak viewers",
-  avgViewers: "Avg viewers",
-  totalLikes: "Likes",
-  totalComments: "Comments",
-  totalShares: "Shares",
-  newFollowers: "New followers",
-  uniqueViewers: "Unique viewers",
-  activeViewers: "Active viewers",
-  avgWatchSeconds: "Avg watch (sec)",
-  directMessages: "Direct messages",
-  serviceBioViews: "Service bio views",
-  interestedViewers: "Interested viewers",
-  diamonds: "Diamonds",
-  totalLeads: "Total PM",
-  filteredLeads: "Document Collect",
-};
-
 /**
- * `8 Sep, 9:15 pm` — short enough to sit on one line of a 375px chip beside a
- * 44px button, which the full `en-MY` timestamp (`08/09/2026, 21:15:00`) is
- * not. No `timeZone` option on purpose: every other date on this route is
- * formatted in the reader's own zone (see `LivePicker`), and quietly pinning
- * one of them to MYT would make the same live look like two different lives
- * depending on which control you read it from.
+ * `8 Sep, 9:15 pm`. No `timeZone` option on purpose: every other date on this
+ * route is formatted in the reader's own zone, and pinning one of them to MYT
+ * would make the same live look like two different lives.
  */
 function fmtWhen(d: Date | string | null): string {
   if (!d) return "Date unknown";
@@ -61,9 +40,7 @@ function fmtWhen(d: Date | string | null): string {
   });
 }
 
-/** Everything the form pre-fills from a live, in one place — it is read twice
- *  (once for the F4 default at mount, once on every re-pick) and the two must
- *  not drift. */
+/** Everything the form pre-fills from a live — read at mount and on every re-pick. */
 function stateFor(s: MatchCandidate | null) {
   const values: Record<string, string> = {};
   if (s) {
@@ -81,41 +58,34 @@ function stateFor(s: MatchCandidate | null) {
 }
 
 /**
- * Type-the-numbers form on the streamer upload page. This is the MAIN way to
- * record a live's TikTok-backend numbers — the screenshot reader is just a
- * shortcut. The live is already picked, you type what TikTok Studio shows, tag
- * the product, and save. Writes through the same routes the screenshot import
- * uses (product via the session PATCH, numbers via apply-screenshot), so the
- * Views/Likes lock and audit trail are identical.
+ * Type in a live's results. The live comes first (pre-picked: the newest one
+ * still owing a required number), then the form in numbered sections —
+ * 1 Required (what reminders chase), 2 TikTok Studio, 3 Live performance (the
+ * connector's numbers, folded away), 4 Product & remarks — each with a "filled /
+ * total" pill. The Save bar counts the changes it is about to send.
+ *
+ * Writes exactly as before: product + remarks through the session PATCH, the
+ * numbers through apply-screenshot, changed keys only, so the audit trail and
+ * the Views/Likes lock are the same as a screenshot import.
  */
 export function ManualEntryForm({
   sessions,
   autoSelect = false,
 }: {
   sessions: MatchCandidate[];
-  /**
-   * Fix F4, and deliberately opt-in rather than always-on. `?mode=manual` is
-   * the route the tab bar's "+" points at, and there the streamer has exactly
-   * one job — clear the live that just ended — so guessing it for them is a
-   * free tap. The legacy no-mode page is a union of three forms where a
-   * pre-filled one would look like it had already been touched, so it opts out
-   * and keeps rendering the untouched picker it renders today.
-   */
+  /** Pre-pick the newest live still owing numbers (the "+" button's route). */
   autoSelect?: boolean;
 }) {
   const router = useRouter();
 
-  // The newest live still missing its Total PM is, by definition, the one
-  // the streamer came here to fill in — Home computes the same set to build its
-  // "needs numbers" list. `sessionsForMatching` returns newest first, so the
-  // first match is the newest one. Falling back to the newest live overall
-  // matters more than it looks: with every live already filled in, an empty
-  // picker would read as "nothing to correct here".
+  // `sessionsForMatching` returns newest first, so the first match is the
+  // newest live still owing a required number. Falling back to the newest live
+  // overall keeps the form usable when everything is already filled in.
   const initial = useMemo(
     () =>
       stateFor(
         autoSelect
-          ? sessions.find((s) => s.current.totalLeads == null) ?? sessions[0] ?? null
+          ? sessions.find((s) => missingRequired(s.current) > 0) ?? sessions[0] ?? null
           : null
       ),
     [sessions, autoSelect]
@@ -128,8 +98,7 @@ export function ManualEntryForm({
   const [busy, setBusy] = useState(false);
   const [applied, setApplied] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
-  // Seconds left on the frozen post-save redirect. `null` = no redirect pending
-  // (either none started, or the streamer cancelled it).
+  // Seconds left on the post-save redirect; null = none pending.
   const [countdown, setCountdown] = useState<number | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -137,8 +106,7 @@ export function ManualEntryForm({
   const selected = sessions.find((s) => s.sessionId === sessionId);
 
   // Both halves of the redirect live here so "Stay here" and unmount can stop
-  // them together. A ref, not state: cancelling must not wait for a re-render —
-  // the whole control exists to beat a 2s timer.
+  // them together. A ref: cancelling must not wait for a re-render.
   const timers = useRef<{
     push: ReturnType<typeof setTimeout> | null;
     tick: ReturnType<typeof setInterval> | null;
@@ -150,8 +118,6 @@ export function ManualEntryForm({
     timers.current = { push: null, tick: null };
   }, []);
 
-  // A pending `router.push` that fires after this form is gone would yank a
-  // streamer off whatever they navigated to instead.
   useEffect(() => stopRedirect, [stopRedirect]);
 
   function pickSession(id: string) {
@@ -175,32 +141,20 @@ export function ManualEntryForm({
   function stayHere() {
     stopRedirect();
     setCountdown(null);
-    // `applied` has to come back off, not just the timers. Every control on
-    // this form — the fields, the product picker, the remarks box, the "Change"
-    // button and the desktop LivePicker — is disabled on `busy || applied`,
-    // because until now `applied` only ever lasted the 2s until the redirect
-    // took the form off screen. Leaving it latched here would strand the
-    // streamer on a form where nothing responds, which is the opposite of what
-    // "Stay here" promises (and it exists precisely for the streamer with three
-    // lives to clear in one sitting, who now needs to pick the next one).
+    // `applied` disables every control, so it has to come off too, or "Stay
+    // here" would strand the streamer on a form where nothing responds.
     setApplied(false);
     setMsg("Saved ✓");
-    // The redirect path refreshes; the stay path must too, or the "Now …" chips
-    // beside every field keep showing the pre-save values and a second Save
-    // would diff against stale `current` and re-send numbers that are already
-    // stored — one extra audit row per save. Contract #66: refresh after
-    // every successful mutation — every cached page, not just this one.
+    // Refresh every cached page, or the "Now …" chips keep pre-save values and
+    // the next Save diffs against stale numbers.
     void refreshEverywhere();
   }
 
-  async function apply() {
-    if (!sessionId || !selected) {
-      setMsg("Pick a live first.");
-      return;
-    }
-    // Only send fields that actually changed (AUTO can't be blank → skip blanks;
-    // MANUAL may be cleared to null).
+  // What a Save would send right now: changed numbers only (AUTO columns can't
+  // be blank, so a blank is skipped; MANUAL ones may be cleared to null).
+  const changes = useMemo(() => {
     const payload: Record<string, number | null> = {};
+    if (!selected) return { payload, productChanged: false, remarksChanged: false, count: 0 };
     for (const col of AUTO_COLUMNS) {
       const raw = (values[col] ?? "").trim();
       if (raw === "") continue;
@@ -218,8 +172,19 @@ export function ManualEntryForm({
     }
     const productChanged = !sameProducts(products, selected.products ?? []);
     const remarksChanged = remarks.trim() !== (selected.remarks ?? "").trim();
+    const count =
+      Object.keys(payload).length + (productChanged ? 1 : 0) + (remarksChanged ? 1 : 0);
+    return { payload, productChanged, remarksChanged, count };
+  }, [selected, values, products, remarks]);
+
+  async function apply() {
+    if (!sessionId || !selected) {
+      setMsg("Pick a live first.");
+      return;
+    }
+    const { payload, productChanged, remarksChanged } = changes;
     const hasNumbers = Object.keys(payload).length > 0;
-    if (!hasNumbers && !productChanged && !remarksChanged) {
+    if (changes.count === 0) {
       setMsg("Nothing changed to save.");
       return;
     }
@@ -244,16 +209,12 @@ export function ManualEntryForm({
           return;
         }
       }
-      // The numbers.
       if (hasNumbers) {
-        const res = await fetch(
-          `/api/tiktok-live/sessions/${sessionId}/apply-screenshot`,
-          {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ values: payload }),
-          }
-        );
+        const res = await fetch(`/api/tiktok-live/sessions/${sessionId}/apply-screenshot`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ values: payload }),
+        });
         const j = await res.json().catch(() => ({}));
         if (!res.ok || j.ok === false) {
           setMsg(j.error ?? `Failed (${res.status}).`);
@@ -263,26 +224,14 @@ export function ManualEntryForm({
       }
       setApplied(true);
       setMsg(null);
-      // Not cosmetic: `StickyAction` refuses its secondary button while `busy`,
-      // and the secondary button here is "Stay here". Leaving `busy` latched on
-      // after a successful save — which is what this form used to do, harmlessly,
-      // when the only thing left to happen was a redirect — would make the one
-      // control that stops that redirect silently do nothing.
+      // `busy` off now: StickyAction ignores its secondary ("Stay here") while busy.
       setBusy(false);
-      // Green for a beat, then jump to this live's row on the list page and
-      // refetch it, so the just-saved numbers show instead of a cached feed.
-      //
-      // The 2s push is the frozen default path and stays exactly as it was.
-      // What is new is that it is now *visible* and *refusable*: the countdown
-      // says a navigation is coming, and "Stay here" clears it. That matters
-      // for the streamer with three lives to clear in one sitting, who today
-      // gets thrown to the feed after each one.
+      // A visible, refusable 2s hop to this live's row on the list page.
       setCountdown(2);
       timers.current.tick = setInterval(() => {
         setCountdown((c) => (c == null ? c : Math.max(0, c - 1)));
       }, 1000);
       timers.current.push = setTimeout(() => {
-        // Purge first, then go: the feed must not come out of the 30s cache.
         void refreshEverywhere().finally(() =>
           router.push(`/tiktok-live#session-${sessionId}`)
         );
@@ -296,88 +245,81 @@ export function ManualEntryForm({
   const q = query.trim().toLowerCase();
   const matches = q
     ? sessions.filter((s) =>
-        `${fmtWhen(s.startedAt)} @${s.handle} ${s.title ?? ""}`
-          .toLowerCase()
-          .includes(q)
+        `${fmtWhen(s.startedAt)} @${s.handle} ${s.title ?? ""}`.toLowerCase().includes(q)
       )
     : sessions;
 
   const redirecting = applied && countdown != null;
+  const locked = busy || applied;
 
   if (sessions.length === 0) {
     return (
-      <div className="space-y-3">
-        <p className="text-sm leading-relaxed text-zinc-500">No lives captured yet.</p>
-        {/* Never a terminal dead end (F1): the one thing a streamer with no
-            captured lives can actually do is add the one the tracker missed,
-            and it is on this page — just further down. */}
-        <a
-          href="#add-past-live"
-          className="flex h-12 w-full items-center justify-center rounded-xl border border-zinc-300 px-4 text-base font-medium text-zinc-700 active:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:border-zinc-700 dark:text-zinc-200 dark:active:bg-zinc-800"
+      <div className="rounded-2xl border border-dashed border-zinc-300 px-4 py-8 text-center dark:border-zinc-700">
+        <p className="text-[15px] font-medium text-zinc-700 dark:text-zinc-200">No lives captured yet</p>
+        <Link
+          href="/tiktok-live/import?mode=missing"
+          className="mt-4 inline-flex h-11 items-center justify-center rounded-xl border border-zinc-300 px-4 text-sm font-medium text-zinc-700 active:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:border-zinc-700 dark:text-zinc-200 dark:active:bg-zinc-800"
         >
-          Add a live that&apos;s missing →
-        </a>
+          Add a missing live
+        </Link>
       </div>
     );
   }
 
-  return (
-    <div className="space-y-5">
-      {/* Step 1 — which live. Pre-picked (F4), so the everyday path is "glance
-          and carry on" rather than "open a list of sixty and find yesterday".
+  const missing = selected ? missingRequired(selected.current) : 0;
+  const saveLabel = applied
+    ? "Saved ✓"
+    : busy
+      ? "Saving…"
+      : changes.count > 0
+        ? `Save ${changes.count} change${changes.count === 1 ? "" : "s"}`
+        : "No changes";
 
-          Two controls for one job, because the two widths want opposite things.
-          Below `lg` the identity is a locked chip and changing it is a separate
-          44px button, so the thing you usually only need to *read* is not also
-          the thing you can knock open with a thumb. At `lg` the dropdown is the
-          control this form has always had, unchanged. */}
-      <div className="lg:hidden">
-        <div className="mb-1 text-xs font-medium text-zinc-500">Which live</div>
-        <div className="flex items-center gap-3 rounded-xl border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900">
+  return (
+    <div className="space-y-4">
+      {/* The live being filled in: identity on the left, its state and the
+          Change control on the right. */}
+      <section className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <span className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Live</span>
+          {selected && (
+            <span
+              className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                missing === 0
+                  ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
+                  : "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
+              }`}
+            >
+              {missing === 0 ? "Complete" : `${missing} required missing`}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-3">
           <div className="min-w-0 flex-1">
-            <div className="text-[15px] font-medium tabular-nums text-zinc-900 dark:text-zinc-100">
-              {selected ? fmtWhen(selected.startedAt) : "Pick a live"}
+            <div className="truncate text-lg font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
+              {selected ? fmtWhen(selected.startedAt) : "No live selected"}
             </div>
             {selected && (
-              <div className="text-xs text-zinc-500">@{selected.handle}</div>
+              <div className="truncate text-sm text-zinc-500">
+                <span className="font-mono">@{selected.handle}</span>
+                {selected.title ? ` · ${selected.title}` : ""}
+              </div>
             )}
           </div>
           <button
             type="button"
             onClick={() => setPickerOpen(true)}
-            disabled={busy || applied}
-            className="inline-flex min-h-11 shrink-0 items-center rounded-lg border border-zinc-300 px-4 text-sm font-medium text-zinc-700 active:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-200 dark:active:bg-zinc-800"
+            disabled={locked}
+            className="inline-flex min-h-11 shrink-0 items-center rounded-xl border border-zinc-300 px-4 text-sm font-medium text-zinc-700 active:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:opacity-50 lg:hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:active:bg-zinc-800 lg:dark:hover:bg-zinc-800"
           >
-            Change
+            {selected ? "Change" : "Pick a live"}
           </button>
         </div>
-      </div>
+      </section>
 
-      <div className="hidden lg:block">
-        <div className="text-xs font-medium mb-1">Which live</div>
-        <LivePicker
-          lives={sessions}
-          value={sessionId}
-          onChange={pickSession}
-          disabled={busy || applied}
-        />
-      </div>
-
-      {/* The picker sheet is written out here rather than borrowed from
-          `LivePicker` for one reason: `LivePicker` owns its own trigger and its
-          own open state, so a separate "Change" button could only ever *reveal*
-          it — costing a second tap on the exact interaction F4 exists to make
-          cheaper. The desktop dropdown above is still the real `LivePicker`, so
-          there is no second implementation at the width that has one. */}
-      <Sheet
-        open={pickerOpen}
-        onClose={() => setPickerOpen(false)}
-        title="Which live"
-      >
+      <Sheet open={pickerOpen} onClose={() => setPickerOpen(false)} title="Pick a live">
         {sessions.length > 6 && (
-          // Pinned, not scrolled away: on a 667px screen the keyboard takes
-          // roughly half the sheet, and a search box that scrolls with its own
-          // results is a box you cannot see while typing into it.
+          // Pinned, so the box stays in view above the keyboard while typing.
           <div className="sticky top-0 z-10 -mx-4 border-b border-zinc-200 bg-white px-4 pb-2 pt-1 dark:border-zinc-800 dark:bg-zinc-950">
             <input
               type="text"
@@ -391,27 +333,21 @@ export function ManualEntryForm({
         )}
         <ul className="py-1">
           {matches.length === 0 && (
-            <li className="px-1 py-6 text-center text-sm text-zinc-500">
-              No matching lives.
-            </li>
+            <li className="px-1 py-6 text-center text-sm text-zinc-500">No matching lives.</li>
           )}
           {matches.map((s) => {
             const on = s.sessionId === sessionId;
+            const owed = missingRequired(s.current);
             return (
               <li key={s.sessionId}>
                 <button
                   type="button"
                   onClick={() => pickSession(s.sessionId)}
                   className={`flex min-h-14 w-full items-center gap-3 rounded-lg px-2 py-3 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 ${
-                    on
-                      ? "bg-blue-50 dark:bg-blue-950/40"
-                      : "active:bg-zinc-50 dark:active:bg-zinc-900"
+                    on ? "bg-blue-50 dark:bg-blue-950/40" : "active:bg-zinc-50 dark:active:bg-zinc-900"
                   }`}
                 >
-                  <span
-                    aria-hidden="true"
-                    className="w-4 shrink-0 text-blue-600 dark:text-blue-400"
-                  >
+                  <span aria-hidden="true" className="w-4 shrink-0 text-blue-600 dark:text-blue-400">
                     {on ? "✓" : ""}
                   </span>
                   <span className="min-w-0 flex-1">
@@ -419,16 +355,20 @@ export function ManualEntryForm({
                       {fmtWhen(s.startedAt)}
                       {on && <span className="sr-only"> (selected)</span>}
                     </span>
-                    <span className="block text-xs text-zinc-500">
+                    <span className="block truncate text-xs text-zinc-500">
                       @{s.handle}
                       {s.title ? ` · ${s.title}` : ""}
                     </span>
                   </span>
-                  {s.current.totalLeads == null && (
-                    <span className="shrink-0 whitespace-nowrap rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
-                      Needs numbers
-                    </span>
-                  )}
+                  <span
+                    className={`shrink-0 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${
+                      owed === 0
+                        ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300"
+                        : "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300"
+                    }`}
+                  >
+                    {owed === 0 ? "Complete" : `${owed} missing`}
+                  </span>
                 </button>
               </li>
             );
@@ -438,43 +378,42 @@ export function ManualEntryForm({
 
       {selected && (
         <>
-          {/* Your results — the goal numbers, first and prominent. */}
-          <div className={SECTION}>
-            <div className="mb-2.5 flex items-center justify-between gap-3">
-              <div className="text-sm font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-400">
-                Your results
-              </div>
-              <HelpChip keys={["totalLeads", "filteredLeads"]} />
+          <FormSection
+            step={1}
+            title="Required results"
+            filled={filledCount(REQUIRED_FIELDS, values)}
+            total={REQUIRED_FIELDS.length}
+            required
+          >
+            <FieldGrid cols={REQUIRED_FIELDS} values={values} current={selected.current} disabled={locked} onChange={setVal} />
+            <div className="mt-3">
+              <HelpChip keys={["totalLeads", "filteredLeads", "dms", "bioViews"]} />
             </div>
-            {/* One column on a phone: two 48px boxes side by side at 375px
-                leaves each `Now 1,234` chip wrapping to three lines under a
-                145px input. Two columns from `sm` up is what this grid has
-                always been. */}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-3">
-              <NumberField
-                col="totalLeads"
-                label="Total PM"
-                value={values.totalLeads ?? ""}
-                current={selected.current.totalLeads}
-                onChange={setVal}
-                disabled={busy || applied}
-              />
-              <NumberField
-                col="filteredLeads"
-                label="Document Collect"
-                value={values.filteredLeads ?? ""}
-                current={selected.current.filteredLeads}
-                onChange={setVal}
-                disabled={busy || applied}
-              />
-            </div>
-          </div>
+          </FormSection>
 
-          {/* Products. */}
-          <div className={SECTION}>
-            <div className="mb-2 text-sm font-semibold uppercase tracking-wider text-zinc-500">
-              Product / service
-            </div>
+          <FormSection
+            step={2}
+            title="TikTok Studio"
+            filled={filledCount(STUDIO_FIELDS, values)}
+            total={STUDIO_FIELDS.length}
+            collapsible
+          >
+            <FieldGrid cols={STUDIO_FIELDS} values={values} current={selected.current} disabled={locked} onChange={setVal} />
+          </FormSection>
+
+          <FormSection
+            step={3}
+            title="Live performance"
+            filled={filledCount(AUTO_FIELDS, values)}
+            total={AUTO_FIELDS.length}
+            collapsible
+            defaultOpen={false}
+          >
+            <FieldGrid cols={AUTO_FIELDS} values={values} current={selected.current} disabled={locked} onChange={setVal} />
+          </FormSection>
+
+          <FormSection step={4} title="Product & remarks">
+            <div className="mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-200">Product / service</div>
             <ProductPicker
               value={products}
               onChange={(next) => {
@@ -482,66 +421,35 @@ export function ManualEntryForm({
                 setApplied(false);
                 setMsg(null);
               }}
-              disabled={busy || applied}
+              disabled={locked}
             />
-          </div>
-
-          {/* The seven TikTok-backend fields the streamer reads off TikTok
-              Studio. One name for this group everywhere in the app. */}
-          <Disclosure title="TikTok backend" count="7 numbers" headingLevel={2}>
-            <FieldGrid
-              cols={EXTRA_COLUMNS}
-              values={values}
-              current={selected.current}
-              disabled={busy || applied}
-              onChange={setVal}
-            />
-          </Disclosure>
-
-          {/* Remarks — free-text notes about this specific live. */}
-          <div className={SECTION}>
-            <label className="mb-2 block text-sm font-semibold uppercase tracking-wider text-zinc-500">
+            <label
+              htmlFor="live-remarks"
+              className="mb-2 mt-5 block text-sm font-medium text-zinc-700 dark:text-zinc-200"
+            >
               Remarks
             </label>
             <textarea
+              id="live-remarks"
               value={remarks}
               onChange={(e) => {
                 setRemarks(e.target.value);
                 setApplied(false);
                 setMsg(null);
               }}
-              disabled={busy || applied}
+              disabled={locked}
               rows={3}
-              placeholder="Add any notes about this live — issues, highlights, follow-ups…"
               className="w-full resize-y rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-base leading-relaxed text-zinc-900 focus-visible:border-blue-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 disabled:opacity-50 sm:text-sm dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
             />
-          </div>
-
-          {/* Auto-captured — the bot fills these; collapsed unless a fix is
-              needed, and forced open at `lg` by the Disclosure CSS rule. */}
-          <Disclosure title="Auto-captured" count="7 numbers" headingLevel={2}>
-            <FieldGrid
-              cols={AUTO_COLUMNS}
-              values={values}
-              current={selected.current}
-              disabled={busy || applied}
-              onChange={setVal}
-            />
-          </Disclosure>
+          </FormSection>
 
           <StickyAction
-            label={applied ? "Saved ✓" : busy ? "Saving…" : "Save results"}
+            label={saveLabel}
             onClick={apply}
             busy={busy}
-            disabled={applied}
-            status={
-              redirecting
-                ? `Saved ✓ — opening your live… (${countdown})`
-                : msg
-            }
-            secondary={
-              redirecting ? { label: "Stay here", onClick: stayHere } : undefined
-            }
+            disabled={applied || changes.count === 0}
+            status={redirecting ? `Saved ✓ — opening your live… (${countdown})` : msg}
+            secondary={redirecting ? { label: "Stay here", onClick: stayHere } : undefined}
           />
         </>
       )}
@@ -563,28 +471,21 @@ function FieldGrid({
   onChange: (col: string, v: string) => void;
 }) {
   return (
-    // One column on a phone, then straight back to the two- and four-column
-    // grids this form renders today from `sm` and `md` up. Below `sm` the old
-    // `grid-cols-2` put a 48px input and its "Now 1,234 → 1,340" chip into
-    // ~160px, which is where that chip was getting clipped.
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-3 md:grid-cols-4">
+    // One column on a phone, where a 48px box and its "Now 1,234 → 1,340" chip
+    // need the full width; two from `sm`, three from `lg`.
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-x-4 lg:grid-cols-3">
       {cols.map((c) => (
         <NumberField
           key={c}
           col={c}
-          label={LABELS[c] ?? c}
+          label={FIELD_LABEL[c] ?? c}
           value={values[c] ?? ""}
           current={current[c]}
           disabled={disabled}
           onChange={onChange}
+          inputClassName="lg:h-10"
         />
       ))}
     </div>
   );
 }
-
-// Each block sits in its own ELEVATED card — a solid surface a shade lighter
-// than the page (white on light, zinc-900 on dark) with a soft shadow, so the
-// sections clearly stand out as distinct steps (per the reference layout).
-const SECTION =
-  "rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900";

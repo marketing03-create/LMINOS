@@ -51,8 +51,8 @@ function isLgOnServer(): boolean {
  * point of the change: a streamer whose live the Fly.io connector never caught
  * had no route at all to the backfill form — the "+" only offered the two
  * screenshot/manual modes, both of which attach numbers to a live that already
- * exists. "Add a live that's missing" is the same `/tiktok-live/import` page
- * with no mode, which is where `AddPastLive` lives.
+ * exists. "Add a live that's missing" is `/tiktok-live/import?mode=missing`,
+ * the page's third tab, where `AddPastLive` lives.
  */
 export function StreamerTabBar() {
   const pathname = usePathname();
@@ -137,7 +137,7 @@ export function StreamerTabBar() {
               list, and when the connector missed it entirely there is nothing
               to attach numbers to. */}
           <MenuItem
-            href="/tiktok-live/import"
+            href="/tiktok-live/import?mode=missing"
             title="Add a live that's missing"
             icon={<PlusListIcon />}
             onNavigate={closeMenu}

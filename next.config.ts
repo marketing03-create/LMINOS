@@ -30,6 +30,9 @@ const SECURITY_HEADERS = [
 ];
 
 const nextConfig: NextConfig = {
+  // Dev only: let a phone on the same Wi-Fi load the local preview server
+  // (LMIROS_DEV_ORIGINS=192.168.x.y). No effect on a production build.
+  allowedDevOrigins: process.env.LMIROS_DEV_ORIGINS?.split(",").filter(Boolean) ?? [],
   async headers() {
     return [{ source: "/:path*", headers: SECURITY_HEADERS }];
   },
