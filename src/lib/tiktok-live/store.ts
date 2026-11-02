@@ -78,6 +78,18 @@ export async function persistLiveCapture(input: {
         totalShares: sql`greatest(${tiktokLiveSessions.totalShares}, excluded.total_shares)`,
         newFollowers: sql`greatest(coalesce(${tiktokLiveSessions.newFollowers},0), coalesce(excluded.new_followers,0))`,
         rawPayload: sql`excluded.raw_payload`,
+        // A field the connector just raised is the connector's again (SET
+        // expressions read the row as it was before this update).
+        userEntered: sql`array(select f from unnest(${tiktokLiveSessions.userEntered}) f where not (
+          (f = 'durationSeconds' and excluded.duration_seconds > ${tiktokLiveSessions.durationSeconds}) or
+          (f = 'peakViewers' and excluded.peak_viewers > ${tiktokLiveSessions.peakViewers}) or
+          (f = 'avgViewers' and excluded.avg_viewers > ${tiktokLiveSessions.avgViewers}) or
+          (f = 'totalViews' and excluded.total_views > ${tiktokLiveSessions.totalViews}) or
+          (f = 'totalLikes' and excluded.total_likes > ${tiktokLiveSessions.totalLikes}) or
+          (f = 'totalComments' and excluded.total_comments > ${tiktokLiveSessions.totalComments}) or
+          (f = 'totalShares' and excluded.total_shares > ${tiktokLiveSessions.totalShares}) or
+          (f = 'newFollowers' and coalesce(excluded.new_followers, 0) > coalesce(${tiktokLiveSessions.newFollowers}, 0))
+        ))`,
         updatedAt: sql`now()`,
       },
     })
@@ -112,7 +124,11 @@ export async function persistLiveCapture(input: {
   const leadCount = Number(c?.n ?? 0);
   await db
     .update(tiktokLiveSessions)
-    .set({ keywordLeads: leadCount })
+    // The connector recounts the PM comments, so the count is its own again.
+    .set({
+      keywordLeads: leadCount,
+      userEntered: sql`array_remove(${tiktokLiveSessions.userEntered}, 'keywordLeads')`,
+    })
     .where(eq(tiktokLiveSessions.id, sessionId));
 
   return { sessionId, leadCount };

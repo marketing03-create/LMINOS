@@ -11,6 +11,7 @@ import {
   type AutoTikTokField,
   type ManualTikTokField,
 } from "@/lib/tiktok-live/queries";
+import { markUserEntered } from "@/lib/tiktok-live/user-entered-sql";
 
 const AUTO = new Set<string>(AUTO_TIKTOK_FIELDS);
 const MANUAL = new Set<string>(MANUAL_TIKTOK_FIELDS);
@@ -117,9 +118,18 @@ export async function POST(
   const before: Record<string, unknown> = {};
   for (const k of changedKeys) before[k] = (beforeRow as Record<string, unknown>)[k];
 
+  // Typed or read off a screenshot by a person: captured-type fields among
+  // them turn yellow.
+  const userEntered = markUserEntered(changedKeys);
   await db
     .update(tiktokLiveSessions)
-    .set({ ...auto, ...manual, ...comment, updatedAt: new Date() })
+    .set({
+      ...auto,
+      ...manual,
+      ...comment,
+      ...(userEntered ? { userEntered } : {}),
+      updatedAt: new Date(),
+    })
     .where(eq(tiktokLiveSessions.id, id));
 
   await writeAudit({

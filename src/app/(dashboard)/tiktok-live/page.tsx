@@ -15,6 +15,7 @@ import { HelpChip } from "@/components/mobile/metric-help-sheet";
 import { MobileTable } from "@/components/mobile/mobile-table";
 import { RecordCard, RecordList } from "@/components/mobile/record-card";
 import { missingMetrics } from "@/lib/tiktok-live/completeness";
+import { entrySource, sourceClass } from "@/lib/tiktok-live/entry-source";
 import { SessionHighlighter } from "./session-highlighter";
 import { HandleFilter } from "./handle-filter";
 import { StreamerHomeFeed } from "./streamer-home-feed";
@@ -24,6 +25,7 @@ import { PushSwitch } from "@/components/push-switch";
 import { getMyNudge } from "@/lib/tiktok-live/admin-nudge";
 import { METRIC_LABEL } from "@/lib/tiktok-live/completeness";
 import { RemarksInput } from "./remarks-input";
+import { SourceLegend } from "@/components/source-legend";
 import { requireLivePage } from "@/lib/auth/page-guard";
 import { ScreenshotSection } from "@/app/(dashboard)/admin/tiktok/history/screenshot-section";
 import { waLeadCounts } from "@/lib/wati/leads";
@@ -63,6 +65,12 @@ const STICKY_EDGE =
   "shadow-[inset_-1px_0_0_var(--color-zinc-200)] dark:shadow-[inset_-1px_0_0_var(--color-zinc-800)]";
 const STICKY_BG =
   "bg-white dark:bg-zinc-950 group-hover:bg-zinc-50 dark:group-hover:bg-zinc-900/50";
+
+/** Cell colour by source: white = Fly.io connector, yellow = a person entered it. */
+const sc = (s: SessionRow, f: keyof SessionRow) => sourceClass(f, s[f], s.userEntered);
+/** Card value tone: yellow when a person entered it. */
+const tone = (s: SessionRow, f: keyof SessionRow) =>
+  entrySource(f, s[f], s.userEntered) === "person" ? ("person" as const) : undefined;
 
 function fmtDuration(sec: number): string {
   if (!sec) return "—";
@@ -262,6 +270,8 @@ export default async function TikTokLivePage({
         </div>
       )}
 
+      {!isStreamer && sessions.length > 0 && <SourceLegend className="mb-2" />}
+
       {!isStreamer && sessions.length > 0 && (
         /* Same rows, two renderings, one data source. The table is handed
            through untouched and still owns `lg+`; below it, 22 columns become
@@ -323,26 +333,26 @@ export default async function TikTokLivePage({
                       <Td className="whitespace-nowrap">
                         <ProductBadges products={s.products} />
                       </Td>
-                      <Td className="text-right tabular-nums">{fmtDuration(s.durationSeconds)}</Td>
-                      <Td className="text-right tabular-nums">{fmtInt(s.totalViews)}</Td>
-                      <Td className="text-right tabular-nums text-zinc-500">{fmtInt(s.peakViewers)}</Td>
-                      <Td className="text-right tabular-nums text-zinc-500">{fmtInt(s.avgViewers)}</Td>
-                      <Td className="text-right tabular-nums text-zinc-500">{fmtInt(s.newFollowers ?? 0)}</Td>
-                      <Td className="text-right tabular-nums">{fmtInt(s.totalLikes)}</Td>
-                      <Td className="text-right tabular-nums">{fmtInt(s.totalComments)}</Td>
-                      <Td className="text-right tabular-nums">{fmtInt(s.totalShares)}</Td>
-                      <Td className="text-right tabular-nums text-zinc-500">{fmtN(s.uniqueViewers)}</Td>
-                      <Td className="text-right tabular-nums text-zinc-500">{fmtN(s.activeViewers)}</Td>
-                      <Td className="text-right tabular-nums text-zinc-500">
+                      <Td className={`text-right tabular-nums ${sc(s, "durationSeconds")}`}>{fmtDuration(s.durationSeconds)}</Td>
+                      <Td className={`text-right tabular-nums ${sc(s, "totalViews")}`}>{fmtInt(s.totalViews)}</Td>
+                      <Td className={`text-right tabular-nums ${sc(s, "peakViewers")}`}>{fmtInt(s.peakViewers)}</Td>
+                      <Td className={`text-right tabular-nums ${sc(s, "avgViewers")}`}>{fmtInt(s.avgViewers)}</Td>
+                      <Td className={`text-right tabular-nums ${sc(s, "newFollowers")}`}>{fmtInt(s.newFollowers ?? 0)}</Td>
+                      <Td className={`text-right tabular-nums ${sc(s, "totalLikes")}`}>{fmtInt(s.totalLikes)}</Td>
+                      <Td className={`text-right tabular-nums ${sc(s, "totalComments")}`}>{fmtInt(s.totalComments)}</Td>
+                      <Td className={`text-right tabular-nums ${sc(s, "totalShares")}`}>{fmtInt(s.totalShares)}</Td>
+                      <Td className={`text-right tabular-nums ${sc(s, "uniqueViewers")}`}>{fmtN(s.uniqueViewers)}</Td>
+                      <Td className={`text-right tabular-nums ${sc(s, "activeViewers")}`}>{fmtN(s.activeViewers)}</Td>
+                      <Td className={`text-right tabular-nums ${sc(s, "avgWatchSeconds")}`}>
                         {s.avgWatchSeconds == null ? "—" : `${s.avgWatchSeconds}s`}
                       </Td>
-                      <Td className="text-right tabular-nums text-zinc-500">{fmtN(s.directMessages)}</Td>
-                      <Td className="text-right tabular-nums text-zinc-500">{fmtN(s.serviceBioViews)}</Td>
-                      <Td className="text-right tabular-nums text-zinc-500">{fmtN(s.interestedViewers)}</Td>
-                      <Td className="text-right tabular-nums text-zinc-500">{fmtN(s.diamonds)}</Td>
+                      <Td className={`text-right tabular-nums ${sc(s, "directMessages")}`}>{fmtN(s.directMessages)}</Td>
+                      <Td className={`text-right tabular-nums ${sc(s, "serviceBioViews")}`}>{fmtN(s.serviceBioViews)}</Td>
+                      <Td className={`text-right tabular-nums ${sc(s, "interestedViewers")}`}>{fmtN(s.interestedViewers)}</Td>
+                      <Td className={`text-right tabular-nums ${sc(s, "diamonds")}`}>{fmtN(s.diamonds)}</Td>
                       <Td className="text-right tabular-nums text-emerald-600 dark:text-emerald-400">{fmtN(wa[s.id] ?? null)}</Td>
-                      <Td className="text-right tabular-nums text-indigo-600 dark:text-indigo-400 font-semibold">{fmtN(s.totalLeads)}</Td>
-                      <Td className="text-right tabular-nums text-zinc-500">{fmtN(s.filteredLeads)}</Td>
+                      <Td className={`text-right tabular-nums font-semibold ${sc(s, "totalLeads")}`}>{fmtN(s.totalLeads)}</Td>
+                      <Td className={`text-right tabular-nums ${sc(s, "filteredLeads")}`}>{fmtN(s.filteredLeads)}</Td>
                       <Td className="align-top">
                         <RemarksInput compact sessionId={s.id} initial={s.remarks} />
                       </Td>
@@ -400,28 +410,29 @@ function SessionCards({
             }
             badges={<ProductBadges products={s.products} />}
             primary={[
-              { label: "Views", value: s.totalViews },
-              { label: "Total PM", value: s.totalLeads, tone: "accent" },
-              { label: "Document Collect", value: s.filteredLeads },
+              { label: "Views", value: s.totalViews, tone: tone(s, "totalViews") },
+              { label: "Total PM", value: s.totalLeads, tone: tone(s, "totalLeads") },
+              { label: "Document Collect", value: s.filteredLeads, tone: tone(s, "filteredLeads") },
             ]}
             detail={[
-              { label: "Duration", value: fmtDuration(s.durationSeconds) },
-              { label: "Peak", value: s.peakViewers },
-              { label: "Avg", value: s.avgViewers },
-              { label: "Followers", value: s.newFollowers },
-              { label: "Likes", value: s.totalLikes },
-              { label: "Comments", value: s.totalComments },
-              { label: "Shares", value: s.totalShares },
-              { label: "Unique", value: s.uniqueViewers },
-              { label: "Active", value: s.activeViewers },
+              { label: "Duration", value: fmtDuration(s.durationSeconds), tone: tone(s, "durationSeconds") },
+              { label: "Peak", value: s.peakViewers, tone: tone(s, "peakViewers") },
+              { label: "Avg", value: s.avgViewers, tone: tone(s, "avgViewers") },
+              { label: "Followers", value: s.newFollowers, tone: tone(s, "newFollowers") },
+              { label: "Likes", value: s.totalLikes, tone: tone(s, "totalLikes") },
+              { label: "Comments", value: s.totalComments, tone: tone(s, "totalComments") },
+              { label: "Shares", value: s.totalShares, tone: tone(s, "totalShares") },
+              { label: "Unique", value: s.uniqueViewers, tone: tone(s, "uniqueViewers") },
+              { label: "Active", value: s.activeViewers, tone: tone(s, "activeViewers") },
               {
                 label: "Watch",
                 value: s.avgWatchSeconds == null ? null : `${s.avgWatchSeconds}s`,
+                tone: tone(s, "avgWatchSeconds"),
               },
-              { label: "DMs", value: s.directMessages },
-              { label: "Bio views", value: s.serviceBioViews },
-              { label: "Interested", value: s.interestedViewers },
-              { label: "Diamonds", value: s.diamonds },
+              { label: "DMs", value: s.directMessages, tone: tone(s, "directMessages") },
+              { label: "Bio views", value: s.serviceBioViews, tone: tone(s, "serviceBioViews") },
+              { label: "Interested", value: s.interestedViewers, tone: tone(s, "interestedViewers") },
+              { label: "Diamonds", value: s.diamonds, tone: tone(s, "diamonds") },
               { label: "WhatsApp PM", value: wa[s.id] ?? null },
             ]}
             /* Remarks stays editable on a phone. It is the one column of this

@@ -7,7 +7,9 @@ import { METRIC_HELP } from "@/lib/tiktok-live/metric-help";
 import { MobileTable } from "@/components/mobile/mobile-table";
 import { RecordCard, RecordList } from "@/components/mobile/record-card";
 import { NotEntered } from "@/components/mobile/not-entered";
+import { SourceLegend } from "@/components/source-legend";
 import { missingMetrics } from "@/lib/tiktok-live/completeness";
+import { entrySource, sourceClass } from "@/lib/tiktok-live/entry-source";
 
 /**
  * The dash a DESKTOP cell prints for a number nobody has entered.
@@ -74,6 +76,12 @@ const cardWhen = new Intl.DateTimeFormat("en-GB", {
  * a client wrapper also keeps this file a server component, so 500 session rows
  * are not serialised across the boundary a second time.
  */
+/** Cell colour by source: white = Fly.io connector, yellow = a person entered it. */
+const sc = (s: SessionRow, f: keyof SessionRow) => sourceClass(f, s[f], s.userEntered);
+/** Card value tone: yellow when a person entered it. */
+const tone = (s: SessionRow, f: keyof SessionRow) =>
+  entrySource(f, s[f], s.userEntered) === "person" ? ("person" as const) : undefined;
+
 export function SessionsTable({
   sessions,
   linkHandle = true,
@@ -85,10 +93,13 @@ export function SessionsTable({
   wa?: Record<string, number>;
 }) {
   return (
-    <MobileTable
-      table={<SessionsGrid sessions={sessions} linkHandle={linkHandle} wa={wa} />}
-      cards={<SessionCardList sessions={sessions} linkHandle={linkHandle} wa={wa} />}
-    />
+    <>
+      <SourceLegend className="mb-2" />
+      <MobileTable
+        table={<SessionsGrid sessions={sessions} linkHandle={linkHandle} wa={wa} />}
+        cards={<SessionCardList sessions={sessions} linkHandle={linkHandle} wa={wa} />}
+      />
+    </>
   );
 }
 
@@ -148,29 +159,30 @@ export function SessionCardList({
                 : { label: "Complete", tone: "emerald" }
             }
             primary={[
-              { label: "Views", value: s.totalViews },
-              { label: "Total PM", value: s.totalLeads, tone: "accent" },
-              { label: "Document Collect", value: s.filteredLeads },
+              { label: "Views", value: s.totalViews, tone: tone(s, "totalViews") },
+              { label: "Total PM", value: s.totalLeads, tone: tone(s, "totalLeads") },
+              { label: "Document Collect", value: s.filteredLeads, tone: tone(s, "filteredLeads") },
             ]}
             detail={[
-              { label: "Duration", value: fmtDuration(s.durationSeconds) },
-              { label: "Peak", value: s.peakViewers },
-              { label: "Avg", value: s.avgViewers },
-              { label: "Followers", value: s.newFollowers },
-              { label: "Likes", value: s.totalLikes },
-              { label: "Comments", value: s.totalComments },
-              { label: "Shares", value: s.totalShares },
-              { label: "Unique", value: s.uniqueViewers },
-              { label: "Active", value: s.activeViewers },
+              { label: "Duration", value: fmtDuration(s.durationSeconds), tone: tone(s, "durationSeconds") },
+              { label: "Peak", value: s.peakViewers, tone: tone(s, "peakViewers") },
+              { label: "Avg", value: s.avgViewers, tone: tone(s, "avgViewers") },
+              { label: "Followers", value: s.newFollowers, tone: tone(s, "newFollowers") },
+              { label: "Likes", value: s.totalLikes, tone: tone(s, "totalLikes") },
+              { label: "Comments", value: s.totalComments, tone: tone(s, "totalComments") },
+              { label: "Shares", value: s.totalShares, tone: tone(s, "totalShares") },
+              { label: "Unique", value: s.uniqueViewers, tone: tone(s, "uniqueViewers") },
+              { label: "Active", value: s.activeViewers, tone: tone(s, "activeViewers") },
               {
                 label: "Watch",
                 value: s.avgWatchSeconds == null ? null : `${s.avgWatchSeconds}s`,
+                tone: tone(s, "avgWatchSeconds"),
               },
-              { label: "DMs", value: s.directMessages },
-              { label: "Bio views", value: s.serviceBioViews },
-              { label: "Interested", value: s.interestedViewers },
-              { label: "Diamonds", value: s.diamonds },
-              { label: "Comment leads", value: s.keywordLeads },
+              { label: "DMs", value: s.directMessages, tone: tone(s, "directMessages") },
+              { label: "Bio views", value: s.serviceBioViews, tone: tone(s, "serviceBioViews") },
+              { label: "Interested", value: s.interestedViewers, tone: tone(s, "interestedViewers") },
+              { label: "Diamonds", value: s.diamonds, tone: tone(s, "diamonds") },
+              { label: "Comment leads", value: s.keywordLeads, tone: tone(s, "keywordLeads") },
               ...(wa ? [{ label: "WhatsApp PM", value: wa[s.id] ?? null }] : []),
             ]}
             detailLabel={`All ${wa ? 23 : 22} numbers`}
@@ -275,27 +287,27 @@ function SessionsGrid({
               <Td className="whitespace-nowrap">
                 <ProductBadges products={s.products} />
               </Td>
-              <Td className="text-right tabular-nums">
+              <Td className={`text-right tabular-nums ${sc(s, "durationSeconds")}`}>
                 {fmtDuration(s.durationSeconds) ?? dash}
               </Td>
-              <Td className="text-right tabular-nums">{fmtInt(s.totalViews)}</Td>
-              <Td className="text-right tabular-nums text-zinc-500">{fmtInt(s.peakViewers)}</Td>
-              <Td className="text-right tabular-nums text-zinc-500">{fmtInt(s.avgViewers)}</Td>
-              <Td className="text-right tabular-nums text-zinc-500">{fmtInt(s.newFollowers ?? 0)}</Td>
-              <Td className="text-right tabular-nums">{fmtInt(s.totalLikes)}</Td>
-              <Td className="text-right tabular-nums">{fmtInt(s.totalComments)}</Td>
-              <Td className="text-right tabular-nums">{fmtInt(s.totalShares)}</Td>
-              <Td className="text-right tabular-nums text-zinc-500">{fmtN(s.uniqueViewers)}</Td>
-              <Td className="text-right tabular-nums text-zinc-500">{fmtN(s.activeViewers)}</Td>
-              <Td className="text-right tabular-nums text-zinc-500">
+              <Td className={`text-right tabular-nums ${sc(s, "totalViews")}`}>{fmtInt(s.totalViews)}</Td>
+              <Td className={`text-right tabular-nums ${sc(s, "peakViewers")}`}>{fmtInt(s.peakViewers)}</Td>
+              <Td className={`text-right tabular-nums ${sc(s, "avgViewers")}`}>{fmtInt(s.avgViewers)}</Td>
+              <Td className={`text-right tabular-nums ${sc(s, "newFollowers")}`}>{fmtInt(s.newFollowers ?? 0)}</Td>
+              <Td className={`text-right tabular-nums ${sc(s, "totalLikes")}`}>{fmtInt(s.totalLikes)}</Td>
+              <Td className={`text-right tabular-nums ${sc(s, "totalComments")}`}>{fmtInt(s.totalComments)}</Td>
+              <Td className={`text-right tabular-nums ${sc(s, "totalShares")}`}>{fmtInt(s.totalShares)}</Td>
+              <Td className={`text-right tabular-nums ${sc(s, "uniqueViewers")}`}>{fmtN(s.uniqueViewers)}</Td>
+              <Td className={`text-right tabular-nums ${sc(s, "activeViewers")}`}>{fmtN(s.activeViewers)}</Td>
+              <Td className={`text-right tabular-nums ${sc(s, "avgWatchSeconds")}`}>
                 {s.avgWatchSeconds == null ? dash : `${s.avgWatchSeconds}s`}
               </Td>
-              <Td className="text-right tabular-nums text-zinc-500">{fmtN(s.directMessages)}</Td>
-              <Td className="text-right tabular-nums text-zinc-500">{fmtN(s.serviceBioViews)}</Td>
-              <Td className="text-right tabular-nums text-zinc-500">{fmtN(s.interestedViewers)}</Td>
-              <Td className="text-right tabular-nums text-zinc-500">{fmtN(s.diamonds)}</Td>
+              <Td className={`text-right tabular-nums ${sc(s, "directMessages")}`}>{fmtN(s.directMessages)}</Td>
+              <Td className={`text-right tabular-nums ${sc(s, "serviceBioViews")}`}>{fmtN(s.serviceBioViews)}</Td>
+              <Td className={`text-right tabular-nums ${sc(s, "interestedViewers")}`}>{fmtN(s.interestedViewers)}</Td>
+              <Td className={`text-right tabular-nums ${sc(s, "diamonds")}`}>{fmtN(s.diamonds)}</Td>
               <Td className="text-right tabular-nums font-medium">
-                <Link href={`/tiktok-live/${s.id}`} className="text-blue-600 dark:text-blue-400 hover:underline">
+                <Link href={`/tiktok-live/${s.id}`} className={`hover:underline ${sc(s, "keywordLeads")}`}>
                   {fmtInt(s.keywordLeads)}
                 </Link>
               </Td>
@@ -304,8 +316,8 @@ function SessionsGrid({
                   {fmtN(wa[s.id] ?? null)}
                 </Td>
               )}
-              <Td className="text-right tabular-nums text-indigo-600 dark:text-indigo-400 font-semibold">{fmtN(s.totalLeads)}</Td>
-              <Td className="text-right tabular-nums text-zinc-500">{fmtN(s.filteredLeads)}</Td>
+              <Td className={`text-right tabular-nums font-semibold ${sc(s, "totalLeads")}`}>{fmtN(s.totalLeads)}</Td>
+              <Td className={`text-right tabular-nums ${sc(s, "filteredLeads")}`}>{fmtN(s.filteredLeads)}</Td>
             </tr>
           ))}
         </tbody>

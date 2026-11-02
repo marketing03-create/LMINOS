@@ -12,6 +12,7 @@ import {
   type ManualTikTokField,
 } from "@/lib/tiktok-live/queries";
 import { filterTikTokProducts } from "@/lib/tiktok-live/products";
+import { markUserEntered } from "@/lib/tiktok-live/user-entered-sql";
 
 /**
  * Save the manually-entered TikTok-backend metrics for a live session (unique
@@ -145,10 +146,12 @@ export async function PATCH(
     );
   }
   set.updatedAt = new Date();
+  // A person typed these: captured-type fields among them turn yellow.
+  const userEntered = markUserEntered(Object.keys(set));
 
   const [row] = await db
     .update(tiktokLiveSessions)
-    .set(set)
+    .set(userEntered ? { ...set, userEntered } : set)
     .where(eq(tiktokLiveSessions.id, id))
     .returning({ id: tiktokLiveSessions.id });
   if (!row) {

@@ -223,6 +223,8 @@ export type SessionRow = {
   filteredLeads: number | null;
   // Free-text note the streamer/admin added for this live (null = none).
   remarks: string | null;
+  // Captured-type fields a person entered (lib/tiktok-live/entry-source.ts).
+  userEntered: string[];
 };
 
 export async function tiktokLiveSessionList(
@@ -259,6 +261,7 @@ export async function tiktokLiveSessionList(
       totalLeads: tiktokLiveSessions.totalLeads,
       filteredLeads: tiktokLiveSessions.filteredLeads,
       remarks: tiktokLiveSessions.remarks,
+      userEntered: tiktokLiveSessions.userEntered,
     })
     .from(tiktokLiveSessions)
     .innerJoin(tiktokAccounts, eq(tiktokAccounts.id, tiktokLiveSessions.accountId))

@@ -10,6 +10,7 @@ import {
   streamerAccountIds,
 } from "@/lib/tiktok-live/queries";
 import { filterTikTokProducts } from "@/lib/tiktok-live/products";
+import { ALL_CONNECTOR_FIELDS } from "@/lib/tiktok-live/user-entered-sql";
 
 const AUTO = new Set<string>(AUTO_TIKTOK_FIELDS);
 const MANUAL = new Set<string>(MANUAL_TIKTOK_FIELDS);
@@ -130,6 +131,8 @@ export async function POST(request: NextRequest) {
     durationSeconds,
     products,
     rawPayload: { manual: true, source: "past-live-entry" },
+    // Added by hand: nothing on this live came from the connector.
+    userEntered: ALL_CONNECTOR_FIELDS,
     ...metrics,
   } as typeof tiktokLiveSessions.$inferInsert;
 

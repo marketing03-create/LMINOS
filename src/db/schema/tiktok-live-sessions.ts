@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   index,
   integer,
@@ -79,6 +80,11 @@ export const tiktokLiveSessions = pgTable(
     metricsNudgedAt: timestamp("metrics_nudged_at", { withTimezone: true }),
     // Free-text notes the streamer (or an admin) writes about this specific live.
     remarks: text("remarks"),
+    // Connector-captured fields (Views, Likes, Duration, … — CONNECTOR_FIELDS in
+    // lib/tiktok-live/entry-source.ts) whose CURRENT value a person typed in or
+    // read off a screenshot, not the Fly.io connector. The write routes add to
+    // it; a connector capture that raises the number takes it back off.
+    userEntered: text("user_entered").array().notNull().default(sql`'{}'::text[]`),
     rawPayload: jsonb("raw_payload"),
     ...timestamps(),
   },

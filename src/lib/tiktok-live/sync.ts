@@ -84,6 +84,9 @@ export async function syncTikTokLive(
               totalShares: sql`excluded.total_shares`,
               newFollowers: sql`excluded.new_followers`,
               rawPayload: sql`excluded.raw_payload`,
+              // Every captured field was just overwritten, so none is a
+              // person's any more (keywordLeads is not touched here).
+              userEntered: sql`array(select f from unnest(${tiktokLiveSessions.userEntered}) f where f = 'keywordLeads')`,
               updatedAt: sql`now()`,
             },
           });

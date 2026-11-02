@@ -41,7 +41,8 @@ export type MetricItem = {
   value: string | number | null;
   /** e.g. "from 9 of 63 lives" — 12px, wraps, never truncates. */
   denominator?: string;
-  tone?: "default" | "accent" | "warn";
+  /** `person`: a number someone typed or read off a screenshot (yellow). */
+  tone?: "default" | "accent" | "warn" | "person";
   /** 28px value; at most ONE per screen. */
   hero?: boolean;
 };
@@ -65,6 +66,7 @@ const TONE_VALUE: Record<MetricTone, string> = {
   default: "text-zinc-900 dark:text-zinc-100",
   accent: "text-blue-600 dark:text-blue-400",
   warn: "text-amber-700 dark:text-amber-400",
+  person: "text-amber-700 dark:text-yellow-300",
 };
 
 /**
