@@ -51,11 +51,8 @@ export function AddPastLive({
   accounts,
   alwaysOpen = false,
   sticky = true,
-  showTotalPm,
 }: {
   accounts: { id: string; handle: string }[];
-  /** Total PM is admin-only: false for a streamer (field hidden, never sent). */
-  showTotalPm: boolean;
   /**
    * Drop the component's own collapsed trigger. Set on `?mode=manual`, where a
    * `Disclosure` already provides the "Add a live that's missing" header — two
@@ -148,7 +145,6 @@ export function AddPastLive({
     try {
       const numeric: Record<string, number> = {};
       for (const col of [...AUTO_COLUMNS, ...MANUAL_COLUMNS]) {
-        if (col === "totalLeads" && !showTotalPm) continue; // admin-only
         const raw = (values[col] ?? "").trim();
         if (raw === "") continue;
         numeric[col] = Math.max(0, Math.round(Number(raw) || 0));
@@ -364,15 +360,13 @@ export function AddPastLive({
               Your results
             </div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-3">
-              {showTotalPm && (
-                <NumberField
-                  col="totalLeads"
-                  label="Total PM"
-                  value={values.totalLeads ?? ""}
-                  disabled={busy}
-                  onChange={setVal}
-                />
-              )}
+              <NumberField
+                col="totalLeads"
+                label="Total PM"
+                value={values.totalLeads ?? ""}
+                disabled={busy}
+                onChange={setVal}
+              />
               <NumberField
                 col="filteredLeads"
                 label="Document Collect"

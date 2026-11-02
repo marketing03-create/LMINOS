@@ -32,10 +32,10 @@ import { writeAudit } from "@/lib/audit/write";
 import { pushToUser } from "@/lib/notifications/push";
 import { upsertUserNotification } from "@/lib/notifications/user-inbox";
 import {
+  incompleteCondition,
   lookbackWindow,
-  missingStreamerMetrics,
+  missingMetrics,
   outstandingCondition,
-  streamerIncompleteCondition,
   type RequiredMetric,
 } from "./completeness";
 
@@ -80,8 +80,7 @@ async function owedByStreamer(): Promise<
     .innerJoin(users, eq(users.id, tiktokAccounts.assignedStreamerId))
     .where(
       and(
-        // What the streamer owes — never Total PM, which they can't see.
-        outstandingCondition(since, until, streamerIncompleteCondition()),
+        outstandingCondition(since, until, incompleteCondition()),
         isNotNull(tiktokLiveSessions.endedAt),
         eq(users.role, "live_streamer"),
         eq(users.isActive, true)
@@ -96,7 +95,7 @@ async function owedByStreamer(): Promise<
       sessionId: r.sessionId,
       handle: r.handle,
       startedAt: r.startedAt,
-      missing: missingStreamerMetrics(r),
+      missing: missingMetrics(r),
     });
     out.set(r.streamerId, g);
   }
@@ -223,7 +222,7 @@ export async function getMyNudge(userId: string): Promise<{
       sessionId: c.sessionId,
       handle: c.handle,
       startedAt: c.startedAt,
-      missing: missingStreamerMetrics(c),
+      missing: missingMetrics(c),
     }))
     .filter((l) => l.missing.length > 0);
 

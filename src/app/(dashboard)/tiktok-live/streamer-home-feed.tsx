@@ -7,7 +7,7 @@ import { Disclosure } from "@/components/mobile/disclosure";
 import { HelpChip } from "@/components/mobile/metric-help-sheet";
 import { type MetricItem, MetricGrid } from "@/components/mobile/metric-line";
 import { RecordCard, RecordList } from "@/components/mobile/record-card";
-import { METRIC_LABEL, missingStreamerMetrics } from "@/lib/tiktok-live/completeness";
+import { METRIC_LABEL, missingMetrics } from "@/lib/tiktok-live/completeness";
 import { LeadsQuickAction } from "./leads-quick-action";
 
 /**
@@ -63,13 +63,12 @@ export function StreamerHomeFeed({
   sessions: SessionRow[];
   choice: RangeChoice;
 }) {
-  // This feed is the streamer's, and Total PM is admin-only — so the headline
-  // is Document Collect, averaged over the lives that have it entered. The
-  // rows arrive with totalLeads already stripped (tiktok-live/page.tsx).
+  // The headline is Total PM, averaged over the lives that have it entered;
+  // `withLeads` is also the denominator on that number (below).
   const lives = sessions.length;
-  const withDocs = sessions.filter((s) => s.filteredLeads != null);
-  const docs = withDocs.reduce((a, s) => a + (s.filteredLeads ?? 0), 0);
-  const avg = withDocs.length ? Math.round(docs / withDocs.length) : null;
+  const withLeads = sessions.filter((s) => s.totalLeads != null);
+  const totalLeads = withLeads.reduce((a, s) => a + (s.totalLeads ?? 0), 0);
+  const avg = withLeads.length ? Math.round(totalLeads / withLeads.length) : null;
 
   /**
    * With a 7-day default range, "you have no lives" and "you are looking at the
@@ -107,20 +106,20 @@ export function StreamerHomeFeed({
   const needs: SessionRow[] = [];
   const done: SessionRow[] = [];
   for (const s of sessions) {
-    (missingStreamerMetrics(s).length > 0 ? needs : done).push(s);
+    (missingMetrics(s).length > 0 ? needs : done).push(s);
   }
 
   const summary: MetricItem[] = [
     { label: "Lives", value: nf(lives) },
     {
-      label: "Document Collect",
-      value: nf(docs),
+      label: "Total PM",
+      value: nf(totalLeads),
       tone: "accent",
       // The old screen said this in an amber banner ("4 lives still need
       // leads"). Welded to the number it qualifies, it cannot be read as a
       // total over all of them — which is the misreading the banner existed to
       // prevent and, at 11px, mostly failed to.
-      denominator: `from ${nf(withDocs.length)} of ${nf(lives)} ${plural(lives, "live", "lives")}`,
+      denominator: `from ${nf(withLeads.length)} of ${nf(lives)} ${plural(lives, "live", "lives")}`,
     },
     { label: "Avg per live", value: avg == null ? null : nf(avg) },
   ];
@@ -166,7 +165,7 @@ export function StreamerHomeFeed({
               104 sixteen-pixel "?" buttons this feed used to carry, five of
               them nested inside every card's tap target. */}
           <div className="mb-1">
-            <HelpChip keys={["filteredLeads", "views"]} />
+            <HelpChip keys={["totalLeads", "filteredLeads", "views"]} />
           </div>
           <MetricGrid items={summary} />
         </Disclosure>
@@ -194,7 +193,7 @@ export function StreamerHomeFeed({
                   href={`/tiktok-live/${s.id}`}
                   tone="warn"
                   title={when}
-                  meta={`Missing: ${missingStreamerMetrics(s)
+                  meta={`Missing: ${missingMetrics(s)
                     .map((m) => METRIC_LABEL[m])
                     .join(", ")}`}
                   badges={
@@ -211,6 +210,7 @@ export function StreamerHomeFeed({
                     <LeadsQuickAction
                       sessionId={s.id}
                       when={when}
+                      totalLeads={s.totalLeads}
                       filteredLeads={s.filteredLeads}
                     />
                   }
@@ -247,9 +247,13 @@ export function StreamerHomeFeed({
                   primary={[
                     { label: "Views", value: nf(s.totalViews) },
                     {
+                      label: "Total PM",
+                      value: s.totalLeads == null ? null : nf(s.totalLeads),
+                      tone: "accent",
+                    },
+                    {
                       label: "Document Collect",
                       value: s.filteredLeads == null ? null : nf(s.filteredLeads),
-                      tone: "accent",
                     },
                   ]}
                 />

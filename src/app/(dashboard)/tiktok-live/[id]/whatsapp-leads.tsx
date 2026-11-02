@@ -7,8 +7,7 @@ import type { LiveWa } from "@/lib/wati/leads";
  * was connected. A live that was running when WATI was connected is marked
  * Partial: its count only starts from that moment.
  *
- * Streamers see the numbers; only admins see the people (names and phones)
- * and Total PM.
+ * ADMIN-ONLY: the live page renders it (and queries WATI) for admins only.
  */
 
 const timeFmt = new Intl.DateTimeFormat("en-MY", {
@@ -33,14 +32,12 @@ function pct(n: number | null, of: number | null): string | null {
 
 export function WhatsAppLeads({
   wa,
-  isStreamer,
   viewers,
   commentLeads,
   totalLeads,
   filteredLeads,
 }: {
   wa: LiveWa | null;
-  isStreamer: boolean;
   viewers: number | null;
   commentLeads: number;
   totalLeads: number | null;
@@ -72,10 +69,7 @@ export function WhatsAppLeads({
 
       <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Stat label="WhatsApp PM" value={String(wa.waLeads)} accent />
-        {/* Total PM is admin-only. */}
-        {!isStreamer && (
-          <Stat label="Total PM" value={totalLeads === null ? "—" : String(totalLeads)} />
-        )}
+        <Stat label="Total PM" value={totalLeads === null ? "—" : String(totalLeads)} />
         <Stat label="Replied" value={`${wa.replied}/${wa.waLeads}`} />
         <Stat label="Median reply" value={fmtMinutes(wa.medianReplyMinutes)} />
       </dl>
@@ -100,7 +94,7 @@ export function WhatsAppLeads({
         })}
       </ol>
 
-      {!isStreamer && wa.contacts.length > 0 && (
+      {wa.contacts.length > 0 && (
         <details className="group mt-4 overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900 lg:dark:bg-zinc-950">
           <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between px-4 text-[15px] font-medium [&::-webkit-details-marker]:hidden">
             <span>People ({wa.contacts.length})</span>

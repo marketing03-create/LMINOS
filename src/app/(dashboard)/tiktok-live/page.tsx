@@ -147,12 +147,9 @@ export default async function TikTokLivePage({
   } catch (err) {
     error = err instanceof Error ? err.message : String(err);
   }
-  // Total PM is admin-only. A streamer's rows lose it HERE, on the server,
-  // before anything is rendered or serialised to their browser — hiding a
-  // column would still ship the number in the page payload.
-  if (isStreamer) sessions = sessions.map((s) => ({ ...s, totalLeads: null }));
-  // WhatsApp PM per live (admins). Always an object, so the column is always
-  // there; a live with no WATI tracking reads "—".
+  // WhatsApp PM per live — ADMIN-ONLY. A streamer's page never queries it, so
+  // the number can't reach their browser. For admins it is always an object, so
+  // the column is always there; a live with no WATI tracking reads "—".
   const wa = isStreamer ? {} : ((await waLeadCounts(sessions.map((s) => s.id))) ?? {});
 
   // The admin's "fill your numbers in" reminder, if one is open for this

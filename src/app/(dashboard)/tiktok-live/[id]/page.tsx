@@ -5,11 +5,7 @@ import { ProductBadges } from "@/components/product-badges";
 import { MobileTable } from "@/components/mobile/mobile-table";
 import { RecordCard, RecordList } from "@/components/mobile/record-card";
 import { mytDate } from "@/lib/tiktok-live/live-analysis-core";
-import {
-  METRIC_LABEL,
-  missingMetrics,
-  missingStreamerMetrics,
-} from "@/lib/tiktok-live/completeness";
+import { METRIC_LABEL, missingMetrics } from "@/lib/tiktok-live/completeness";
 import { requireLivePage } from "@/lib/auth/page-guard";
 import { waLeadsForLives, type LiveWa } from "@/lib/wati/leads";
 import { WhatsAppLeads } from "./whatsapp-leads";
@@ -62,19 +58,14 @@ export default async function TikTokSessionPage({
     error = err instanceof Error ? err.message : String(err);
   }
   if (data && !data.session && !error) notFound();
-  // Total PM is admin-only — a streamer's copy of the row never carries it, so
-  // it can't reach their browser through any prop below.
-  const s = data?.session
-    ? isStreamer
-      ? { ...data.session, totalLeads: null }
-      : data.session
-    : null;
+  const s = data?.session ?? null;
   const leads = data?.leads ?? [];
 
-  // WhatsApp leads from WATI. Optional: a handle with no WATI link, or the
-  // WATI tables not migrated yet, just leaves the section out.
+  // WhatsApp leads from WATI — ADMIN-ONLY. A streamer's page never queries
+  // them, so WhatsApp PM, reply times and customers can't reach their browser.
+  // A handle with no WATI link, or the tables not migrated, leaves it out.
   let wa: LiveWa | null = null;
-  if (s) {
+  if (s && !isStreamer) {
     try {
       wa = (await waLeadsForLives([s.id])).get(s.id) ?? null;
     } catch (err) {
@@ -86,7 +77,7 @@ export default async function TikTokSessionPage({
   // through the same pure function — so the 10pm nudge and this strip can never
   // disagree about whether this live still owes numbers. Costs no query.
   const missing = s
-    ? (isStreamer ? missingStreamerMetrics(s) : missingMetrics(s)).map((m) => METRIC_LABEL[m])
+    ? missingMetrics(s).map((m) => METRIC_LABEL[m])
     : [];
 
   return (
@@ -177,20 +168,21 @@ export default async function TikTokSessionPage({
               serviceBioViews: s.serviceBioViews,
               interestedViewers: s.interestedViewers,
               diamonds: s.diamonds,
-              ...(isStreamer ? {} : { totalLeads: s.totalLeads }),
+              totalLeads: s.totalLeads,
               filteredLeads: s.filteredLeads,
               keywordLeads: s.keywordLeads,
             }}
           />
 
-          <WhatsAppLeads
-            wa={wa}
-            isStreamer={isStreamer}
-            viewers={s.uniqueViewers ?? (s.totalViews || null)}
-            commentLeads={s.keywordLeads}
-            totalLeads={s.totalLeads}
-            filteredLeads={s.filteredLeads}
-          />
+          {!isStreamer && (
+            <WhatsAppLeads
+              wa={wa}
+              viewers={s.uniqueViewers ?? (s.totalViews || null)}
+              commentLeads={s.keywordLeads}
+              totalLeads={s.totalLeads}
+              filteredLeads={s.filteredLeads}
+            />
+          )}
 
           {/* The keyword-comment worklist is an ADMIN follow-up tool — hidden
               from streamers, who use this page only to verify their live numbers. */}

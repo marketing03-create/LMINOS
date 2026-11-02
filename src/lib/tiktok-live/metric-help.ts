@@ -29,7 +29,7 @@ export const METRIC_HELP = {
   commentLeads:
     "Viewers who typed your keyword (e.g. “PM”) in the chat — captured automatically. A follow-up list, not your final lead count.",
   totalLeads:
-    "Formerly “Total Leads”. Unique customers who PM'd from this live — counted once per phone number, so the same person on DM and WhatsApp counts once. Admins only.",
+    "Formerly “Total Leads”. Unique customers who PM'd from this live — counted once per phone number, so the same person on DM and WhatsApp counts once.",
   filteredLeads:
     "Formerly “Filtered Leads”. Of those customers, how many passed screening and submitted their documents.",
   replyMedian:
@@ -41,7 +41,7 @@ export const METRIC_HELP = {
   noReply:
     "Customers who messaged in this period and have no CS reply yet.",
   whatsappPm:
-    "Customers who WhatsApp'd from this live, counted automatically from WATI — once per phone number.",
+    "Customers who WhatsApp'd from this live, counted automatically from WATI — once per phone number. Admins only.",
   sessions: "Number of lives in this date range.",
   liveHours: "Total hours streamed in this date range.",
 

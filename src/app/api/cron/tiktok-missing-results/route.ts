@@ -1,12 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { isNull, type SQL } from "drizzle-orm";
 import { db } from "@/db/client";
-import { appNotifications, tiktokLiveSessions } from "@/db/schema";
+import { appNotifications } from "@/db/schema";
 import { cronAuthorized } from "@/lib/auth/cron";
 import { alertAdmins } from "@/lib/telegram/alert";
 import {
   lookbackWindow,
-  streamerLeadMetricsIncompleteCondition,
+  leadMetricsIncompleteCondition,
 } from "@/lib/tiktok-live/completeness";
 import { findOutstanding, notifyStreamers } from "@/lib/tiktok-live/reminders";
 import { autoFillTotalLeads } from "@/lib/wati/leads";
@@ -66,19 +65,20 @@ export async function GET(request: NextRequest) {
     console.error("[cron] WhatsApp auto-fill failed:", err);
   }
 
-  // Streamers are chased only for Document Collect — Total PM is admin-only, so
-  // a live missing just Total PM must not reach a streamer's reminder. The
-  // admin summary below has its own Total PM query.
-  const outstanding = await findOutstanding(since, until, streamerLeadMetricsIncompleteCondition());
+  // ONE scan for lives still missing LEAD numbers; both audiences derive from it.
+  const outstanding = await findOutstanding(since, until, leadMetricsIncompleteCondition());
 
   // ── Streamers: reminded in-app + Telegram (idempotent, once-a-day DM gate) ──
   const streamer = await notifyStreamers(outstanding, "leads");
 
-  // ── Admins: yesterday only, "no Total PM" only — its own query, since the
-  // streamer list above no longer covers Total PM ──
-  const rows = (
-    await findOutstanding(start, end, isNull(tiktokLiveSessions.totalLeads) as SQL)
-  ).filter((r) => r.startedAt != null);
+  // ── Admins: yesterday only, "no Total PM" only ──
+  const rows = outstanding.filter(
+    (r) =>
+      r.totalLeads == null &&
+      r.startedAt != null &&
+      r.startedAt >= start &&
+      r.startedAt < end
+  );
 
   if (rows.length === 0) {
     return NextResponse.json({

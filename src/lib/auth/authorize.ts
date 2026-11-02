@@ -45,6 +45,16 @@ function devBypassRole(): Role {
 }
 
 /**
+ * Optional user id for the dev bypass (LMIROS_DEV_BYPASS_USER_ID), so a local
+ * "streamer" preview sees the lives of the handles assigned to that user. Unset
+ * means no user, as before. Dev only, like everything else here.
+ */
+function devBypassUserId(): string | null {
+  const id = process.env.LMIROS_DEV_BYPASS_USER_ID;
+  return id && /^[0-9a-f-]{36}$/i.test(id) ? id : null;
+}
+
+/**
  * Require the current user to hold one of `roles`. Returns the resolved
  * userId + role on success, or a 401/403 result to return from the route.
  */
@@ -56,7 +66,7 @@ export async function requireRole(roles: Role[]): Promise<AuthResult> {
     // to the real database. (Dev only: devBypass() is off in production.)
     const role = devBypassRole();
     if (!roles.includes(role)) return { ok: false, status: 403, error: "forbidden" };
-    return { ok: true, userId: null, role };
+    return { ok: true, userId: devBypassUserId(), role };
   }
 
   const supabase = await createSupabaseServerClient();
@@ -100,7 +110,7 @@ export type SessionUser = {
  */
 export async function getSessionUser(): Promise<SessionUser | null> {
   if (devBypass()) {
-    return { userId: null, email: "dev@stub.local", role: devBypassRole() };
+    return { userId: devBypassUserId(), email: "dev@stub.local", role: devBypassRole() };
   }
 
   const supabase = await createSupabaseServerClient();

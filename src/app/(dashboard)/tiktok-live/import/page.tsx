@@ -59,16 +59,6 @@ export default async function StreamerImportPage({
   } catch {
     // DB hiccup — the form shows an empty state; screenshots still work.
   }
-  // Total PM is admin-only. A streamer's lives lose it here, on the server, so
-  // it is never in the page payload; the forms hide the field to match.
-  const showTotalPm = me?.role !== "live_streamer";
-  if (!showTotalPm) {
-    sessions = sessions.map((m) => {
-      const { totalLeads: _hidden, ...current } = m.current;
-      void _hidden;
-      return { ...m, current };
-    });
-  }
 
   return (
     <div className="px-4 py-5 sm:p-8">
@@ -126,11 +116,7 @@ export default async function StreamerImportPage({
               <h2 className="text-sm font-semibold">Or type them in yourself</h2>
             </div>
           )}
-          <ManualEntryForm
-            sessions={sessions}
-            autoSelect={mode === "manual"}
-            showTotalPm={showTotalPm}
-          />
+          <ManualEntryForm sessions={sessions} autoSelect={mode === "manual"} />
         </div>
       )}
 
@@ -151,12 +137,7 @@ export default async function StreamerImportPage({
               // the one control that helps them is behind a closed section.
               defaultOpen={sessions.length === 0}
             >
-              <AddPastLive
-                accounts={accounts}
-                alwaysOpen
-                sticky={false}
-                showTotalPm={showTotalPm}
-              />
+              <AddPastLive accounts={accounts} alwaysOpen sticky={false} />
             </Disclosure>
           </div>
         ) : (
@@ -166,7 +147,7 @@ export default async function StreamerImportPage({
             <div className="mb-3 hidden lg:block">
               <h2 className="text-sm font-semibold">Don&apos;t see your live above?</h2>
             </div>
-            <AddPastLive accounts={accounts} showTotalPm={showTotalPm} />
+            <AddPastLive accounts={accounts} />
           </div>
         ))}
     </div>

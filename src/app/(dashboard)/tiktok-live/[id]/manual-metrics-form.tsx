@@ -200,11 +200,7 @@ export function SessionEditor({
   remarks: string | null;
   initial: Record<string, number | null>;
 }) {
-  // Total PM is admin-only: a streamer's form neither shows nor sends it (the
-  // PATCH route refuses it from a streamer anyway).
-  const leadFields = isStreamer
-    ? LEAD_FIELDS.filter((f) => f.key !== "totalLeads")
-    : [...LEAD_FIELDS, ...ADMIN_LEAD_FIELDS];
+  const leadFields = isStreamer ? LEAD_FIELDS : [...LEAD_FIELDS, ...ADMIN_LEAD_FIELDS];
   const allFields = [...leadFields, ...LIVE_FIELDS, ...BACKEND_FIELDS];
 
   // What the database holds, as far as we know. Kept in state rather than read
