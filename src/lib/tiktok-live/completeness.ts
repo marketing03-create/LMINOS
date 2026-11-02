@@ -111,6 +111,20 @@ export function isComplete(row: MetricRow): boolean {
   return missingMetrics(row).length === 0;
 }
 
+const MYT_MS = 8 * 60 * 60 * 1000; // Malaysia is UTC+8, no DST
+
+/**
+ * The `days` whole Malaysia-time days before today (today itself excluded) —
+ * the 11:30am weekly check's "previous 7 days".
+ */
+export function previousDaysWindow(days: number, now = new Date()): { since: Date; until: Date } {
+  const myt = new Date(now.getTime() + MYT_MS);
+  const until = new Date(
+    Date.UTC(myt.getUTCFullYear(), myt.getUTCMonth(), myt.getUTCDate()) - MYT_MS
+  );
+  return { since: new Date(until.getTime() - days * 86_400_000), until };
+}
+
 /** The rolling window a reminder looks back over, ending "now". */
 export function lookbackWindow(now = new Date()): { since: Date; until: Date } {
   return {

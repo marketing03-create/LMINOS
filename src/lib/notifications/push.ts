@@ -21,6 +21,11 @@ export type PushMessage = {
   url?: string;
   /** Same tag replaces the previous notification instead of stacking. */
   tag?: string;
+  /**
+   * Delivered at once even to a sleeping phone, and shown with sound + a long
+   * vibration that stays on screen until dismissed (see public/sw.js).
+   */
+  urgent?: boolean;
 };
 
 let configured: boolean | null = null;
@@ -59,7 +64,8 @@ export async function pushToUser(userId: string, msg: PushMessage): Promise<numb
           await webpush.sendNotification(
             { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
             payload,
-            { TTL: 60 * 60 * 24 } // a phone offline for a day still gets it
+            // TTL: a phone offline for a day still gets it.
+            { TTL: 60 * 60 * 24, urgency: msg.urgent ? "high" : "normal" }
           );
           delivered += 1;
         } catch (err) {

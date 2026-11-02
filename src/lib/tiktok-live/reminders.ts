@@ -7,6 +7,7 @@
  *   post-live  ~1h after a live ends  → LIVE metrics (DMs, Bio views), once
  *   10pm       daily re-check          → LIVE metrics, re-nag if still blank
  *   10am       daily                   → LEAD metrics (Total PM, Document Collect)
+ *   11:30am    daily, urgent (rings)   → ALL four, any live from the previous 7 days
  *
  * Each group is its own Notification Center row (its own `type`), so filling in
  * DMs clears the live-metrics reminder even while leads are still outstanding.
@@ -21,6 +22,7 @@ import {
   liveMetricsIncompleteCondition,
   missingLeadMetrics,
   missingLiveMetrics,
+  missingMetrics,
   outstandingCondition,
 } from "./completeness";
 
@@ -49,6 +51,18 @@ export const TRACKS = {
     body: (n: number) =>
       `${n === 1 ? "This live" : "These lives"} still ${n === 1 ? "needs" : "need"} Total PM ` +
       `and Document Collect entered.`,
+  },
+  // 11:30am: anything from the previous 7 days still blank, all four metrics.
+  // Urgent — rings and stays on screen until the streamer dismisses it.
+  week: {
+    type: "tiktok_weekly_missing",
+    dedupeKey: "weekly",
+    missing: missingMetrics,
+    urgent: true,
+    title: (n: number) => `${n} live${n === 1 ? "" : "s"} from the past 7 days not filled in`,
+    body: (n: number) =>
+      `Add DMs, Bio views, Total PM and Document Collect for ` +
+      `${n === 1 ? "this live" : "these lives"} now.`,
   },
 } as const;
 
@@ -171,6 +185,7 @@ export async function notifyStreamers(
         body: t.body(n),
         url: n === 1 ? `/tiktok-live/${g.sessionIds[0]}` : "/tiktok-live",
         tag: t.type,
+        urgent: "urgent" in t && t.urgent,
       });
       if (sent > 0) pinged += 1;
     }

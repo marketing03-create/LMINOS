@@ -9,6 +9,7 @@ import {
   missingLeadMetrics,
   missingLiveMetrics,
   missingMetrics,
+  previousDaysWindow,
   REQUIRED_METRICS,
 } from "./completeness";
 
@@ -100,5 +101,20 @@ describe("lookbackWindow", () => {
     const { since, until } = lookbackWindow(now);
     expect(until).toEqual(now);
     expect((now.getTime() - since.getTime()) / 86_400_000).toBe(LOOKBACK_DAYS);
+  });
+});
+
+describe("previousDaysWindow", () => {
+  it("covers the 7 whole Malaysia days before today, not today", () => {
+    // 2 Nov 11:30 MYT = 03:30 UTC → 26 Oct 00:00 MYT … 2 Nov 00:00 MYT.
+    const { since, until } = previousDaysWindow(7, new Date("2026-11-02T03:30:00Z"));
+    expect(since.toISOString()).toBe("2026-10-25T16:00:00.000Z");
+    expect(until.toISOString()).toBe("2026-11-01T16:00:00.000Z");
+  });
+
+  it("uses the Malaysia day even when UTC is still on the day before", () => {
+    // 2 Nov 01:00 MYT = 1 Nov 17:00 UTC — today is still 2 Nov in Malaysia.
+    const { until } = previousDaysWindow(7, new Date("2026-11-01T17:00:00Z"));
+    expect(until.toISOString()).toBe("2026-11-01T16:00:00.000Z");
   });
 });

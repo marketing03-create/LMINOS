@@ -21,6 +21,12 @@ self.addEventListener("push", (event) => {
       badge: "/badge-96.png",
       tag: msg.tag || undefined,
       renotify: !!msg.tag,
+      // Urgent reminders ring: the phone's notification sound (browsers can't
+      // play a custom one), a long ring-like buzz on Android, and the alert
+      // stays in the notification bar until the streamer deals with it.
+      ...(msg.urgent
+        ? { silent: false, requireInteraction: true, vibrate: [600, 300, 600, 300, 600, 300, 900] }
+        : {}),
       data: { url: msg.url || "/" },
     })
   );
