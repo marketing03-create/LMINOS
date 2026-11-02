@@ -130,6 +130,18 @@ export async function OverviewView({
       ? "All streamers"
       : `@${handles.find((h) => h.id === streamer)?.handle ?? "unknown"}`;
 
+  // The WhatsApp log behind the CS reply numbers: same period, same streamer.
+  const logHref = (extra: Record<string, string>) => {
+    const q = new URLSearchParams(
+      choice.mode === "custom"
+        ? { start: choice.startStr, end: choice.endStr }
+        : { range: choice.presetKey ?? "30d" }
+    );
+    if (streamer !== "all") q.set("streamer", streamer);
+    for (const [k, v] of Object.entries(extra)) q.set(k, v);
+    return `/admin/whatsapp?${q.toString()}`;
+  };
+
   const exportQs = new URLSearchParams(
     choice.mode === "custom"
       ? { start: choice.startStr, end: choice.endStr }
@@ -239,7 +251,7 @@ export async function OverviewView({
                 {
                   id: "replies",
                   label: "CS replies",
-                  children: <ReplySpeedPane data={replies} periodLabel={choice.label} />,
+                  children: <ReplySpeedPane data={replies} periodLabel={choice.label} logHref={logHref} />,
                 },
                 {
                   id: "charts",

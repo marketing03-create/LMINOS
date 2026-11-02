@@ -5,7 +5,7 @@
  * Callers wrap these in try/catch: until migration 0037 is applied the tables
  * they read don't exist, and a page must still render without the numbers.
  */
-import { and, desc, eq, gte, inArray, isNull, lt, lte } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, lt, lte, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   tiktokAccounts,
@@ -25,6 +25,17 @@ import {
 import { replySpeed, type ReplySpeed } from "./reply-speed";
 
 const DAY = 86_400_000;
+
+/**
+ * A customer's first-ever contact (WATI history if earlier, else first seen)
+ * falls in [from, to). The bounds go in as ISO text with an explicit cast: a
+ * Date bound against an expression (not a column) has no type for the driver
+ * to encode it with, and the query fails.
+ */
+export function firstEverContactIn(from: Date, to: Date) {
+  const at = sql`coalesce(${whatsappContacts.firstContactAt}, ${whatsappContacts.firstMessageAt})`;
+  return sql`${at} >= ${from.toISOString()}::timestamptz and ${at} < ${to.toISOString()}::timestamptz`;
+}
 
 export type WaContactRow = {
   id: string;
@@ -114,8 +125,10 @@ export async function waLeadsForLives(liveIds: string[]): Promise<Map<string, Li
     .where(
       and(
         inArray(whatsappContacts.connectionId, connections),
-        gte(whatsappContacts.firstMessageAt, from),
-        lt(whatsappContacts.firstMessageAt, new Date(to.getTime() + DAY + AFTER_HOURS * 3_600_000))
+        // Windowed on the first-EVER contact, which is what attribution uses
+        // below — windowing on first-seen dropped a returning customer TT Stars
+        // only heard from days later, depending on which lives were asked about.
+        firstEverContactIn(from, new Date(to.getTime() + DAY + AFTER_HOURS * 3_600_000))
       )
     )
     .orderBy(desc(whatsappContacts.firstMessageAt));

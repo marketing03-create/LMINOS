@@ -75,7 +75,7 @@ export function mytDay(d: Date): string {
 }
 
 /** Leads reply tracking could have seen (see the file note). */
-export function trackedRows(rows: ReplyRow[], connections: ReplyConnection[]): ReplyRow[] {
+export function trackedRows<T extends ReplyRow>(rows: T[], connections: ReplyConnection[]): T[] {
   const since = new Map(
     connections
       .filter((c) => c.repliesSeenAt)

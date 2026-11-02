@@ -313,7 +313,13 @@ function SessionsGrid({
               </Td>
               {wa && (
                 <Td className="text-right tabular-nums text-emerald-600 dark:text-emerald-400">
-                  {fmtN(wa[s.id] ?? null)}
+                  {wa[s.id] != null ? (
+                    <Link href={`/admin/whatsapp?live=${s.id}`} className="hover:underline">
+                      {fmtN(wa[s.id])}
+                    </Link>
+                  ) : (
+                    fmtN(null)
+                  )}
                 </Td>
               )}
               <Td className={`text-right tabular-nums font-semibold ${sc(s, "totalLeads")}`}>{fmtN(s.totalLeads)}</Td>

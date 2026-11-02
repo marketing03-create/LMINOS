@@ -350,7 +350,15 @@ export default async function TikTokLivePage({
                       <Td className={`text-right tabular-nums ${sc(s, "serviceBioViews")}`}>{fmtN(s.serviceBioViews)}</Td>
                       <Td className={`text-right tabular-nums ${sc(s, "interestedViewers")}`}>{fmtN(s.interestedViewers)}</Td>
                       <Td className={`text-right tabular-nums ${sc(s, "diamonds")}`}>{fmtN(s.diamonds)}</Td>
-                      <Td className="text-right tabular-nums text-emerald-600 dark:text-emerald-400">{fmtN(wa[s.id] ?? null)}</Td>
+                      <Td className="text-right tabular-nums text-emerald-600 dark:text-emerald-400">
+                        {wa[s.id] != null ? (
+                          <Link href={`/admin/whatsapp?live=${s.id}`} className="hover:underline">
+                            {fmtN(wa[s.id])}
+                          </Link>
+                        ) : (
+                          fmtN(null)
+                        )}
+                      </Td>
                       <Td className={`text-right tabular-nums font-semibold ${sc(s, "totalLeads")}`}>{fmtN(s.totalLeads)}</Td>
                       <Td className={`text-right tabular-nums ${sc(s, "filteredLeads")}`}>{fmtN(s.filteredLeads)}</Td>
                       <Td className="align-top">

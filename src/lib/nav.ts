@@ -26,6 +26,7 @@ const ADMIN_NAV: NavGroup[] = [
     label: "Admin",
     items: [
       { href: "/admin/users", label: "Users" },
+      { href: "/admin/whatsapp", label: "WhatsApp log" },
       { href: "/admin/integrations", label: "Integrations" },
       { href: "/admin/audit", label: "Audit log" },
       { href: "/admin/tiktok/screenshots", label: "Screenshots" },
