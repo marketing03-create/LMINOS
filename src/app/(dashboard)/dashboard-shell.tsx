@@ -10,12 +10,14 @@ import { LogoutButton } from "./logout-button";
 import { StreamerTabBar } from "./streamer-tab-bar";
 import { AdminTabBar } from "./admin-tab-bar";
 import { NotificationBell } from "./notification-bell";
+import { MobileMenu } from "./mobile-menu";
 
 /**
  * Responsive app shell. Desktop (lg+): the sidebar is a permanent left column,
- * exactly as before. Phone/tablet: every role now navigates from a bottom tab
- * bar — streamers from `StreamerTabBar`, admins from `AdminTabBar` — and the top
- * bar carries nothing but the logo and (for streamers) the notification bell.
+ * exactly as before. Phone/tablet: streamers and admins have a bottom tab bar
+ * (`StreamerTabBar` / `AdminTabBar`), and EVERY role has a top-right menu
+ * (`MobileMenu`) listing all the pages that role may open, plus sign-out. The
+ * top bar holds the logo, the streamer's bell and that menu.
  *
  * The off-canvas drawer and its hamburger are gone below `lg`. That was the one
  * real behaviour change here, and it is worth spelling out: the top-left corner
@@ -88,13 +90,12 @@ export function DashboardShell({
             />
             <span className="font-semibold tracking-tight">TT Stars</span>
           </Link>
-          {/* Notification Center — streamers only for now (nothing writes admin
-              rows yet, so it would sit permanently at 0). */}
-          {isStreamer && (
-            <div className="ml-auto">
-              <NotificationBell />
-            </div>
-          )}
+          {/* Top right: the streamer's bell, then every role's menu (all the
+              pages that role may open — lib/nav.ts). */}
+          <div className="ml-auto flex items-center gap-1">
+            {isStreamer && <NotificationBell />}
+            <MobileMenu role={role} email={email} />
+          </div>
         </div>
       </header>
 
