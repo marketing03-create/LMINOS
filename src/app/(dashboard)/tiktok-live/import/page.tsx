@@ -28,11 +28,13 @@ const TABS: { mode: Mode; label: string }[] = [
 export default async function StreamerImportPage({
   searchParams,
 }: {
-  searchParams: Promise<{ mode?: string }>;
+  searchParams: Promise<{ mode?: string; date?: string }>;
 }) {
   const aiConfigured = !!process.env.AI_GATEWAY_API_KEY;
-  const { mode: raw } = await searchParams;
+  const { mode: raw, date } = await searchParams;
   const mode: Mode = raw === "screenshot" || raw === "missing" ? raw : "manual";
+  // Missing live can start on a day picked from Type in's calendar.
+  const initialDate = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : "";
 
   const me = await requireLivePage();
   // Fail closed: a streamer with no id gets an empty scope, never `undefined`
@@ -104,7 +106,7 @@ export default async function StreamerImportPage({
           </div>
         ))}
 
-      {mode === "missing" && <AddPastLive accounts={accounts} />}
+      {mode === "missing" && <AddPastLive accounts={accounts} initialDate={initialDate} />}
     </div>
   );
 }

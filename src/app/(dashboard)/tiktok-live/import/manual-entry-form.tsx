@@ -19,6 +19,7 @@ import { NumberField } from "@/components/mobile/number-field";
 import { StickyAction } from "@/components/mobile/sticky-action";
 import { HelpChip } from "@/components/mobile/metric-help-sheet";
 import { FormSection } from "@/components/mobile/form-section";
+import { MonthCalendar, dayKey } from "@/components/mobile/month-calendar";
 import type { MatchCandidate } from "@/lib/tiktok-live/queries";
 
 const sameProducts = (a: string[], b: string[]) =>
@@ -105,6 +106,36 @@ export function ManualEntryForm({
 
   const selected = sessions.find((s) => s.sessionId === sessionId);
 
+  // The calendar: lives grouped by Malaysia-time day (see `dayKey`), and each
+  // day's dot — amber while any live that day
+  // still owes a required number, green once they all are in.
+  const byDay = useMemo(() => {
+    const map = new Map<string, MatchCandidate[]>();
+    for (const s of sessions) {
+      if (!s.startedAt) continue;
+      const k = dayKey(new Date(s.startedAt));
+      map.set(k, [...(map.get(k) ?? []), s]);
+    }
+    // Earliest first within a day, so the list reads like the day went.
+    for (const list of map.values()) {
+      list.sort((a, b) => new Date(a.startedAt!).getTime() - new Date(b.startedAt!).getTime());
+    }
+    return map;
+  }, [sessions]);
+  const marks = useMemo(() => {
+    const out: Record<string, "owed" | "done"> = {};
+    for (const [k, list] of byDay) {
+      out[k] = list.some((s) => missingRequired(s.current) > 0) ? "owed" : "done";
+    }
+    return out;
+  }, [byDay]);
+  const [day, setDay] = useState(() => {
+    const first = sessions.find((s) => s.sessionId === initial.sessionId);
+    return first?.startedAt ? dayKey(new Date(first.startedAt)) : dayKey(new Date());
+  });
+  const [calOpen, setCalOpen] = useState(false);
+  const dayLives = byDay.get(day) ?? [];
+
   // Both halves of the redirect live here so "Stay here" and unmount can stop
   // them together. A ref: cancelling must not wait for a re-render.
   const timers = useRef<{
@@ -121,7 +152,9 @@ export function ManualEntryForm({
   useEffect(() => stopRedirect, [stopRedirect]);
 
   function pickSession(id: string) {
-    const next = stateFor(sessions.find((x) => x.sessionId === id) ?? null);
+    const live = sessions.find((x) => x.sessionId === id) ?? null;
+    const next = stateFor(live);
+    if (live?.startedAt) setDay(dayKey(new Date(live.startedAt)));
     setSessionId(id);
     setApplied(false);
     setMsg(null);
@@ -130,6 +163,25 @@ export function ManualEntryForm({
     setValues(next.values);
     setPickerOpen(false);
     setQuery("");
+  }
+
+  // Picking a day selects its live straight away (the first one still owing
+  // numbers, else the first); a day with several shows them all to choose
+  // from, and a day with none clears the form.
+  function pickDay(key: string) {
+    setDay(key);
+    setCalOpen(false);
+    const list = byDay.get(key) ?? [];
+    const target = list.find((s) => missingRequired(s.current) > 0) ?? list[0];
+    if (target) pickSession(target.sessionId);
+    else {
+      setSessionId("");
+      setValues({});
+      setProducts([]);
+      setRemarks("");
+      setApplied(false);
+      setMsg(null);
+    }
   }
 
   function setVal(col: string, raw: string) {
@@ -277,11 +329,11 @@ export function ManualEntryForm({
 
   return (
     <div className="space-y-4">
-      {/* The live being filled in: identity on the left, its state and the
-          Change control on the right. */}
+      {/* Which live: a date (with a month calendar whose dots show which days
+          still owe numbers), then that day's lives to choose from. */}
       <section className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="mb-2 flex items-center justify-between gap-3">
-          <span className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Live</span>
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <span className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Live date</span>
           {selected && (
             <span
               className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
@@ -294,27 +346,112 @@ export function ManualEntryForm({
             </span>
           )}
         </div>
-        <div className="flex items-center gap-3">
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-lg font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
-              {selected ? fmtWhen(selected.startedAt) : "No live selected"}
-            </div>
-            {selected && (
-              <div className="truncate text-sm text-zinc-500">
-                <span className="font-mono">@{selected.handle}</span>
-                {selected.title ? ` · ${selected.title}` : ""}
-              </div>
-            )}
-          </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setCalOpen((o) => !o)}
+            disabled={locked}
+            aria-expanded={calOpen}
+            className="flex min-h-12 min-w-0 flex-1 items-center gap-3 rounded-xl border border-zinc-300 bg-white px-3 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 active:bg-zinc-50 disabled:opacity-50 lg:min-h-10 lg:hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-950 dark:active:bg-zinc-900 lg:dark:hover:bg-zinc-900"
+          >
+            <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-blue-600 dark:text-blue-400">
+              <rect x="3" y="4" width="18" height="18" rx="2" />
+              <path d="M16 2v4M8 2v4M3 10h18" />
+            </svg>
+            <span className="min-w-0 flex-1 truncate text-[15px] font-semibold text-zinc-900 dark:text-zinc-100">
+              {new Date(`${day}T00:00:00`).toLocaleDateString("en-MY", {
+                weekday: "short",
+                day: "numeric",
+                month: "short",
+                year: "numeric",
+              })}
+            </span>
+            <svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`shrink-0 text-zinc-400 transition-transform ${calOpen ? "rotate-180" : ""}`}>
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+          </button>
           <button
             type="button"
             onClick={() => setPickerOpen(true)}
             disabled={locked}
-            className="inline-flex min-h-11 shrink-0 items-center rounded-xl border border-zinc-300 px-4 text-sm font-medium text-zinc-700 active:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:opacity-50 lg:hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:active:bg-zinc-800 lg:dark:hover:bg-zinc-800"
+            className="inline-flex min-h-12 shrink-0 items-center rounded-xl border border-zinc-300 px-3 text-sm font-medium text-zinc-700 active:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:opacity-50 lg:min-h-10 lg:hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:active:bg-zinc-800 lg:dark:hover:bg-zinc-800"
           >
-            {selected ? "Change" : "Pick a live"}
+            All lives
           </button>
         </div>
+
+        {calOpen && (
+          <div className="mt-3 rounded-xl border border-zinc-200 p-2 dark:border-zinc-800">
+            <MonthCalendar value={day} onChange={pickDay} marks={marks} max={dayKey(new Date())} />
+          </div>
+        )}
+
+        {dayLives.length > 0 ? (
+          <ul className="mt-3 space-y-2" aria-label="Lives on this date">
+            {dayLives.map((s) => {
+              const on = s.sessionId === sessionId;
+              const owed = missingRequired(s.current);
+              return (
+                <li key={s.sessionId}>
+                  <button
+                    type="button"
+                    onClick={() => pickSession(s.sessionId)}
+                    disabled={locked}
+                    aria-pressed={on}
+                    className={`flex min-h-14 w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:opacity-60 ${
+                      on
+                        ? "border-blue-500 bg-blue-50 ring-1 ring-blue-500 dark:bg-blue-950/40"
+                        : "border-zinc-200 active:bg-zinc-50 lg:hover:bg-zinc-50 dark:border-zinc-800 dark:active:bg-zinc-900 lg:dark:hover:bg-zinc-900"
+                    }`}
+                  >
+                    <span
+                      aria-hidden="true"
+                      className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${
+                        on ? "border-blue-600 bg-blue-600" : "border-zinc-300 dark:border-zinc-600"
+                      }`}
+                    >
+                      {on && <span className="h-2 w-2 rounded-full bg-white" />}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[15px] font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
+                        {new Date(s.startedAt!).toLocaleTimeString("en-MY", {
+                          timeZone: "Asia/Kuala_Lumpur",
+                          hour: "numeric",
+                          minute: "2-digit",
+                          hour12: true,
+                        })}
+                      </span>
+                      <span className="block truncate text-xs text-zinc-500">
+                        <span className="font-mono">@{s.handle}</span>
+                        {s.title ? ` · ${s.title}` : ""}
+                      </span>
+                    </span>
+                    <span
+                      className={`shrink-0 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${
+                        owed === 0
+                          ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300"
+                          : "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300"
+                      }`}
+                    >
+                      {owed === 0 ? "Complete" : `${owed} missing`}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <div className="mt-3 rounded-xl border border-dashed border-zinc-300 px-4 py-5 text-center dark:border-zinc-700">
+            <p className="text-sm font-medium text-zinc-700 dark:text-zinc-200">No live on this date</p>
+            <Link
+              href={`/tiktok-live/import?mode=missing&date=${day}`}
+              className="mt-3 inline-flex min-h-11 items-center justify-center rounded-xl bg-blue-600 px-4 text-sm font-medium text-white active:bg-blue-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
+            >
+              Add it as a missing live
+            </Link>
+          </div>
+        )}
       </section>
 
       <Sheet open={pickerOpen} onClose={() => setPickerOpen(false)} title="Pick a live">

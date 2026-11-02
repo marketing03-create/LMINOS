@@ -31,9 +31,16 @@ const LABEL = "mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-200";
  * details (with an optional screenshot read to fill the form), 2 Required,
  * 3 TikTok Studio, 4 Live performance, 5 Product.
  */
-export function AddPastLive({ accounts }: { accounts: { id: string; handle: string }[] }) {
+export function AddPastLive({
+  accounts,
+  initialDate = "",
+}: {
+  accounts: { id: string; handle: string }[];
+  /** `YYYY-MM-DD` to start from — the day picked on Type in's calendar. */
+  initialDate?: string;
+}) {
   const [accountId, setAccountId] = useState(accounts[0]?.id ?? "");
-  const [date, setDate] = useState("");
+  const [date, setDate] = useState(initialDate);
   const [startTime, setStartTime] = useState("");
   const [durationMinutes, setDurationMinutes] = useState("");
   const [products, setProducts] = useState<string[]>([]);
