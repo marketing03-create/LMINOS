@@ -1,5 +1,7 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { after, NextResponse, type NextRequest } from "next/server";
 import { db } from "@/db/client";
+import { crossCheckAll } from "@/lib/wati/crosscheck";
+import { mytYesterday } from "@/lib/wati/crosscheck-core";
 import { appNotifications } from "@/db/schema";
 import { cronAuthorized } from "@/lib/auth/cron";
 import { alertAdmins } from "@/lib/telegram/alert";
@@ -64,6 +66,16 @@ export async function GET(request: NextRequest) {
   } catch (err) {
     console.error("[cron] WhatsApp auto-fill failed:", err);
   }
+
+  // Yesterday's WATI cross-check (did TT Stars get every new WhatsApp
+  // customer?). After the response, so the reminders never wait on WATI.
+  after(async () => {
+    try {
+      await crossCheckAll(mytYesterday());
+    } catch (err) {
+      console.error("[cron] WATI cross-check failed:", err instanceof Error ? err.name : "error");
+    }
+  });
 
   // ONE scan for lives still missing LEAD numbers; both audiences derive from it.
   const outstanding = await findOutstanding(since, until, leadMetricsIncompleteCondition());

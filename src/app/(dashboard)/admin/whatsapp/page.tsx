@@ -362,9 +362,16 @@ function Reply({ r }: { r: LogRow }) {
 }
 
 function Counted({ r }: { r: LogRow }) {
+  // Their real first message (WATI history) is earlier than the one TT Stars
+  // first saw. Only an earlier DAY is a return; the same day just means they
+  // wrote before TT Stars heard them (e.g. before the account was connected).
+  const sameDay =
+    r.firstContactAt && dateFmt.format(r.firstContactAt) === dateFmt.format(r.firstMessageAt);
   const returning = r.firstContactAt ? (
     <span className="ml-1 rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
-      Returning · first {dateFmt.format(r.firstContactAt)}
+      {sameDay
+        ? `First wrote ${timeFmt.format(r.firstContactAt)}`
+        : `Returning · first wrote ${dateFmt.format(r.firstContactAt)}`}
     </span>
   ) : null;
   if (r.counted.kind === "live") {
@@ -384,7 +391,7 @@ function Counted({ r }: { r: LogRow }) {
     r.counted.reason === "no-handle"
       ? "Not counted — no TikTok handle linked to this number"
       : r.counted.reason === "returning"
-        ? "Not counted — returning customer"
+        ? "Not counted — first wrote earlier, not during a live"
         : "Not counted — not during a live (or 3 h after)";
   return (
     <span className="text-zinc-500">

@@ -1,6 +1,8 @@
 import {
   boolean,
   index,
+  integer,
+  jsonb,
   pgTable,
   text,
   timestamp,
@@ -123,5 +125,43 @@ export const tiktokWaLinks = pgTable(
   },
   (t) => ({
     codeUq: uniqueIndex("tiktok_wa_links_code_uq").on(t.code),
+  })
+);
+
+/**
+ * The daily cross-check (lib/wati/crosscheck.ts): for one WATI account and one
+ * day, the new customers WATI shows messaging a linked number versus the ones
+ * TT Stars received. One row per account per day; re-running overwrites it.
+ *
+ * `missing` keeps only what an admin needs to find the chat in WATI — last four
+ * digits, name, when they first wrote, which number — never the full phone.
+ */
+export type CrossCheckMissing = { last4: string; name: string | null; at: string; number: string };
+
+export const watiDailyChecks = pgTable(
+  "wati_daily_checks",
+  {
+    id: id(),
+    connectionId: uuid("connection_id")
+      .notNull()
+      .references(() => watiConnections.id, { onDelete: "cascade" }),
+    // WATI's "created" date of the contacts checked, YYYY-MM-DD.
+    day: text("day").notNull(),
+    checkedAt: timestamp("checked_at", { withTimezone: true }).notNull().defaultNow(),
+    // New customers on WATI who messaged a linked number after TT Stars was connected.
+    watiCustomers: integer("wati_customers").notNull().default(0),
+    // Of those, how many TT Stars has.
+    found: integer("found").notNull().default(0),
+    missing: jsonb("missing").$type<CrossCheckMissing[]>().notNull().default([]),
+    // New WATI contacts that aren't customer chats on a linked number (CS wrote
+    // first, another number, or no chat) — shown so the totals add up.
+    notCustomers: integer("not_customers").notNull().default(0),
+    // Contacts left unchecked because the run hit its API-call cap.
+    unchecked: integer("unchecked").notNull().default(0),
+    // Why the check couldn't run (no API token, WATI refused…). Null = it ran.
+    error: text("error"),
+  },
+  (t) => ({
+    dayUq: uniqueIndex("wati_daily_checks_uq").on(t.connectionId, t.day),
   })
 );

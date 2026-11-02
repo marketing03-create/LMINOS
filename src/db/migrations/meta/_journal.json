@@ -281,6 +281,13 @@
       "when": 1793604797167,
       "tag": "0039_user_entered",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1793608321487,
+      "tag": "0040_wati_daily_checks",
+      "breakpoints": true
     }
   ]
 }

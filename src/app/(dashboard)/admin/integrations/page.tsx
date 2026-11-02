@@ -27,7 +27,7 @@ type PairedUser = {
 };
 
 type WatiRow = Omit<WatiConnectionView, "webhookUrl"> & { webhookKey: string };
-type WatiData = { rows: WatiRow[]; handles: HandleLinkView[] };
+type WatiData = { rows: WatiRow[]; handles: HandleLinkView[]; yesterday: string };
 
 async function load(): Promise<{ pairedUsers: PairedUser[]; error: string | null }> {
   try {
@@ -71,9 +71,11 @@ function ago(ms: number): string {
 async function loadWati(): Promise<WatiData | null> {
   try {
     const { db } = await import("@/db/client");
-    const { tiktokAccounts, tiktokWaLinks, watiConnections, whatsappContacts } = await import(
-      "@/db/schema"
-    );
+    const { tiktokAccounts, tiktokWaLinks, watiConnections, watiDailyChecks, whatsappContacts } =
+      await import("@/db/schema");
+    const { mytYesterday } = await import("@/lib/wati/crosscheck-core");
+    const yesterday = mytYesterday();
+    const weekAgo = new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10);
     // "Today" is Malaysia's day (UTC+8), like every other count in the app.
     const todayMy = sql`date_trunc('day', now() at time zone 'Asia/Kuala_Lumpur') at time zone 'Asia/Kuala_Lumpur'`;
     const [rows, handles] = await Promise.all([
@@ -94,6 +96,8 @@ async function loadWati(): Promise<WatiData | null> {
           // Today's median first-reply time (minutes), from leads that got one.
           replyMedianToday: sql<number | null>`percentile_cont(0.5) within group (order by extract(epoch from (${whatsappContacts.firstReplyAt} - ${whatsappContacts.firstMessageAt})) / 60) filter (where ${whatsappContacts.firstMessageAt} >= ${todayMy} and ${whatsappContacts.firstReplyAt} >= ${whatsappContacts.firstMessageAt})`,
           numbers: sql<string[]>`coalesce(array_agg(distinct ${whatsappContacts.channelPhone}) filter (where ${whatsappContacts.channelPhone} is not null), '{}')`,
+          // The last message a CUSTOMER sent (any event can bump lastEventAt).
+          lastCustomerAt: sql<string | null>`max(${whatsappContacts.lastMessageAt})`,
         })
         .from(watiConnections)
         .leftJoin(whatsappContacts, eq(whatsappContacts.connectionId, watiConnections.id))
@@ -113,17 +117,40 @@ async function loadWati(): Promise<WatiData | null> {
         .where(eq(tiktokAccounts.isActive, true))
         .orderBy(tiktokAccounts.handle),
     ]);
+    // The last week of cross-checks, newest first. Separate and optional: the
+    // table arrives with migration 0040.
+    const checks = await db
+      .select()
+      .from(watiDailyChecks)
+      .where(sql`${watiDailyChecks.day} >= ${weekAgo}`)
+      .orderBy(sql`${watiDailyChecks.day} desc`)
+      .catch(() => []);
     const now = Date.now();
     return {
       rows: rows.map((r) => ({
         ...r,
         lastEventAt: r.lastEventAt ? r.lastEventAt.toISOString() : null,
         lastEventAgo: r.lastEventAt ? ago(now - r.lastEventAt.getTime()) : null,
+        lastCustomerAgo: r.lastCustomerAt ? ago(now - new Date(r.lastCustomerAt).getTime()) : null,
+        lastCustomerHours: r.lastCustomerAt ? (now - new Date(r.lastCustomerAt).getTime()) / 3_600_000 : null,
+        checks: checks
+          .filter((k) => k.connectionId === r.id)
+          .map((k) => ({
+            day: k.day,
+            watiCustomers: k.watiCustomers,
+            found: k.found,
+            missing: k.missing,
+            notCustomers: k.notCustomers,
+            unchecked: k.unchecked,
+            error: k.error,
+            checkedAgo: ago(now - k.checkedAt.getTime()),
+          })),
         replyMedianToday:
           r.replyMedianToday === null || r.replyMedianToday === undefined
             ? null
             : Math.round(Number(r.replyMedianToday) * 10) / 10,
       })),
+      yesterday,
       handles: handles.map(({ accountId, handle, connectionId, ...link }) => ({
         accountId,
         handle,
@@ -333,7 +360,7 @@ export default async function IntegrationsPage() {
           would mean two sets of form ids on the page. */}
       {watiViews && wati && (
         <div className="mt-8">
-          <WatiConnections connections={watiViews} handles={wati.handles} />
+          <WatiConnections connections={watiViews} handles={wati.handles} yesterday={wati.yesterday} />
         </div>
       )}
     </div>

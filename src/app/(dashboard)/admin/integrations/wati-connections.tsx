@@ -32,6 +32,22 @@ export type WatiConnectionView = {
   contactsToday: number;
   /** Business numbers seen on this account (digits). */
   numbers: string[];
+  /** Last message a customer sent: "5m ago", worked out on the server. */
+  lastCustomerAgo: string | null;
+  lastCustomerHours: number | null;
+  /** The last week's cross-checks with WATI, newest first. */
+  checks: CrossCheckView[];
+};
+
+export type CrossCheckView = {
+  day: string;
+  watiCustomers: number;
+  found: number;
+  missing: { last4: string; name: string | null; at: string; number: string }[];
+  notCustomers: number;
+  unchecked: number;
+  error: string | null;
+  checkedAgo: string;
 };
 
 export type HandleLinkView = {
@@ -114,9 +130,12 @@ function useCopy() {
 export function WatiConnections({
   connections,
   handles,
+  yesterday,
 }: {
   connections: WatiConnectionView[];
   handles: HandleLinkView[];
+  /** Malaysia's yesterday, YYYY-MM-DD — the cross-check's default day. */
+  yesterday: string;
 }) {
   const [editing, setEditing] = useState<WatiConnectionView | "new" | null>(null);
 
@@ -150,6 +169,8 @@ export function WatiConnections({
           ))}
         </ul>
       )}
+
+      {connections.length > 0 && <CrossCheckRun yesterday={yesterday} />}
 
       <Sheet
         open={editing !== null}
@@ -214,6 +235,16 @@ function ConnectionRow({
               {statusText}
               {linkedHere.length > 0 && ` · ${linkedHere.map((h) => `@${h.handle}`).join(", ")}`}
             </span>
+            <span
+              className={`mt-0.5 block text-sm ${
+                c.lastCustomerHours === null || c.lastCustomerHours > 3
+                  ? "text-amber-700 dark:text-amber-400"
+                  : "text-zinc-500 dark:text-zinc-400"
+              }`}
+            >
+              {c.lastCustomerAgo ? `Last customer message ${c.lastCustomerAgo}` : "No customer message received yet"}
+            </span>
+            <CheckSummary check={c.checks[0]} />
             {c.repliesTracked && c.replyMedianToday !== null && (
               <span className="mt-0.5 block text-sm text-indigo-600 dark:text-indigo-400">
                 Median reply today {fmtReply(c.replyMedianToday)}
@@ -280,6 +311,8 @@ function ConnectionRow({
               </p>
             )}
           </div>
+
+          <CrossCheckList checks={c.checks} />
 
           {handles.length > 0 && (
             <div>
@@ -616,5 +649,145 @@ function ConnectionForm({
         </div>
       )}
     </form>
+  );
+}
+
+const checkDayFmt = new Intl.DateTimeFormat("en-MY", {
+  timeZone: "UTC", // `day` is already a calendar date
+  weekday: "short",
+  day: "numeric",
+  month: "short",
+});
+const missingAtFmt = new Intl.DateTimeFormat("en-MY", {
+  timeZone: "Asia/Kuala_Lumpur",
+  day: "numeric",
+  month: "short",
+  hour: "numeric",
+  minute: "2-digit",
+  hour12: true,
+});
+const dayLabel = (day: string) => checkDayFmt.format(new Date(`${day}T00:00:00Z`));
+
+/** One line under the account name: the latest cross-check's verdict. */
+function CheckSummary({ check }: { check: CrossCheckView | undefined }) {
+  if (!check) return null;
+  if (check.error) {
+    return (
+      <span className="mt-0.5 block text-sm text-zinc-500 dark:text-zinc-400">
+        Cross-check {dayLabel(check.day)}: couldn&apos;t run
+      </span>
+    );
+  }
+  const n = check.missing.length;
+  return (
+    <span
+      className={`mt-0.5 block text-sm ${
+        n > 0 ? "font-medium text-red-600 dark:text-red-400" : "text-emerald-700 dark:text-emerald-400"
+      }`}
+    >
+      {dayLabel(check.day)}: WATI {check.watiCustomers} · TT Stars {check.found}
+      {n > 0 ? ` · ${n} missing` : " ✓"}
+    </span>
+  );
+}
+
+/** The last week of cross-checks, with the missing customers listed. */
+function CrossCheckList({ checks }: { checks: CrossCheckView[] }) {
+  if (checks.length === 0) return null;
+  return (
+    <div>
+      <div className="mb-1 text-sm text-zinc-500 dark:text-zinc-400">Cross-check with WATI (new customers)</div>
+      <ul className="divide-y divide-zinc-100 rounded-xl border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
+        {checks.map((k) => (
+          <li key={k.day} className="px-3 py-2.5 text-sm">
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="font-medium">{dayLabel(k.day)}</span>
+              {k.error ? (
+                <span className="text-right text-zinc-500">{k.error}</span>
+              ) : (
+                <span className="text-right tabular-nums">
+                  WATI {k.watiCustomers} · TT Stars {k.found}{" "}
+                  {k.missing.length > 0 ? (
+                    <span className="font-semibold text-red-600 dark:text-red-400">· {k.missing.length} missing</span>
+                  ) : (
+                    <span className="text-emerald-600 dark:text-emerald-400">✓</span>
+                  )}
+                </span>
+              )}
+            </div>
+            {!k.error && (k.notCustomers > 0 || k.unchecked > 0) && (
+              <div className="mt-0.5 text-xs text-zinc-500">
+                {k.notCustomers > 0 && `${k.notCustomers} other new WATI contact${k.notCustomers === 1 ? "" : "s"} (CS wrote first, or another number)`}
+                {k.notCustomers > 0 && k.unchecked > 0 && " · "}
+                {k.unchecked > 0 && `${k.unchecked} not checked`}
+              </div>
+            )}
+            {k.missing.length > 0 && (
+              <ul className="mt-2 space-y-1">
+                {k.missing.map((m, i) => (
+                  <li
+                    key={`${m.last4}-${i}`}
+                    className="rounded-lg bg-red-50 px-2.5 py-1.5 text-xs text-red-900 dark:bg-red-950/30 dark:text-red-300"
+                  >
+                    <span className="font-mono">•••• {m.last4}</span>
+                    {m.name ? ` · ${m.name}` : ""} · {missingAtFmt.format(new Date(m.at))} · to …{m.number}
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className="mt-0.5 text-xs text-zinc-400">Checked {k.checkedAgo}</div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/** Run the cross-check now, for a chosen day (default: yesterday). */
+function CrossCheckRun({ yesterday }: { yesterday: string }) {
+  const [day, setDay] = useState(yesterday);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  async function run() {
+    setBusy(true);
+    setMsg(null);
+    const r = await call("/api/admin/wati/check", { day });
+    setBusy(false);
+    if (r.ok) {
+      setMsg({ ok: true, text: "Checked ✓" });
+      void refreshEverywhere();
+    } else {
+      setMsg({ ok: false, text: r.error ?? "The check failed." });
+    }
+  }
+
+  return (
+    <div className="mt-3 flex flex-wrap items-end gap-2">
+      <label className="block">
+        <span className={labelCls}>Cross-check day</span>
+        <input
+          type="date"
+          value={day}
+          max={yesterday}
+          onChange={(e) => setDay(e.target.value)}
+          disabled={busy}
+          className={`${fieldCls} w-auto`}
+        />
+      </label>
+      <button type="button" onClick={run} disabled={busy || !day} className={ghostBtnCls}>
+        {busy ? "Checking WATI…" : "Check now"}
+      </button>
+      {msg && (
+        <p
+          role="status"
+          className={`basis-full text-sm ${
+            msg.ok ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
+          }`}
+        >
+          {msg.text}
+        </p>
+      )}
+    </div>
   );
 }
