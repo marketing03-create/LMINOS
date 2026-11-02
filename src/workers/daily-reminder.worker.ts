@@ -65,6 +65,15 @@ export function startDailyReminder() {
     }
   }
 
+  // Startup self-check: a dry run (sends nothing) proves the secret matches
+  // Vercel's, so a mismatch shows up in the logs now, not at 11:30.
+  fetch(`${base}${ENDPOINT}?dry=1`, {
+    headers: { authorization: `Bearer ${secret}` },
+    signal: AbortSignal.timeout(60_000),
+  })
+    .then((res) => console.log(`[daily-reminder] self-check → ${res.status}`))
+    .catch((e) => console.error("[daily-reminder] self-check:", e instanceof Error ? e.message : e));
+
   void tick();
   const timer = setInterval(() => void tick(), CHECK_MS);
   return {

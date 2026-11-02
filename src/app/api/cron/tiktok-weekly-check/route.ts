@@ -21,7 +21,8 @@ const DAYS = 7;
 
 function authorized(request: NextRequest): boolean {
   if (cronAuthorized(request)) return true;
-  const expected = process.env.REMINDER_TRIGGER_SECRET;
+  // trim: a value piped into `vercel env add` can carry a trailing newline.
+  const expected = process.env.REMINDER_TRIGGER_SECRET?.trim();
   if (!expected) return false;
   return request.headers.get("authorization") === `Bearer ${expected}`;
 }
