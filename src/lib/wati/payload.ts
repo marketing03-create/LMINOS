@@ -24,6 +24,8 @@ export type InboundMessage = {
   text: string | null;
   channelPhone: string | null;
   at: Date;
+  /** WATI's id for this chat (opens it in Team Inbox), when sent. */
+  conversationId: string | null;
 };
 
 /**
@@ -56,6 +58,25 @@ function parseTime(raw: unknown): Date | null {
 
 function str(v: unknown): string | null {
   return typeof v === "string" && v.trim() !== "" ? v.trim() : null;
+}
+
+/**
+ * The customer's chat in WATI's Team Inbox, e.g.
+ * https://live.wati.io/10181090/teamInbox/6ae86eb70888921616992f42 — the
+ * number is the account's tenant id, the last part of its API endpoint
+ * (https://live-mt-server.wati.io/10181090). Null when either is unknown.
+ */
+export function watiChatUrl(apiEndpoint: string | null, conversationId: string | null): string | null {
+  if (!apiEndpoint || !conversationId) return null;
+  const tenant = /^https?:\/\/[^/]+\/(\d+)/.exec(apiEndpoint.trim())?.[1];
+  const id = conversationIdOf(conversationId);
+  return tenant && id ? `https://live.wati.io/${tenant}/teamInbox/${id}` : null;
+}
+
+/** WATI's chat id, only when it looks like one — it goes into a URL path. */
+export function conversationIdOf(v: unknown): string | null {
+  const s = str(v);
+  return s && /^[A-Za-z0-9_-]{6,64}$/.test(s) ? s : null;
 }
 
 /** Top-level field names of a body (never values) — for diagnosing new shapes. */
@@ -96,6 +117,8 @@ export type OutboundMessage = {
   human: boolean;
   /** True when WATI named no operator — the 20s rule applies downstream. */
   operatorUnknown: boolean;
+  /** WATI's id for this chat, when sent. */
+  conversationId: string | null;
 };
 
 /**
@@ -126,6 +149,7 @@ export function parseOutbound(body: unknown, now: Date = new Date()): OutboundMe
     by,
     human: !automated,
     operatorUnknown: !by,
+    conversationId: conversationIdOf(b.conversationId),
   };
 }
 
@@ -168,5 +192,6 @@ export function parseInbound(body: unknown, now: Date = new Date()): InboundMess
     text: text ? text.slice(0, FIRST_TEXT_MAX) : null,
     channelPhone: normalizePhone(b.channelPhoneNumber),
     at: safeAt,
+    conversationId: conversationIdOf(b.conversationId),
   };
 }

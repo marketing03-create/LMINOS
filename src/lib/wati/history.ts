@@ -17,7 +17,7 @@
  * message seen is only an upper bound on their real first contact — still the
  * right thing to move `firstMessageAt` back to, since it is older than ours.
  */
-import { HUMAN_MIN_DELAY_MS } from "./payload";
+import { conversationIdOf, HUMAN_MIN_DELAY_MS } from "./payload";
 
 export type WatiMessage = {
   at: Date;
@@ -46,15 +46,24 @@ function str(v: unknown): string | null {
   return typeof v === "string" && v.trim() !== "" ? v.trim() : null;
 }
 
-/** WATI's getMessages body → our message list. Unknown shapes give []. */
-export function parseMessages(body: unknown): { items: WatiMessage[]; complete: boolean } {
+/**
+ * WATI's getMessages body → our message list, plus the chat's id (every message
+ * carries the same `conversationId`). Unknown shapes give [].
+ */
+export function parseMessages(body: unknown): {
+  items: WatiMessage[];
+  complete: boolean;
+  conversationId: string | null;
+} {
   const b = body as { messages?: { items?: unknown; hasNextPage?: unknown } } | null;
   const raw = Array.isArray(b?.messages?.items)
     ? (b!.messages!.items as Record<string, unknown>[])
     : [];
   const items: WatiMessage[] = [];
+  let conversationId: string | null = null;
   for (const m of raw) {
     if (!m || typeof m !== "object") continue;
+    conversationId ??= conversationIdOf(m.conversationId);
     const at = time(m);
     if (!at) continue;
     items.push({
@@ -67,7 +76,7 @@ export function parseMessages(body: unknown): { items: WatiMessage[]; complete: 
       operator: str(m.operatorName) ?? str(m.operatorEmail),
     });
   }
-  return { items, complete: b?.messages?.hasNextPage !== true };
+  return { items, complete: b?.messages?.hasNextPage !== true, conversationId };
 }
 
 export function analyzeHistory(items: WatiMessage[], ourFirstMessageAt: Date): HistoryResult {

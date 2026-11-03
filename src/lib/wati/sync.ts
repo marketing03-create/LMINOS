@@ -75,10 +75,11 @@ export async function syncRepliesFromApi(
         if (!body) return;
         anyOk = true;
         result.checked += 1;
-        const { items } = parseMessages(body);
+        const { items, conversationId } = parseMessages(body);
         const h = items.length > 0 ? analyzeHistory(items, lead.firstMessageAt) : null;
 
         const set: Partial<typeof whatsappContacts.$inferInsert> = {};
+        if (conversationId) set.watiConversationId = conversationId;
         if (h && lead.firstMessageAt.getTime() - h.firstContactAt.getTime() > MOVE_BACK_MIN_MS) {
           // Its own column: firstMessageAt stays "first message we saw".
           set.firstContactAt = h.firstContactAt;

@@ -274,8 +274,9 @@ export default async function WhatsAppLogPage({ searchParams }: { searchParams: 
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
                               <div className="truncate text-[15px] font-semibold">{r.name || "No name"}</div>
-                              <div className="text-sm text-zinc-500">
+                              <div className="flex flex-wrap items-center gap-2 text-sm text-zinc-500">
                                 <RevealPhone id={r.id} last4={r.phoneLast4} />
+                                <ChatLink url={r.chatUrl} />
                               </div>
                             </div>
                             <Reply r={r} />
@@ -332,8 +333,9 @@ export default async function WhatsAppLogPage({ searchParams }: { searchParams: 
                             </td>
                             <td className="w-52 px-3 py-3">
                               <div className="line-clamp-1 font-medium">{r.name || "No name"}</div>
-                              <div className="text-zinc-500">
+                              <div className="flex flex-wrap items-center gap-2 text-zinc-500">
                                 <RevealPhone id={r.id} last4={r.phoneLast4} />
+                                <ChatLink url={r.chatUrl} />
                               </div>
                               {!connIds.length && (
                                 <div className="mt-0.5 truncate text-xs text-zinc-500">{r.connectionName}</div>
@@ -365,6 +367,23 @@ export default async function WhatsAppLogPage({ searchParams }: { searchParams: 
         </>
       )}
     </div>
+  );
+}
+
+/** Opens this customer's chat in WATI Team Inbox, in a new tab. */
+function ChatLink({ url }: { url: string | null }) {
+  if (!url) return null;
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex min-h-8 items-center gap-1 rounded-md border border-emerald-300 px-2 text-xs font-medium text-emerald-700 active:bg-emerald-50 lg:hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-300 dark:active:bg-emerald-950/40 lg:dark:hover:bg-emerald-950/40"
+    >
+      Chat
+      <span aria-hidden="true">↗</span>
+      <span className="sr-only">(opens WATI in a new tab)</span>
+    </a>
   );
 }
 

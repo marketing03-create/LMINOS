@@ -103,3 +103,21 @@ describe("parseMessages", () => {
     expect(parseMessages(null).items).toEqual([]);
   });
 });
+
+describe("parseMessages conversationId", () => {
+  it("reads the chat id every message carries", () => {
+    const r = parseMessages({
+      messages: {
+        items: [
+          { created: "2026-11-03T05:00:00Z", conversationId: "6ae86eb70888921616992f42", eventType: "message" },
+          { created: "2026-11-03T04:00:00Z", conversationId: "6ae86eb70888921616992f42", eventType: "message" },
+        ],
+      },
+    });
+    expect(r.conversationId).toBe("6ae86eb70888921616992f42");
+  });
+
+  it("is null when no message has one", () => {
+    expect(parseMessages({ messages: { items: [{ created: "2026-11-03T05:00:00Z" }] } }).conversationId).toBeNull();
+  });
+});

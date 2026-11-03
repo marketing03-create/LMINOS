@@ -77,8 +77,15 @@ export async function POST(
         eq(whatsappContacts.connectionId, connection.id),
         eq(whatsappContacts.phone, out.phone)
       ),
-      columns: { id: true, firstMessageAt: true },
+      columns: { id: true, firstMessageAt: true, watiConversationId: true },
     });
+    // Our messages carry the chat id too — keep it for the log's Chat button.
+    if (lead && out.conversationId && lead.watiConversationId !== out.conversationId) {
+      await db
+        .update(whatsappContacts)
+        .set({ watiConversationId: out.conversationId })
+        .where(eq(whatsappContacts.id, lead.id));
+    }
     // CS writing first (no lead row yet), a bot, or a message from before the
     // lead wrote: none of these is a reply to a lead.
     if (!lead || !countsAsReply(out, lead.firstMessageAt)) {
@@ -111,6 +118,7 @@ export async function POST(
       firstMessageAt: msg.at,
       lastMessageAt: msg.at,
       firstMessageText: msg.text,
+      watiConversationId: msg.conversationId,
     })
     .onConflictDoUpdate({
       target: [whatsappContacts.connectionId, whatsappContacts.phone],
@@ -121,6 +129,7 @@ export async function POST(
         lastMessageAt: sql`greatest(${whatsappContacts.lastMessageAt}, ${ex}.last_message_at)`,
         name: sql`coalesce(${ex}.name, ${whatsappContacts.name})`,
         channelPhone: sql`coalesce(${whatsappContacts.channelPhone}, ${ex}.channel_phone)`,
+        watiConversationId: sql`coalesce(${ex}.wati_conversation_id, ${whatsappContacts.watiConversationId})`,
         updatedAt: now,
       },
     });

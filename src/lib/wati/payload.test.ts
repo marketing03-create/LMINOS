@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  watiChatUrl,
   countsAsReply,
   eventTypeOf,
   keysOf,
@@ -52,7 +53,12 @@ describe("parseInbound", () => {
       text: "Hi, LIVE-AMY nak tanya pinjaman",
       channelPhone: "60198765432",
       at: new Date(1793361480 * 1000),
+      conversationId: "64b0c0ff",
     });
+  });
+
+  it("drops a chat id that couldn't be a URL segment", () => {
+    expect(parseInbound({ ...sample, conversationId: "../x?y" }, NOW)?.conversationId).toBeNull();
   });
 
   it("accepts the other inbound event names", () => {
@@ -99,6 +105,7 @@ describe("parseOutbound", () => {
     timestamp: "1793361600",
     operatorName: "Ain",
     operatorEmail: "ain@example.com",
+    conversationId: "6ae86eb70888921616992f42",
   };
 
   it("reads a CS reply and who sent it", () => {
@@ -108,6 +115,7 @@ describe("parseOutbound", () => {
       by: "Ain",
       human: true,
       operatorUnknown: false,
+      conversationId: "6ae86eb70888921616992f42",
     });
   });
 
@@ -139,7 +147,7 @@ describe("parseOutbound", () => {
 describe("countsAsReply", () => {
   const first = new Date("2026-10-30T10:00:00Z");
   const at = (s: number) => new Date(first.getTime() + s * 1000);
-  const out = { phone: "60123456789", by: "Ain", human: true, operatorUnknown: false };
+  const out = { phone: "60123456789", by: "Ain", human: true, operatorUnknown: false, conversationId: null };
 
   it("counts a named human reply after the first message", () => {
     expect(countsAsReply({ ...out, at: at(5) }, first)).toBe(true);
@@ -162,5 +170,21 @@ describe("keysOf", () => {
     expect(keysOf({ waId: "601", text: "secret" })).toEqual(["waId", "text"]);
     expect(keysOf([1, 2])).toBeNull();
     expect(keysOf("x")).toBeNull();
+  });
+});
+
+describe("watiChatUrl", () => {
+  it("builds the Team Inbox link from the account's endpoint and the chat id", () => {
+    expect(watiChatUrl("https://live-mt-server.wati.io/10181090", "6ae86eb70888921616992f42")).toBe(
+      "https://live.wati.io/10181090/teamInbox/6ae86eb70888921616992f42"
+    );
+    expect(watiChatUrl("https://live-mt-server.wati.io/10181090/api/v1/", "6ae86eb7")).toBe(
+      "https://live.wati.io/10181090/teamInbox/6ae86eb7"
+    );
+  });
+  it("is null when the chat id or tenant is missing", () => {
+    expect(watiChatUrl("https://live-mt-server.wati.io/10181090", null)).toBeNull();
+    expect(watiChatUrl(null, "6ae86eb7")).toBeNull();
+    expect(watiChatUrl("https://live-mt-server.wati.io/", "6ae86eb7")).toBeNull();
   });
 });

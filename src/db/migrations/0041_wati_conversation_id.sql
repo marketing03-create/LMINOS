@@ -1,0 +1,1 @@
+ALTER TABLE "whatsapp_contacts" ADD COLUMN "wati_conversation_id" text;

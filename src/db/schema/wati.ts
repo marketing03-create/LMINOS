@@ -86,6 +86,10 @@ export const whatsappContacts = pgTable(
     // When admins were alerted that this lead was waiting. Set once — a lead is
     // alerted about at most one time.
     missedAlertedAt: timestamp("missed_alerted_at", { withTimezone: true }),
+    // WATI's id for this customer's chat (`conversationId` on every webhook and
+    // history message) — opens it in Team Inbox: live.wati.io/<tenant>/teamInbox/<id>.
+    // Null = not seen yet.
+    watiConversationId: text("wati_conversation_id"),
     ...timestamps(),
   },
   (t) => ({

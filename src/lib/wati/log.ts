@@ -25,6 +25,7 @@ import {
 import type { DateRange } from "@/lib/date-range";
 import { AFTER_HOURS, attributeContacts } from "./attribution";
 import { firstEverContactIn } from "./leads";
+import { watiChatUrl } from "./payload";
 import { mytDay, trackedRows } from "./reply-speed";
 
 const DAY = 86_400_000;
@@ -52,6 +53,8 @@ export type LogRow = {
   name: string | null;
   phoneLast4: string;
   connectionName: string;
+  /** This customer's chat in WATI Team Inbox; null until TT Stars has its id. */
+  chatUrl: string | null;
   firstMessageAt: Date;
   firstMessageText: string | null;
   /** Set when WATI's history shows an earlier first message: a returning customer. */
@@ -79,7 +82,12 @@ export type LogResult = {
 
 export async function whatsappLog(f: LogFilter): Promise<LogResult> {
   let connections = await db
-    .select({ id: watiConnections.id, name: watiConnections.name, repliesSeenAt: watiConnections.repliesSeenAt })
+    .select({
+      id: watiConnections.id,
+      name: watiConnections.name,
+      repliesSeenAt: watiConnections.repliesSeenAt,
+      apiEndpoint: watiConnections.apiEndpoint,
+    })
     .from(watiConnections)
     .orderBy(watiConnections.createdAt);
   const allConnections = connections.map((c) => ({ id: c.id, name: c.name }));
@@ -124,6 +132,7 @@ export async function whatsappLog(f: LogFilter): Promise<LogResult> {
       firstMessageText: whatsappContacts.firstMessageText,
       firstReplyAt: whatsappContacts.firstReplyAt,
       firstReplyBy: whatsappContacts.firstReplyBy,
+      watiConversationId: whatsappContacts.watiConversationId,
     })
     .from(whatsappContacts)
     .where(
@@ -142,6 +151,7 @@ export async function whatsappLog(f: LogFilter): Promise<LogResult> {
   const tracked = new Set(trackedRows(inDay, connections).map((r) => r.id));
   const counted = await attribution(inDay);
   const connName = new Map(connections.map((c) => [c.id, c.name]));
+  const connEndpoint = new Map(connections.map((c) => [c.id, c.apiEndpoint]));
 
   let rows: LogRow[] = inDay.map((c) => {
     const replied = c.firstReplyAt && c.firstReplyAt >= c.firstMessageAt;
@@ -152,6 +162,7 @@ export async function whatsappLog(f: LogFilter): Promise<LogResult> {
       name: c.name,
       phoneLast4: c.phone.slice(-4),
       connectionName: connName.get(c.connectionId) ?? "WATI",
+      chatUrl: watiChatUrl(connEndpoint.get(c.connectionId) ?? null, c.watiConversationId),
       firstMessageAt: c.firstMessageAt,
       firstMessageText: c.firstMessageText,
       firstContactAt: returning,
