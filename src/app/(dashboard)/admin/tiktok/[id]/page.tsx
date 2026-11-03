@@ -15,6 +15,7 @@ import { SessionsTable } from "../sessions-table";
 import { waLeadCounts } from "@/lib/wati/leads";
 import { LiveAnalysis } from "../live-analysis";
 import { StreamerSwitcher } from "../streamer-switcher";
+import { pickerHandles } from "@/lib/tiktok-live/picker-handles";
 import { requireAdminPage } from "@/lib/auth/page-guard";
 import { ScreenshotSection } from "../history/screenshot-section";
 
@@ -43,7 +44,8 @@ export default async function StreamerDetailPage({
   // the dropdown just falls back to the combined view.
   let handles: { id: string; handle: string }[] = [];
   try {
-    handles = await tiktokAccountsForPicker();
+    // Inactive streamers' handles drop out, except the one on screen.
+    handles = pickerHandles(await tiktokAccountsForPicker(), id);
   } catch {
     // non-fatal — the rest of the page still renders
   }

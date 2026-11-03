@@ -45,13 +45,25 @@ export async function streamerAccountIds(userId: string): Promise<string[]> {
  */
 export async function tiktokAccountsForPicker(
   accountIds?: string[]
-): Promise<{ id: string; handle: string }[]> {
+): Promise<{ id: string; handle: string; streamerInactive: boolean }[]> {
   if (accountIds && accountIds.length === 0) return [];
-  return db
-    .select({ id: tiktokAccounts.id, handle: tiktokAccounts.handle })
+  const { users } = await import("@/db/schema");
+  const rows = await db
+    .select({
+      id: tiktokAccounts.id,
+      handle: tiktokAccounts.handle,
+      streamerActive: users.isActive,
+    })
     .from(tiktokAccounts)
+    .leftJoin(users, eq(users.id, tiktokAccounts.assignedStreamerId))
     .where(accountIds ? inArray(tiktokAccounts.id, accountIds) : undefined)
     .orderBy(tiktokAccounts.handle);
+  // See picker-handles.ts — an unassigned handle (null) is not "inactive".
+  return rows.map((r) => ({
+    id: r.id,
+    handle: r.handle,
+    streamerInactive: r.streamerActive === false,
+  }));
 }
 
 /**
@@ -63,20 +75,25 @@ export async function tiktokAccountsForPicker(
  * configured the words to watch for.
  */
 export async function tiktokAccountsWithKeywords(): Promise<
-  { id: string; handle: string; hasKeywords: boolean }[]
+  { id: string; handle: string; hasKeywords: boolean; streamerInactive: boolean }[]
 > {
+  const { users } = await import("@/db/schema");
   const rows = await db
     .select({
       id: tiktokAccounts.id,
       handle: tiktokAccounts.handle,
       leadKeywords: tiktokAccounts.leadKeywords,
+      streamerActive: users.isActive,
     })
     .from(tiktokAccounts)
+    .leftJoin(users, eq(users.id, tiktokAccounts.assignedStreamerId))
     .orderBy(tiktokAccounts.handle);
   return rows.map((r) => ({
     id: r.id,
     handle: r.handle,
     hasKeywords: (r.leadKeywords?.length ?? 0) > 0,
+    // See picker-handles.ts — an unassigned handle (null) is not "inactive".
+    streamerInactive: r.streamerActive === false,
   }));
 }
 

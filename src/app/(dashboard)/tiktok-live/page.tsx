@@ -18,6 +18,7 @@ import { missingMetrics } from "@/lib/tiktok-live/completeness";
 import { entrySource, sourceClass } from "@/lib/tiktok-live/entry-source";
 import { SessionHighlighter } from "./session-highlighter";
 import { HandleFilter } from "./handle-filter";
+import { pickerHandles } from "@/lib/tiktok-live/picker-handles";
 import { StreamerHomeFeed } from "./streamer-home-feed";
 import { FeedRefresh } from "./feed-refresh";
 import { AdminNudgeCard, type NudgeLive } from "./admin-nudge-card";
@@ -132,7 +133,9 @@ export default async function TikTokLivePage({
     scope = me?.userId ? await streamerAccountIds(me.userId) : [];
   } else {
     try {
-      handles = await tiktokAccountsForPicker();
+      // Inactive streamers' handles drop out of the picker (picker-handles.ts),
+      // but stay listed while they're the one selected.
+      handles = pickerHandles(await tiktokAccountsForPicker(), selectedHandle);
     } catch {
       // picker just won't show if the handle list can't load
     }

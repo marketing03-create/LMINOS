@@ -15,6 +15,7 @@ import { replySpeedFor, waLeadCounts } from "@/lib/wati/leads";
 import { ReplySpeedPane } from "./reply-speed";
 import { toAnalysisSession } from "../live-analysis";
 import { OverviewFilters } from "./overview-filters";
+import { pickerHandles } from "@/lib/tiktok-live/picker-handles";
 import { OverviewHeader } from "./overview-header";
 import { OverviewCharts } from "./overview-charts";
 import { StreamerTable } from "./streamer-table";
@@ -97,16 +98,24 @@ export async function OverviewView({
 
   const agg: Agg = AGGREGATIONS.includes(sp.agg as Agg) ? (sp.agg as Agg) : "SUM";
 
-  let handles: { id: string; handle: string; hasKeywords: boolean }[] = [];
+  let handles: {
+    id: string;
+    handle: string;
+    hasKeywords: boolean;
+    streamerInactive: boolean;
+  }[] = [];
   try {
     handles = await tiktokAccountsWithKeywords();
   } catch {
     // non-fatal — the page still renders without the streamer filter
   }
 
-  // An unknown ?streamer= falls back to "all" rather than showing nothing.
+  // The dropdown leaves out inactive streamers' handles; `handles` keeps them
+  // all, because their past lives still count in "All streamers".
+  const options = pickerHandles(handles);
+  // An unknown (or hidden) ?streamer= falls back to "all" rather than showing nothing.
   const streamer =
-    sp.streamer && handles.some((h) => h.id === sp.streamer) ? sp.streamer : "all";
+    sp.streamer && options.some((h) => h.id === sp.streamer) ? sp.streamer : "all";
   const scope = streamer === "all" ? undefined : [streamer];
 
   let sessions: SessionRow[] = [];
@@ -206,7 +215,7 @@ export async function OverviewView({
       <OverviewFilters
         basePath={BASE_PATH[variant]}
         choice={choice}
-        handles={handles}
+        handles={options}
         streamer={streamer}
         agg={agg}
         exportHref={`/api/tiktok-live/export?${exportQs.toString()}`}
