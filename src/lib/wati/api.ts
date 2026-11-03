@@ -48,9 +48,10 @@ export async function fetchChat(
   endpoint: string,
   token: string,
   phone: string,
-  channelPhone: string | null
+  channelPhone: string | null,
+  pageNumber = 1
 ): Promise<unknown | null> {
-  const qs = new URLSearchParams({ pageSize: "50", pageNumber: "1" });
+  const qs = new URLSearchParams({ pageSize: "50", pageNumber: String(pageNumber) });
   if (channelPhone) qs.set("channelPhoneNumber", channelPhone);
   try {
     const res = await fetch(`${endpoint}/api/v1/getMessages/${phone}?${qs}`, {

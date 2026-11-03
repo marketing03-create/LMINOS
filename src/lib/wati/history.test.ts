@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { analyzeHistory, parseMessages, type WatiMessage } from "./history";
+import { analyzeHistory, chatEnds, messageText, parseMessages, type WatiMessage } from "./history";
 
 const t = (hms: string) => new Date(`2026-10-30T${hms}Z`);
 const msg = (at: string, over: Partial<WatiMessage> = {}): WatiMessage => ({
@@ -10,6 +10,7 @@ const msg = (at: string, over: Partial<WatiMessage> = {}): WatiMessage => ({
   broadcast: false,
   bot: false,
   operator: null,
+  text: null,
   ...over,
 });
 
@@ -119,5 +120,35 @@ describe("parseMessages conversationId", () => {
 
   it("is null when no message has one", () => {
     expect(parseMessages({ messages: { items: [{ created: "2026-11-03T05:00:00Z" }] } }).conversationId).toBeNull();
+  });
+});
+
+describe("chatEnds", () => {
+  const items = [
+    msg("09:00:00", { owner: true, text: "Promo loan 5% — reply YES" }),
+    msg("09:05:00", { text: "YES" }),
+    msg("09:05:30", { eventType: "ticket" }),
+    msg("09:10:00", { owner: true, text: "Boleh share IC?" }),
+  ];
+
+  it("finds the newest chat message and who sent it, skipping ticket events", () => {
+    expect(chatEnds(items, true).latest).toEqual({ text: "Boleh share IC?", at: t("09:10:00"), from: "cs" });
+  });
+
+  it("knows CS opened the chat when the whole history was read", () => {
+    expect(chatEnds(items, true).opening).toEqual({ text: "Promo loan 5% — reply YES", at: t("09:00:00"), from: "cs" });
+  });
+
+  it("gives no opening message from a partial history", () => {
+    expect(chatEnds(items, false).opening).toBeNull();
+  });
+});
+
+describe("messageText", () => {
+  it("uses the text, else names the media", () => {
+    expect(messageText({ text: "Hi" })).toBe("Hi");
+    expect(messageText({ type: "image" })).toBe("[image]");
+    expect(messageText({ type: "image", caption: "IC depan" })).toBe("IC depan");
+    expect(messageText({ type: "text" })).toBeNull();
   });
 });

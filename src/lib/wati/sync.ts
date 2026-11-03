@@ -14,12 +14,12 @@
  * LOOKBACK_HOURS, a few at a time. Runs from `maintainConnection` (missed.ts),
  * which the webhook triggers at most once every few minutes per account.
  */
-import { and, asc, desc, eq, gte, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, gte, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { watiConnections, whatsappContacts } from "@/db/schema";
 import { decryptToken } from "@/lib/crypto/envelope";
 import { fetchChat } from "./api";
-import { analyzeHistory, parseMessages } from "./history";
+import { analyzeHistory, chatEnds, parseMessages, type ChatMessage } from "./history";
 
 const LOOKBACK_HOURS = 48;
 const MAX_PER_RUN = 25;
@@ -75,11 +75,12 @@ export async function syncRepliesFromApi(
         if (!body) return;
         anyOk = true;
         result.checked += 1;
-        const { items, conversationId } = parseMessages(body);
+        const { items, complete, conversationId } = parseMessages(body);
         const h = items.length > 0 ? analyzeHistory(items, lead.firstMessageAt) : null;
 
         const set: Partial<typeof whatsappContacts.$inferInsert> = {};
         if (conversationId) set.watiConversationId = conversationId;
+        Object.assign(set, endsToSet(chatEnds(items, complete), now));
         if (h && lead.firstMessageAt.getTime() - h.firstContactAt.getTime() > MOVE_BACK_MIN_MS) {
           // Its own column: firstMessageAt stays "first message we saw".
           set.firstContactAt = h.firstContactAt;
@@ -108,4 +109,89 @@ export async function syncRepliesFromApi(
       .where(and(eq(watiConnections.id, connectionId), isNull(watiConnections.repliesSeenAt)));
   }
   return anyOk ? result : null;
+}
+
+/** The newest/opening-message columns for what a history read found. */
+export function endsToSet(
+  ends: { latest: ChatMessage | null; opening: ChatMessage | null },
+  now: Date
+): Partial<typeof whatsappContacts.$inferInsert> {
+  const set: Partial<typeof whatsappContacts.$inferInsert> = { latestCheckedAt: now };
+  if (ends.latest) {
+    set.latestMessageText = ends.latest.text;
+    set.latestMessageAt = ends.latest.at;
+    set.latestMessageFrom = ends.latest.from;
+  }
+  if (ends.opening) {
+    set.openingMessageText = ends.opening.text;
+    set.openingMessageAt = ends.opening.at;
+    set.openingMessageFrom = ends.opening.from;
+  }
+  return set;
+}
+
+const LATEST_LOOKBACK_DAYS = 7;
+const LATEST_PER_RUN = 20;
+
+/**
+ * Keep the log's "Newest message" current for chats where the customer spoke
+ * last: a CS reply typed in Team Inbox sends no webhook, so re-read those
+ * chats (least recently checked first) until a newer message shows up. A
+ * customer's own new message needs no read — the webhook brings it.
+ */
+export async function refreshLatestFromApi(connectionId: string, now = new Date()): Promise<number> {
+  const conn = await db.query.watiConnections.findFirst({
+    where: eq(watiConnections.id, connectionId),
+    columns: { apiEndpoint: true, apiTokenEnc: true },
+  });
+  if (!conn?.apiEndpoint || !conn.apiTokenEnc) return 0;
+  let token: string;
+  try {
+    token = decryptToken(conn.apiTokenEnc);
+  } catch {
+    return 0;
+  }
+
+  const since = new Date(now.getTime() - LATEST_LOOKBACK_DAYS * 86_400_000);
+  const chats = await db
+    .select({ id: whatsappContacts.id, phone: whatsappContacts.phone, channelPhone: whatsappContacts.channelPhone })
+    .from(whatsappContacts)
+    .where(
+      and(
+        eq(whatsappContacts.connectionId, connectionId),
+        gte(whatsappContacts.lastMessageAt, since),
+        or(isNull(whatsappContacts.latestMessageFrom), eq(whatsappContacts.latestMessageFrom, "customer"))
+      )
+    )
+    .orderBy(sql`${whatsappContacts.latestCheckedAt} asc nulls first`)
+    .limit(LATEST_PER_RUN);
+
+  let read = 0;
+  for (let i = 0; i < chats.length; i += CONCURRENCY) {
+    await Promise.all(
+      chats.slice(i, i + CONCURRENCY).map(async (c) => {
+        const body = await fetchChat(conn.apiEndpoint!, token, c.phone, c.channelPhone);
+        if (!body) return;
+        read += 1;
+        const { items, complete } = parseMessages(body);
+        const ends = chatEnds(items, complete);
+        await db
+          .update(whatsappContacts)
+          .set(endsToSet(ends, now))
+          .where(
+            and(
+              eq(whatsappContacts.id, c.id),
+              // Never step back past a newer message the webhook already saved.
+              ends.latest
+                ? or(
+                    isNull(whatsappContacts.latestMessageAt),
+                    sql`${whatsappContacts.latestMessageAt} <= ${ends.latest.at.toISOString()}::timestamptz`
+                  )
+                : undefined
+            )
+          );
+      })
+    );
+  }
+  return read;
 }

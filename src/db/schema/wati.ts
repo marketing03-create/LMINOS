@@ -90,6 +90,20 @@ export const whatsappContacts = pgTable(
     // history message) — opens it in Team Inbox: live.wati.io/<tenant>/teamInbox/<id>.
     // Null = not seen yet.
     watiConversationId: text("wati_conversation_id"),
+    // The chat's newest message and who sent it ("customer" | "cs"), for the
+    // WhatsApp log. Customer messages land from the webhook; CS replies typed
+    // in Team Inbox send no webhook, so the API sync fills those in.
+    latestMessageText: text("latest_message_text"),
+    latestMessageAt: timestamp("latest_message_at", { withTimezone: true }),
+    latestMessageFrom: text("latest_message_from"),
+    // When the sync last re-read this chat for a newer message.
+    latestCheckedAt: timestamp("latest_checked_at", { withTimezone: true }),
+    // The chat's very first message ("customer" | "cs" — CS can open a chat,
+    // e.g. a broadcast), read from WATI's full history. Null = not read yet;
+    // `firstMessageText` above stays the customer's first message.
+    openingMessageText: text("opening_message_text"),
+    openingMessageAt: timestamp("opening_message_at", { withTimezone: true }),
+    openingMessageFrom: text("opening_message_from"),
     ...timestamps(),
   },
   (t) => ({

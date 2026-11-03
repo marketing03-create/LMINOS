@@ -116,6 +116,7 @@ describe("parseOutbound", () => {
       human: true,
       operatorUnknown: false,
       conversationId: "6ae86eb70888921616992f42",
+      text: "Hi, boleh share IC?",
     });
   });
 
@@ -147,7 +148,7 @@ describe("parseOutbound", () => {
 describe("countsAsReply", () => {
   const first = new Date("2026-10-30T10:00:00Z");
   const at = (s: number) => new Date(first.getTime() + s * 1000);
-  const out = { phone: "60123456789", by: "Ain", human: true, operatorUnknown: false, conversationId: null };
+  const out = { phone: "60123456789", by: "Ain", human: true, operatorUnknown: false, conversationId: null, text: null };
 
   it("counts a named human reply after the first message", () => {
     expect(countsAsReply({ ...out, at: at(5) }, first)).toBe(true);

@@ -295,6 +295,13 @@
       "when": 1793685540152,
       "tag": "0041_wati_conversation_id",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1793688880065,
+      "tag": "0042_wati_chat_messages",
+      "breakpoints": true
     }
   ]
 }

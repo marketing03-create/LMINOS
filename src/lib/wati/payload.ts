@@ -73,6 +73,17 @@ export function watiChatUrl(apiEndpoint: string | null, conversationId: string |
   return tenant && id ? `https://live.wati.io/${tenant}/teamInbox/${id}` : null;
 }
 
+/** Longest message text kept — the log shows two lines of it. */
+const TEXT_MAX = 500;
+
+/** A message's text; media without a caption reads "[image]", "[document]", … */
+export function messageText(m: Record<string, unknown>): string | null {
+  const text = str(m.text) ?? str(m.caption);
+  if (text) return text.slice(0, TEXT_MAX);
+  const type = str(m.type);
+  return type && type !== "text" ? `[${type.slice(0, 30)}]` : null;
+}
+
 /** WATI's chat id, only when it looks like one — it goes into a URL path. */
 export function conversationIdOf(v: unknown): string | null {
   const s = str(v);
@@ -119,6 +130,8 @@ export type OutboundMessage = {
   operatorUnknown: boolean;
   /** WATI's id for this chat, when sent. */
   conversationId: string | null;
+  /** What we sent (see messageText). */
+  text: string | null;
 };
 
 /**
@@ -150,6 +163,7 @@ export function parseOutbound(body: unknown, now: Date = new Date()): OutboundMe
     human: !automated,
     operatorUnknown: !by,
     conversationId: conversationIdOf(b.conversationId),
+    text: messageText(b),
   };
 }
 

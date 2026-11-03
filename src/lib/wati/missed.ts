@@ -19,7 +19,7 @@ import { users, watiConnections, whatsappContacts } from "@/db/schema";
 import { ADMIN_ROLES } from "@/lib/auth/authorize";
 import { upsertUserNotification } from "@/lib/notifications/user-inbox";
 import { pushToUser } from "@/lib/notifications/push";
-import { syncRepliesFromApi } from "./sync";
+import { refreshLatestFromApi, syncRepliesFromApi } from "./sync";
 
 export const MISSED_AFTER_MIN = 15;
 const THROTTLE_MIN = 3;
@@ -51,6 +51,7 @@ export async function maintainConnection(connectionId: string, now = new Date())
     if (claimed.length === 0) return;
 
     await syncRepliesFromApi(connectionId, now);
+    await refreshLatestFromApi(connectionId, now);
     await sweepMissedLeads(connectionId, now);
   } catch (err) {
     console.error("[wati] upkeep failed:", err);

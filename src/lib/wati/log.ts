@@ -55,6 +55,13 @@ export type LogRow = {
   connectionName: string;
   /** This customer's chat in WATI Team Inbox; null until TT Stars has its id. */
   chatUrl: string | null;
+  /**
+   * The chat's first message and who sent it — CS can open a chat (e.g. a
+   * broadcast). Falls back to the customer's first message seen.
+   */
+  opening: { text: string | null; from: MessageFrom };
+  /** The chat's newest message and who sent it; null until one is known. */
+  latest: { text: string | null; at: Date; from: MessageFrom } | null;
   firstMessageAt: Date;
   firstMessageText: string | null;
   /** Set when WATI's history shows an earlier first message: a returning customer. */
@@ -67,6 +74,9 @@ export type LogRow = {
     | { kind: "live"; liveId: string; handle: string; startedAt: Date }
     | { kind: "none"; reason: "no-handle" | "returning" | "outside" };
 };
+
+export type MessageFrom = "customer" | "cs";
+const asFrom = (v: string | null): MessageFrom => (v === "cs" ? "cs" : "customer");
 
 export type LogResult = {
   rows: LogRow[];
@@ -133,6 +143,11 @@ export async function whatsappLog(f: LogFilter): Promise<LogResult> {
       firstReplyAt: whatsappContacts.firstReplyAt,
       firstReplyBy: whatsappContacts.firstReplyBy,
       watiConversationId: whatsappContacts.watiConversationId,
+      openingMessageText: whatsappContacts.openingMessageText,
+      openingMessageFrom: whatsappContacts.openingMessageFrom,
+      latestMessageText: whatsappContacts.latestMessageText,
+      latestMessageAt: whatsappContacts.latestMessageAt,
+      latestMessageFrom: whatsappContacts.latestMessageFrom,
     })
     .from(whatsappContacts)
     .where(
@@ -163,6 +178,12 @@ export async function whatsappLog(f: LogFilter): Promise<LogResult> {
       phoneLast4: c.phone.slice(-4),
       connectionName: connName.get(c.connectionId) ?? "WATI",
       chatUrl: watiChatUrl(connEndpoint.get(c.connectionId) ?? null, c.watiConversationId),
+      opening: c.openingMessageFrom
+        ? { text: c.openingMessageText, from: asFrom(c.openingMessageFrom) }
+        : { text: c.firstMessageText, from: "customer" },
+      latest: c.latestMessageAt
+        ? { text: c.latestMessageText, at: c.latestMessageAt, from: asFrom(c.latestMessageFrom) }
+        : null,
       firstMessageAt: c.firstMessageAt,
       firstMessageText: c.firstMessageText,
       firstContactAt: returning,

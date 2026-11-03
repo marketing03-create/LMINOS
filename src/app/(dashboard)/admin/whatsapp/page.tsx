@@ -281,11 +281,17 @@ export default async function WhatsAppLogPage({ searchParams }: { searchParams: 
                             </div>
                             <Reply r={r} />
                           </div>
-                          {r.firstMessageText && (
-                            <p className="mt-3 line-clamp-2 rounded-lg bg-zinc-50 px-3 py-2 text-sm text-zinc-700 dark:bg-zinc-950 dark:text-zinc-300">
-                              {r.firstMessageText}
-                            </p>
-                          )}
+                          <div className="mt-3 space-y-2">
+                            <MessageBlock label="First" from={r.opening.from} text={r.opening.text} />
+                            {r.latest && (
+                              <MessageBlock
+                                label="Newest"
+                                from={r.latest.from}
+                                at={r.latest.at}
+                                text={r.latest.text}
+                              />
+                            )}
+                          </div>
                           <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
                             <span className="tabular-nums text-zinc-500">{clockFmt.format(r.firstMessageAt)}</span>
                             {!connIds.length && <span className="text-zinc-500">· {r.connectionName}</span>}
@@ -310,6 +316,7 @@ export default async function WhatsAppLogPage({ searchParams }: { searchParams: 
                       <th className="px-3 py-2.5 font-medium">Time</th>
                       <th className="px-3 py-2.5 font-medium">Customer</th>
                       <th className="px-3 py-2.5 font-medium">First message</th>
+                      <th className="px-3 py-2.5 font-medium">Newest message</th>
                       <th className="px-3 py-2.5 font-medium">From live</th>
                       <th className="px-3 py-2.5 font-medium">CS reply</th>
                     </tr>
@@ -317,7 +324,7 @@ export default async function WhatsAppLogPage({ searchParams }: { searchParams: 
                   {byDay(data.rows).map((g) => (
                     <tbody key={g.day}>
                       <tr className="border-t border-zinc-200 bg-zinc-50/70 dark:border-zinc-800 dark:bg-zinc-900/60">
-                        <th colSpan={5} scope="rowgroup" className="px-3 py-2 text-left text-sm font-semibold">
+                        <th colSpan={6} scope="rowgroup" className="px-3 py-2 text-left text-sm font-semibold">
                           {dayLabel(g.day)}
                           <span className="ml-2 font-normal text-zinc-500">
                             {g.rows.length} customer{g.rows.length === 1 ? "" : "s"}
@@ -334,7 +341,7 @@ export default async function WhatsAppLogPage({ searchParams }: { searchParams: 
                             <td className="whitespace-nowrap px-3 py-3 tabular-nums text-zinc-600 dark:text-zinc-300">
                               {clockFmt.format(r.firstMessageAt)}
                             </td>
-                            <td className="w-72 px-3 py-3">
+                            <td className="w-60 px-3 py-3">
                               <div className="line-clamp-1 font-medium">{r.name || "No name"}</div>
                               <div className="flex items-center gap-2 whitespace-nowrap text-zinc-500">
                                 <RevealPhone id={r.id} last4={r.phoneLast4} />
@@ -344,10 +351,21 @@ export default async function WhatsAppLogPage({ searchParams }: { searchParams: 
                                 <div className="mt-0.5 truncate text-xs text-zinc-500">{r.connectionName}</div>
                               )}
                             </td>
-                            <td className="min-w-[12rem] px-3 py-3 text-zinc-700 dark:text-zinc-300">
-                              <span className="line-clamp-2">{r.firstMessageText ?? "—"}</span>
+                            <td className="min-w-[9rem] px-3 py-3 text-zinc-700 dark:text-zinc-300">
+                              <Eyebrow from={r.opening.from} />
+                              <span className="line-clamp-2">{r.opening.text ?? "—"}</span>
                             </td>
-                            <td className="w-60 px-3 py-3">
+                            <td className="min-w-[9rem] px-3 py-3 text-zinc-700 dark:text-zinc-300">
+                              {r.latest ? (
+                                <>
+                                  <Eyebrow from={r.latest.from} at={r.latest.at} />
+                                  <span className="line-clamp-2">{r.latest.text ?? "—"}</span>
+                                </>
+                              ) : (
+                                <span className="text-zinc-400">—</span>
+                              )}
+                            </td>
+                            <td className="w-52 px-3 py-3">
                               <Counted r={r} />
                             </td>
                             <td className="w-28 whitespace-nowrap px-3 py-3">
@@ -369,6 +387,50 @@ export default async function WhatsAppLogPage({ searchParams }: { searchParams: 
           )}
         </>
       )}
+    </div>
+  );
+}
+
+/** Today's messages show the time; older ones the date too. */
+function when(at: Date): string {
+  return mytDay(at) === mytDay(new Date()) ? clockFmt.format(at) : timeFmt.format(at);
+}
+
+/** Small label above a message: who sent it, and (for the newest) when. */
+function Eyebrow({ from, at }: { from: "customer" | "cs"; at?: Date }) {
+  return (
+    <span className="mb-0.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider">
+      <span className={from === "cs" ? "text-emerald-600 dark:text-emerald-400" : "text-sky-600 dark:text-sky-400"}>
+        {from === "cs" ? "CS" : "Customer"}
+      </span>
+      {at && <span className="font-normal normal-case tracking-normal text-zinc-500">· {when(at)}</span>}
+    </span>
+  );
+}
+
+/** Phone card: one message with what it is (First / Newest) and who sent it. */
+function MessageBlock({
+  label,
+  from,
+  at,
+  text,
+}: {
+  label: string;
+  from: "customer" | "cs";
+  at?: Date;
+  text: string | null;
+}) {
+  return (
+    <div className="rounded-lg bg-zinc-50 px-3 py-2 text-sm dark:bg-zinc-950">
+      <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
+        {label}
+        <span className="text-zinc-300 dark:text-zinc-700">·</span>
+        <span className={from === "cs" ? "text-emerald-600 dark:text-emerald-400" : "text-sky-600 dark:text-sky-400"}>
+          {from === "cs" ? "CS" : "Customer"}
+        </span>
+        {at && <span className="font-normal normal-case tracking-normal">· {when(at)}</span>}
+      </span>
+      <p className="mt-0.5 line-clamp-2 text-zinc-700 dark:text-zinc-300">{text ?? "—"}</p>
     </div>
   );
 }

@@ -17,7 +17,9 @@
  * message seen is only an upper bound on their real first contact — still the
  * right thing to move `firstMessageAt` back to, since it is older than ours.
  */
-import { conversationIdOf, HUMAN_MIN_DELAY_MS } from "./payload";
+import { conversationIdOf, HUMAN_MIN_DELAY_MS, messageText } from "./payload";
+
+export { messageText };
 
 export type WatiMessage = {
   at: Date;
@@ -28,6 +30,8 @@ export type WatiMessage = {
   broadcast: boolean;
   bot: boolean;
   operator: string | null;
+  /** What it said: the text, or "[image]" etc. for media. Null when neither. */
+  text: string | null;
 };
 
 export type HistoryResult = {
@@ -74,9 +78,31 @@ export function parseMessages(body: unknown): {
       broadcast: !!str(m.broadcastLinkId),
       bot: !!str(m.botType),
       operator: str(m.operatorName) ?? str(m.operatorEmail),
+      text: messageText(m),
     });
   }
   return { items, complete: b?.messages?.hasNextPage !== true, conversationId };
+}
+
+export type ChatMessage = { text: string | null; at: Date; from: "customer" | "cs" };
+
+/**
+ * A chat's newest message, and its opening one — the opening only when `complete`
+ * (the whole history was read; otherwise the earliest seen isn't the first).
+ * Ticket events and other non-chat entries are skipped.
+ */
+export function chatEnds(
+  items: WatiMessage[],
+  complete: boolean
+): { latest: ChatMessage | null; opening: ChatMessage | null } {
+  const chat = items
+    .filter((m) => (m.eventType ?? "message") === "message")
+    .sort((a, b) => a.at.getTime() - b.at.getTime());
+  const as = (m: WatiMessage): ChatMessage => ({ text: m.text, at: m.at, from: m.owner ? "cs" : "customer" });
+  return {
+    latest: chat.length ? as(chat[chat.length - 1]) : null,
+    opening: complete && chat.length ? as(chat[0]) : null,
+  };
 }
 
 export function analyzeHistory(items: WatiMessage[], ourFirstMessageAt: Date): HistoryResult {

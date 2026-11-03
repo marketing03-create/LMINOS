@@ -6,6 +6,7 @@ import {
   countsAsReply,
   eventTypeOf,
   keysOf,
+  messageText,
   parseInbound,
   parseOutbound,
 } from "@/lib/wati/payload";
@@ -79,12 +80,27 @@ export async function POST(
       ),
       columns: { id: true, firstMessageAt: true, watiConversationId: true },
     });
-    // Our messages carry the chat id too — keep it for the log's Chat button.
-    if (lead && out.conversationId && lead.watiConversationId !== out.conversationId) {
+    if (lead) {
+      // Our messages carry the chat id too — keep it for the log's Chat button.
+      if (out.conversationId && lead.watiConversationId !== out.conversationId) {
+        await db
+          .update(whatsappContacts)
+          .set({ watiConversationId: out.conversationId })
+          .where(eq(whatsappContacts.id, lead.id));
+      }
+      // The log's "Newest message", when this is newer than what we have.
       await db
         .update(whatsappContacts)
-        .set({ watiConversationId: out.conversationId })
-        .where(eq(whatsappContacts.id, lead.id));
+        .set({ latestMessageText: out.text, latestMessageAt: out.at, latestMessageFrom: "cs" })
+        .where(
+          and(
+            eq(whatsappContacts.id, lead.id),
+            or(
+              isNull(whatsappContacts.latestMessageAt),
+              lt(whatsappContacts.latestMessageAt, sql`${out.at.toISOString()}::timestamptz`)
+            )
+          )
+        );
     }
     // CS writing first (no lead row yet), a bot, or a message from before the
     // lead wrote: none of these is a reply to a lead.
@@ -119,6 +135,9 @@ export async function POST(
       lastMessageAt: msg.at,
       firstMessageText: msg.text,
       watiConversationId: msg.conversationId,
+      latestMessageText: msg.text ?? messageText(body as Record<string, unknown>),
+      latestMessageAt: msg.at,
+      latestMessageFrom: "customer",
     })
     .onConflictDoUpdate({
       target: [whatsappContacts.connectionId, whatsappContacts.phone],
@@ -130,6 +149,10 @@ export async function POST(
         name: sql`coalesce(${ex}.name, ${whatsappContacts.name})`,
         channelPhone: sql`coalesce(${whatsappContacts.channelPhone}, ${ex}.channel_phone)`,
         watiConversationId: sql`coalesce(${ex}.wati_conversation_id, ${whatsappContacts.watiConversationId})`,
+        // "Newest message" only moves forward (WATI can retry or deliver late).
+        latestMessageText: sql`case when ${whatsappContacts.latestMessageAt} is null or ${ex}.latest_message_at >= ${whatsappContacts.latestMessageAt} then ${ex}.latest_message_text else ${whatsappContacts.latestMessageText} end`,
+        latestMessageFrom: sql`case when ${whatsappContacts.latestMessageAt} is null or ${ex}.latest_message_at >= ${whatsappContacts.latestMessageAt} then ${ex}.latest_message_from else ${whatsappContacts.latestMessageFrom} end`,
+        latestMessageAt: sql`greatest(${whatsappContacts.latestMessageAt}, ${ex}.latest_message_at)`,
         updatedAt: now,
       },
     });

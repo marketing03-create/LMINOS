@@ -10,6 +10,7 @@ const msg = (at: string, owner: boolean, eventType: string | null = "message"): 
   broadcast: false,
   bot: false,
   operator: null,
+  text: null,
 });
 
 describe("cross-check: is this WATI contact a customer TT Stars should have?", () => {
