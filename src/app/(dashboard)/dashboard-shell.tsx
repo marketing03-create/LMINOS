@@ -11,6 +11,7 @@ import { StreamerTabBar } from "./streamer-tab-bar";
 import { AdminTabBar } from "./admin-tab-bar";
 import { NotificationBell } from "./notification-bell";
 import { MobileMenu } from "./mobile-menu";
+import { BackToTop } from "@/components/back-to-top";
 
 /**
  * Responsive app shell. Desktop (lg+): the sidebar is a permanent left column,
@@ -143,6 +144,8 @@ export function DashboardShell({
         <BackBar homeHref={homeHref} />
         {children}
       </main>
+
+      <BackToTop />
 
       {/* App-like bottom nav — one per role, both lg:hidden internally. */}
       {isStreamer && <StreamerTabBar />}

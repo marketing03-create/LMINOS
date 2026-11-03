@@ -251,7 +251,7 @@ export default async function WhatsAppLogPage({ searchParams }: { searchParams: 
           ) : (
             <>
               {/* Phone: one card per customer, under a heading per day. */}
-              <div className="lg:hidden">
+              <div className="xl:hidden">
                 {byDay(data.rows).map((g) => (
                   <section key={g.day} className="mb-6">
                   <h2 className="mb-2 flex items-baseline gap-2 text-sm font-semibold">
@@ -261,7 +261,7 @@ export default async function WhatsAppLogPage({ searchParams }: { searchParams: 
                     </span>
                   </h2>
                   {/* Phone: one card per customer. */}
-                    <ul className="space-y-3 lg:hidden">
+                    <ul className="space-y-3 md:grid md:grid-cols-2 md:gap-3 md:space-y-0">
                       {g.rows.map((r) => (
                         <li
                           key={r.id}
@@ -299,10 +299,13 @@ export default async function WhatsAppLogPage({ searchParams }: { searchParams: 
                 ))}
               </div>
 
-              {/* Desktop: one table, a divider row per day so the columns line up. */}
-              <div className="hidden overflow-x-auto rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950 lg:block">
-                <table className="w-full min-w-[860px] text-sm">
-                  <thead className="bg-zinc-50 text-left text-xs uppercase tracking-wider text-zinc-500 dark:bg-zinc-900">
+              {/* Desktop: one table, a divider row per day so the columns line up.
+                  Table from xl (where it fits without scrolling sideways), and
+                  overflow-x-clip, not auto: a scroll box would stop the header
+                  sticking to the top of the window. */}
+              <div className="hidden overflow-x-clip rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950 xl:block">
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 z-10 bg-zinc-50 text-left text-xs uppercase tracking-wider text-zinc-500 shadow-[0_1px_0_0_rgb(228_228_231)] dark:bg-zinc-900 dark:shadow-[0_1px_0_0_rgb(39_39_42)]">
                     <tr>
                       <th className="px-3 py-2.5 font-medium">Time</th>
                       <th className="px-3 py-2.5 font-medium">Customer</th>
@@ -331,9 +334,9 @@ export default async function WhatsAppLogPage({ searchParams }: { searchParams: 
                             <td className="whitespace-nowrap px-3 py-3 tabular-nums text-zinc-600 dark:text-zinc-300">
                               {clockFmt.format(r.firstMessageAt)}
                             </td>
-                            <td className="w-52 px-3 py-3">
+                            <td className="w-72 px-3 py-3">
                               <div className="line-clamp-1 font-medium">{r.name || "No name"}</div>
-                              <div className="flex flex-wrap items-center gap-2 text-zinc-500">
+                              <div className="flex items-center gap-2 whitespace-nowrap text-zinc-500">
                                 <RevealPhone id={r.id} last4={r.phoneLast4} />
                                 <ChatLink url={r.chatUrl} />
                               </div>
@@ -341,10 +344,10 @@ export default async function WhatsAppLogPage({ searchParams }: { searchParams: 
                                 <div className="mt-0.5 truncate text-xs text-zinc-500">{r.connectionName}</div>
                               )}
                             </td>
-                            <td className="min-w-[14rem] px-3 py-3 text-zinc-700 dark:text-zinc-300">
+                            <td className="min-w-[12rem] px-3 py-3 text-zinc-700 dark:text-zinc-300">
                               <span className="line-clamp-2">{r.firstMessageText ?? "—"}</span>
                             </td>
-                            <td className="w-64 px-3 py-3">
+                            <td className="w-60 px-3 py-3">
                               <Counted r={r} />
                             </td>
                             <td className="w-28 whitespace-nowrap px-3 py-3">
