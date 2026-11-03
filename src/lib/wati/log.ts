@@ -71,6 +71,8 @@ export type LogResult = {
   total: number;
   truncated: boolean;
   summary: { customers: number; replied: number; waiting: number; untracked: number; counted: number };
+  /** Reply-status counts before the status filter, for the status tabs. */
+  statusCounts: { all: number; replied: number; waiting: number; untracked: number };
   connections: { id: string; name: string }[];
   live: { id: string; handle: string; startedAt: Date } | null;
 };
@@ -168,6 +170,13 @@ export async function whatsappLog(f: LogFilter): Promise<LogResult> {
   });
 
   if (live) rows = rows.filter((r) => r.counted.kind === "live" && r.counted.liveId === live!.id);
+  // Before the status filter, so the status tabs keep their counts while one is picked.
+  const statusCounts = {
+    all: rows.length,
+    replied: rows.filter((r) => r.reply.kind === "replied").length,
+    waiting: rows.filter((r) => r.reply.kind === "waiting").length,
+    untracked: rows.filter((r) => r.reply.kind === "untracked").length,
+  };
   const status = f.status ?? "all";
   if (status === "tracked") rows = rows.filter((r) => r.reply.kind !== "untracked");
   else if (status !== "all") rows = rows.filter((r) => r.reply.kind === status);
@@ -184,6 +193,7 @@ export async function whatsappLog(f: LogFilter): Promise<LogResult> {
     total: rows.length,
     truncated: rows.length > LIMIT,
     summary,
+    statusCounts,
     connections: allConnections,
     live,
   };
@@ -195,6 +205,7 @@ function empty(connections: { id: string; name: string }[]): LogResult {
     total: 0,
     truncated: false,
     summary: { customers: 0, replied: 0, waiting: 0, untracked: 0, counted: 0 },
+    statusCounts: { all: 0, replied: 0, waiting: 0, untracked: 0 },
     connections,
     live: null,
   };
