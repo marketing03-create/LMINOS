@@ -9,6 +9,9 @@ import { METRIC_LABEL, missingMetrics } from "@/lib/tiktok-live/completeness";
 import { requireLivePage } from "@/lib/auth/page-guard";
 import { waLeadsForLives, type LiveWa } from "@/lib/wati/leads";
 import { WhatsAppLeads } from "./whatsapp-leads";
+import { linkedAccountIds, listCustomers, recentLives, type CustomerRow } from "@/lib/drive/customers";
+import { CustomerList, liveLabel } from "@/components/customers/customer-list";
+import { CustomerSheet, RecountOnOpen } from "@/components/customers/customer-sheet";
 
 /**
  * MYT, and only MYT — a live's clock time is the streamer's own local time, and
@@ -70,6 +73,27 @@ export default async function TikTokSessionPage({
       wa = (await waLeadsForLives([s.id])).get(s.id) ?? null;
     } catch (err) {
       console.error("[live] WhatsApp leads failed:", err);
+    }
+  }
+
+  // Customers sending documents for this live (Google Drive folders). Hidden
+  // until the handle has a Shared Drive; a failure leaves the section out.
+  let customers: { rows: CustomerRow[]; lives: { id: string; accountId: string; label: string }[] } | null = null;
+  if (s) {
+    try {
+      const linked = await linkedAccountIds();
+      if (linked.has(s.accountId)) {
+        const rows = await listCustomers({ sessionId: s.id, accountIds: [s.accountId] });
+        const lives = await recentLives([s.accountId]);
+        const options = lives.map((l) => ({ id: l.id, accountId: l.accountId, label: liveLabel(l.startedAt, l.handle) }));
+        // An older live isn't in the 14-day list — put it first so it is the default.
+        if (!options.some((o) => o.id === s.id) && s.startedAt) {
+          options.unshift({ id: s.id, accountId: s.accountId, label: liveLabel(new Date(s.startedAt), s.handle) });
+        }
+        customers = { rows, lives: options };
+      }
+    } catch (err) {
+      console.error("[live] customers failed:", err);
     }
   }
 
@@ -173,6 +197,19 @@ export default async function TikTokSessionPage({
               keywordLeads: s.keywordLeads,
             }}
           />
+
+          {customers && (
+            <section className="mt-8">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <h2 className="text-[17px] font-semibold text-zinc-900 lg:text-sm lg:font-semibold lg:uppercase lg:tracking-wider lg:text-zinc-500 dark:text-zinc-100 dark:lg:text-zinc-500">
+                  Customers ({customers.rows.length})
+                </h2>
+                <CustomerSheet mode="new" lives={customers.lives} defaultLiveId={s.id} />
+              </div>
+              <RecountOnOpen sessionId={s.id} />
+              <CustomerList rows={customers.rows} lives={customers.lives} showLive={false} />
+            </section>
+          )}
 
           {!isStreamer && (
             <WhatsAppLeads

@@ -10,6 +10,7 @@ import {
   type WatiConnectionView,
 } from "./wati-connections";
 import { requireAdminPage } from "@/lib/auth/page-guard";
+import { DriveSetup, type DriveHandleView } from "./drive-setup";
 
 /**
  * External-service status. LMIROS is TikTok-Live-only — the Zoho, Google Sheets
@@ -170,10 +171,38 @@ async function loadWati(): Promise<WatiData | null> {
   }
 }
 
+/**
+ * The Google Drive card: the saved service account's email (never the key) and
+ * each active handle's Shared Drive. Null = hide it (tables not migrated yet).
+ */
+async function loadDrive(): Promise<{ email: string | null; handles: DriveHandleView[] } | null> {
+  try {
+    const { db } = await import("@/db/client");
+    const { driveSettings, tiktokAccounts, tiktokDriveLinks } = await import("@/db/schema");
+    const setting = await db.select({ email: driveSettings.clientEmail }).from(driveSettings).limit(1);
+    const handles = await db
+      .select({
+        accountId: tiktokAccounts.id,
+        handle: tiktokAccounts.handle,
+        sharedDriveId: tiktokDriveLinks.sharedDriveId,
+        sharedDriveName: tiktokDriveLinks.sharedDriveName,
+      })
+      .from(tiktokAccounts)
+      .leftJoin(tiktokDriveLinks, eq(tiktokDriveLinks.accountId, tiktokAccounts.id))
+      .where(eq(tiktokAccounts.isActive, true))
+      .orderBy(tiktokAccounts.handle);
+    return { email: setting[0]?.email ?? null, handles };
+  } catch (err) {
+    console.error("[integrations] Drive load failed:", err);
+    return null;
+  }
+}
+
 export default async function IntegrationsPage() {
   // Page-level role check: the layout's check can be skipped (see page-guard.ts).
   await requireAdminPage();
   const [{ pairedUsers, error }, wati] = await Promise.all([load(), loadWati()]);
+  const drive = await loadDrive();
   // The webhook URL WATI must call, on whatever host this page is served from.
   const h = await headers();
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "lmiros.vercel.app";
@@ -361,6 +390,12 @@ export default async function IntegrationsPage() {
       {watiViews && wati && (
         <div className="mt-8">
           <WatiConnections connections={watiViews} handles={wati.handles} yesterday={wati.yesterday} />
+        </div>
+      )}
+
+      {drive && (
+        <div className="mt-8">
+          <DriveSetup email={drive.email} handles={drive.handles} />
         </div>
       )}
     </div>

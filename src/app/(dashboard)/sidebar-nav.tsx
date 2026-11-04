@@ -8,6 +8,7 @@ const OPERATIONS = [
   { href: "/admin/tiktok/all", label: "Dashboard" },
   { href: "/admin/analytics", label: "Analytics" },
   { href: "/tiktok-live", label: "TikTok Live" },
+  { href: "/tiktok-live/customers", label: "Customers" },
 ];
 
 const ADMIN = [
@@ -21,6 +22,7 @@ const ADMIN = [
 const STREAMER = [
   { href: "/tiktok-live", label: "My TikTok Live" },
   { href: "/tiktok-live/import", label: "Upload results" },
+  { href: "/tiktok-live/customers", label: "Customers" },
 ];
 
 /**

@@ -11,6 +11,7 @@ import {
 } from "@/lib/tiktok-live/completeness";
 import { findOutstanding, notifyStreamers } from "@/lib/tiktok-live/reminders";
 import { autoFillTotalLeads } from "@/lib/wati/leads";
+import { recountStale } from "@/lib/drive/customers";
 
 /**
  * The 10am Malaysia-time LEADS check. Leads arrive over hours/days as Customer
@@ -23,7 +24,9 @@ import { autoFillTotalLeads } from "@/lib/wati/leads";
  * Admins: the existing summary, UNCHANGED — yesterday only, "no Total Leads".
  *
  * First, handles with WhatsApp auto-fill on get their blank Total Leads
- * written from WATI (lib/wati/leads.ts), so those lives are not chased.
+ * written from WATI (lib/wati/leads.ts), so those lives are not chased —
+ * and every customer Drive folder from the last 30 days is re-counted, so
+ * Document Collect is filled from the documents uploaded (lib/drive).
  *
  * Fail-closed on CRON_SECRET.
  */
@@ -67,6 +70,14 @@ export async function GET(request: NextRequest) {
     console.error("[cron] WhatsApp auto-fill failed:", err);
   }
 
+  // Same rule: Drive being down or not connected never stops the reminders.
+  let docsChecked = 0;
+  try {
+    docsChecked = await recountStale({ olderThanMs: 30 * 60_000, limit: 2000 });
+  } catch (err) {
+    console.error("[cron] Drive document recount failed:", err instanceof Error ? err.message : "error");
+  }
+
   // Yesterday's WATI cross-check (did TT Stars get every new WhatsApp
   // customer?). After the response, so the reminders never wait on WATI.
   after(async () => {
@@ -96,6 +107,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       ok: true,
       autoFilled,
+      docsChecked,
       date,
       missing: 0,
       alertsSent: 0,
@@ -146,6 +158,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     ok: true,
     autoFilled,
+    docsChecked,
     date,
     missing: rows.length,
     outstanding: outstanding.length,

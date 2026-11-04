@@ -290,6 +290,7 @@ export async function tiktokLiveSessionList(
 
 export type SessionDetail = {
   id: string;
+  accountId: string;
   handle: string;
   displayName: string;
   title: string | null;
@@ -457,6 +458,7 @@ export async function sessionDetail(
   const [session] = await db
     .select({
       id: tiktokLiveSessions.id,
+      accountId: tiktokLiveSessions.accountId,
       handle: tiktokAccounts.handle,
       displayName: tiktokAccounts.displayName,
       title: tiktokLiveSessions.title,

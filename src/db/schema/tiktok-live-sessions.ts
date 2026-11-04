@@ -69,6 +69,10 @@ export const tiktokLiveSessions = pgTable(
     // Quality leads after customer service collects documents — entered by the
     // streamer/CS (not from any TikTok screen). Null = not entered.
     filteredLeads: integer("filtered_leads"),
+    // The last Document Collect counted from Google Drive customer folders
+    // (lib/drive/customers.ts). Filtered Leads follows it while it is blank or
+    // still equals this; a different number typed by a person stays.
+    docsAutoCount: integer("docs_auto_count"),
     // Unique viewers who commented a lead keyword (e.g. "PM") in the public live
     // chat — captured AUTOMATICALLY by the connector. Detail rows live in
     // `tiktok_live_leads`. A follow-up worklist / intent signal, shown separately

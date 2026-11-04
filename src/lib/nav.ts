@@ -20,6 +20,7 @@ const ADMIN_NAV: NavGroup[] = [
       { href: "/admin/analytics", label: "Analytics" },
       { href: "/tiktok-live", label: "TikTok Live" },
       { href: "/tiktok-live/import", label: "Add live results" },
+      { href: "/tiktok-live/customers", label: "Customers" },
     ],
   },
   {
@@ -47,6 +48,7 @@ const STREAMER_NAV: NavGroup[] = [
     items: [
       { href: "/tiktok-live", label: "Home" },
       { href: "/tiktok-live/import", label: "Add live results" },
+      { href: "/tiktok-live/customers", label: "Customers" },
       { href: "/tiktok-live/notifications", label: "Reminders" },
       { href: "/tiktok-live/profile", label: "Profile" },
     ],
