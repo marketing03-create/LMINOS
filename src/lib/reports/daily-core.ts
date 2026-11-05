@@ -84,6 +84,17 @@ export const REPORT_HEADER = [
   "Document (%)",
 ];
 
+/**
+ * The formula for cell A1. IMPORTDATA alone shows dates as serial numbers
+ * (46331) and percentages as fractions (0.667), so it's wrapped in QUERY whose
+ * `format` clause displays them as 05/11/2026 and 66.7% — nothing to format by
+ * hand. Column numbers come from REPORT_HEADER, so they follow the columns.
+ */
+export function sheetFormula(url: string): string {
+  const col = (name: string) => `Col${REPORT_HEADER.indexOf(name) + 1}`;
+  return `=QUERY(IMPORTDATA("${url}"),"select * format ${col("Date")} 'dd/MM/yyyy', ${col("Document (%)")} '0.0%'",1)`;
+}
+
 const WEEKDAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 /** 2026-11-05 → "Thu". */

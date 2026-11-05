@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dailyReport, documentRate, reportCsv, weekday, type ReportLive } from "./daily-core";
+import { dailyReport, documentRate, reportCsv, sheetFormula, weekday, type ReportLive } from "./daily-core";
 
 // 9pm MYT = 13:00Z.
 const live = (day: string, over: Partial<ReportLive> = {}): ReportLive => ({
@@ -94,5 +94,13 @@ describe("documentRate", () => {
     expect(documentRate(null, 74)).toBeNull();
     expect(documentRate(5, null)).toBeNull();
     expect(documentRate(0, 0)).toBeNull();
+  });
+});
+
+describe("sheetFormula", () => {
+  it("wraps IMPORTDATA in QUERY that formats the date and Document (%) columns", () => {
+    expect(sheetFormula("https://x/api/reports/sheet?key=K")).toBe(
+      `=QUERY(IMPORTDATA("https://x/api/reports/sheet?key=K"),"select * format Col1 'dd/MM/yyyy', Col10 '0.0%'",1)`
+    );
   });
 });

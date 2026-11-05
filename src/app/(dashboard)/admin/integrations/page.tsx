@@ -11,6 +11,7 @@ import { requireAdminPage } from "@/lib/auth/page-guard";
 import { DriveSetup, type DriveHandleView } from "./drive-setup";
 import { Panel, Section, StatusPill, type Tone } from "./ui";
 import { SheetReports, type SheetReportView } from "./sheet-reports";
+import { sheetFormula } from "@/lib/reports/daily-core";
 
 /**
  * External-service status. LMIROS is TikTok-Live-only — the Zoho, Google Sheets
@@ -252,7 +253,7 @@ export default async function IntegrationsPage() {
     reportRows?.map((r) => ({
       accountId: r.accountId,
       handle: r.handle,
-      formula: r.key ? `=IMPORTDATA("${proto}://${host}/api/reports/sheet?key=${r.key}")` : null,
+      formula: r.key ? sheetFormula(`${proto}://${host}/api/reports/sheet?key=${r.key}`) : null,
       lastFetchedAgo: r.lastFetchedAgo,
     })) ?? null;
   const telegramConfigured = !!process.env.TELEGRAM_BOT_TOKEN;
