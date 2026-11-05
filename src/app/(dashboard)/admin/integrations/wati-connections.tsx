@@ -3,12 +3,13 @@
 import { useState } from "react";
 import { Sheet } from "@/components/mobile/sheet";
 import { refreshEverywhere } from "@/app/actions/refresh-everywhere";
+import { LeadRouting, fmtPhone } from "./lead-routing";
+import { Label, Panel, Section, Stat, StatusPill, btn, field } from "./ui";
 
 /**
- * WhatsApp (WATI) connections — one collapsed row per WATI account: status dot,
- * name, contacts and today's count. Tapping opens it: the webhook URL to copy
- * into WATI, and the TikTok handles whose leads arrive on that account (with
- * their number, code, auto-fill and click-to-WhatsApp link).
+ * WhatsApp (WATI): one card per WATI account — status, customers, the webhook
+ * URL to paste into WATI, the API check and the daily cross-check — then the
+ * Lead routing table (which numbers each TikTok handle's leads arrive on).
  *
  * The API token never comes back to the page (`hasToken` only), so the edit
  * form's token field is always blank and blank means "keep the saved one".
@@ -60,25 +61,11 @@ export type HandleLinkView = {
   links: { connectionId: string; channelPhone: string | null }[];
 };
 
-const fieldCls =
-  "w-full h-12 rounded-md border border-zinc-300 bg-white px-2.5 text-base text-zinc-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 lg:h-10 lg:text-sm";
-const labelCls = "mb-1 block text-sm font-medium lg:text-xs";
-const solidBtnCls =
-  "inline-flex h-11 items-center justify-center rounded-xl bg-blue-600 px-5 text-[15px] font-medium text-white transition-colors hover:bg-blue-500 active:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:opacity-50 dark:focus-visible:ring-offset-zinc-950 lg:h-9 lg:text-sm";
-const ghostBtnCls =
-  "inline-flex h-11 items-center justify-center rounded-xl border border-zinc-300 px-4 text-[15px] font-medium text-zinc-800 active:bg-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-200 dark:active:bg-zinc-800 lg:h-9 lg:text-sm";
-
 function fmtReply(m: number): string {
   if (m < 1) return "<1 min";
   if (m < 60) return `${Math.round(m)} min`;
   const h = Math.floor(m / 60);
   return `${h}h ${Math.round(m % 60)}m`;
-}
-
-/** 60164328160 → +60 16-432 8160 (Malaysian mobiles); anything else as +digits. */
-function fmtPhone(d: string): string {
-  const m = /^60(1\d)(\d{3,4})(\d{4})$/.exec(d);
-  return m ? `+60 ${m[1]}-${m[2]} ${m[3]}` : `+${d}`;
 }
 
 async function call(url: string, body: unknown): Promise<{ ok: boolean; error?: string }> {
@@ -139,37 +126,41 @@ export function WatiConnections({
   const [editing, setEditing] = useState<WatiConnectionView | "new" | null>(null);
 
   return (
-    <section id="wati">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <h2 className="text-base font-semibold">WhatsApp (WATI)</h2>
-        <button type="button" onClick={() => setEditing("new")} className={ghostBtnCls}>
-          Add WATI
+    <Section
+      id="whatsapp"
+      title="WhatsApp (WATI)"
+      meta={`${connections.length} account${connections.length === 1 ? "" : "s"}`}
+      action={
+        <button type="button" onClick={() => setEditing("new")} className={btn.secondary}>
+          + Add account
         </button>
-      </div>
-
+      }
+    >
       {connections.length === 0 ? (
         <button
           type="button"
           onClick={() => setEditing("new")}
-          className="flex min-h-16 w-full items-center justify-center rounded-2xl border border-dashed border-zinc-300 px-4 text-sm text-zinc-500 active:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-400 dark:active:bg-zinc-900"
+          className="flex min-h-16 w-full items-center justify-center rounded-xl border border-dashed border-zinc-300 px-4 text-sm text-zinc-500 active:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-400 dark:active:bg-zinc-900"
         >
           No WATI account connected
         </button>
       ) : (
-        <ul className="divide-y divide-zinc-200 overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:divide-zinc-800 dark:border-zinc-800 dark:bg-zinc-900 lg:dark:bg-zinc-950">
-          {connections.map((c) => (
-            <ConnectionRow
-              key={c.id}
-              c={c}
-              connections={connections}
-              handles={handles}
-              onEdit={() => setEditing(c)}
-            />
-          ))}
-        </ul>
-      )}
+        <div className="space-y-8">
+          <div>
+            <div className="grid gap-4 xl:grid-cols-2">
+              {connections.map((c) => (
+                <AccountCard key={c.id} c={c} handles={handles} onEdit={() => setEditing(c)} />
+              ))}
+            </div>
+            <CrossCheckRun yesterday={yesterday} />
+          </div>
 
-      {connections.length > 0 && <CrossCheckRun yesterday={yesterday} />}
+          <div>
+            <h3 className="mb-3 text-sm font-semibold text-zinc-900 dark:text-zinc-100">Lead routing</h3>
+            <LeadRouting handles={handles} connections={connections} />
+          </div>
+        </div>
+      )}
 
       <Sheet
         open={editing !== null}
@@ -184,18 +175,16 @@ export function WatiConnections({
           />
         )}
       </Sheet>
-    </section>
+    </Section>
   );
 }
 
-function ConnectionRow({
+function AccountCard({
   c,
-  connections,
   handles,
   onEdit,
 }: {
   c: WatiConnectionView;
-  connections: WatiConnectionView[];
   handles: HandleLinkView[];
   onEdit: () => void;
 }) {
@@ -207,15 +196,9 @@ function ConnectionRow({
   });
 
   const state = !c.isActive ? "off" : c.lastEventAt ? "connected" : "waiting";
-  const dot =
-    state === "connected" ? "bg-emerald-500" : state === "waiting" ? "bg-amber-500" : "bg-zinc-400";
-  const statusText =
-    state === "connected"
-      ? `Connected · ${c.lastEventAgo}`
-      : state === "waiting"
-        ? "Waiting for WATI"
-        : "Off";
   const linkedHere = handles.filter((h) => h.links.some((l) => l.connectionId === c.id));
+  const quiet = c.lastCustomerHours === null || c.lastCustomerHours > 3;
+  const latest = c.checks[0];
 
   async function runTest() {
     setTest({ busy: true, msg: null, ok: false });
@@ -224,306 +207,103 @@ function ConnectionRow({
   }
 
   return (
-    <li>
-      <details className="group">
-        <summary className="flex min-h-16 cursor-pointer list-none items-center gap-3 px-4 py-3 active:bg-zinc-50 dark:active:bg-zinc-800 [&::-webkit-details-marker]:hidden">
-          <span aria-hidden="true" className={`h-2.5 w-2.5 shrink-0 rounded-full ${dot}`} />
-          <span className="min-w-0 flex-1">
-            <span className="block break-words text-base font-medium">{c.name}</span>
-            <span className="mt-0.5 block text-sm text-zinc-500 dark:text-zinc-400">
-              {statusText}
-              {linkedHere.length > 0 && ` · ${linkedHere.map((h) => `@${h.handle}`).join(", ")}`}
-            </span>
-            <span
-              className={`mt-0.5 block text-sm ${
-                c.lastCustomerHours === null || c.lastCustomerHours > 3
-                  ? "text-amber-700 dark:text-amber-400"
-                  : "text-zinc-500 dark:text-zinc-400"
-              }`}
-            >
-              {c.lastCustomerAgo ? `Last customer message ${c.lastCustomerAgo}` : "No customer message received yet"}
-            </span>
-            <CheckSummary check={c.checks[0]} />
-            {c.repliesTracked && c.replyMedianToday !== null && (
-              <span className="mt-0.5 block text-sm text-indigo-600 dark:text-indigo-400">
-                Median reply today {fmtReply(c.replyMedianToday)}
-              </span>
-            )}
-          </span>
-          <span className="shrink-0 text-right">
-            <span className="block text-base font-semibold tabular-nums">{c.contacts}</span>
-            <span className="block text-xs tabular-nums text-zinc-500">+{c.contactsToday} today</span>
-          </span>
-          <span
-            aria-hidden="true"
-            className="shrink-0 select-none text-zinc-400 transition-transform group-open:rotate-90"
-          >
-            &rsaquo;
-          </span>
-        </summary>
-
-        <div className="space-y-5 border-t border-zinc-100 px-4 pb-4 pt-4 dark:border-zinc-800">
-          {!c.repliesTracked && c.lastEventAt && (
-            <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
-              Replies not tracked
-            </p>
-          )}
-
-          <div>
-            <div className="mb-1 text-sm text-zinc-500 dark:text-zinc-400">Webhook URL</div>
-            <div
-              ref={urlRef}
-              className="break-all rounded-md border border-zinc-200 bg-zinc-50 p-2.5 font-mono text-xs text-zinc-800 select-all dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200"
-            >
-              {c.webhookUrl}
-            </div>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => copyUrl(c.webhookUrl)}
-                className={`${solidBtnCls} flex-1 sm:flex-none`}
-              >
-                {urlState === "yes" ? "Copied ✓" : urlState === "failed" ? "Select and copy" : "Copy URL"}
-              </button>
-              {c.hasToken && c.apiEndpoint && (
-                <button
-                  type="button"
-                  onClick={runTest}
-                  disabled={test.busy}
-                  className={`${ghostBtnCls} flex-1 sm:flex-none`}
-                >
-                  {test.busy ? "Testing…" : "Test API"}
-                </button>
-              )}
-              <button type="button" onClick={onEdit} className={`${ghostBtnCls} flex-1 sm:flex-none`}>
-                Edit
-              </button>
-            </div>
-            {test.msg && (
-              <p
-                role="status"
-                className={`mt-2 text-sm ${
-                  test.ok ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
-                }`}
-              >
-                {test.msg}
-              </p>
-            )}
-          </div>
-
-          <CrossCheckList checks={c.checks} />
-
-          {handles.length > 0 && (
-            <div>
-              <div className="mb-1 text-sm text-zinc-500 dark:text-zinc-400">TikTok handles</div>
-              <ul className="divide-y divide-zinc-100 rounded-xl border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
-                {handles.map((h) => (
-                  <HandleRow key={h.accountId} h={h} conn={c} connections={connections} />
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-      </details>
-    </li>
-  );
-}
-
-function HandleRow({
-  h,
-  conn,
-  connections,
-}: {
-  h: HandleLinkView;
-  conn: WatiConnectionView;
-  connections: WatiConnectionView[];
-}) {
-  const linksHere = h.links.filter((l) => l.connectionId === conn.id);
-  const here = linksHere.length > 0;
-  const elsewhere = [
-    ...new Set(h.links.filter((l) => l.connectionId !== conn.id).map((l) => l.connectionId)),
-  ]
-    .map((id) => connections.find((c) => c.id === id)?.name)
-    .filter(Boolean);
-  const [open, setOpen] = useState(false);
-  // One entry per number; "" = any number on this account.
-  const [phones, setPhones] = useState<string[]>(
-    here ? linksHere.map((l) => l.channelPhone ?? "") : [conn.numbers[0] ?? ""]
-  );
-  const [code, setCode] = useState(h.code ?? "");
-  const [autoFill, setAutoFill] = useState(h.autoFillTotalLeads);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
-  // A click-to-WhatsApp link per linked number ("any number" uses the account's first).
-  const waLinks = [
-    ...new Set(linksHere.map((l) => l.channelPhone ?? conn.numbers[0]).filter((n): n is string => !!n)),
-  ].map((n) => ({
-    number: n,
-    url: `https://wa.me/${n}?text=${encodeURIComponent(h.code ? `Hi ${h.code}` : "Hi")}`,
-  }));
-
-  async function save(list: string[]) {
-    setBusy(true);
-    setErr(null);
-    const r = await call("/api/admin/wati/links", {
-      accountId: h.accountId,
-      connectionId: conn.id,
-      phones: list,
-      code,
-      autoFillTotalLeads: autoFill,
-    });
-    if (!r.ok) {
-      setErr(r.error ?? "Couldn't save.");
-      setBusy(false);
-      return;
-    }
-    await refreshEverywhere();
-    setBusy(false);
-    setOpen(false);
-  }
-
-  const summary = here
-    ? [
-        linksHere.map((l) => (l.channelPhone ? fmtPhone(l.channelPhone) : "Any number")).join(" + "),
-        h.code,
-        h.autoFillTotalLeads ? "Auto-fill on" : null,
-        elsewhere.length ? `also ${elsewhere.join(", ")}` : null,
-      ]
-        .filter(Boolean)
-        .join(" · ")
-    : elsewhere.length
-      ? `On ${elsewhere.join(", ")}`
-      : "Not linked";
-
-  const options = [...new Set([...conn.numbers, ...phones.filter(Boolean)])];
-
-  return (
-    <li className="px-3 py-3">
-      <div className="flex items-center gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="break-all font-mono text-sm">@{h.handle}</div>
-          <div
-            className={`mt-0.5 text-xs ${
-              here ? "text-emerald-600 dark:text-emerald-400" : "text-zinc-500 dark:text-zinc-400"
-            }`}
-          >
-            {summary}
+    // min-w-0: a grid item otherwise grows to its longest line (the webhook URL).
+    <Panel className="flex min-w-0 flex-col">
+      <div className="flex items-start justify-between gap-3 border-b border-zinc-100 px-4 py-3 dark:border-zinc-800">
+        <div className="min-w-0">
+          <div className="break-words font-semibold">{c.name}</div>
+          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+            <StatusPill tone={state === "connected" ? "ok" : state === "waiting" ? "warn" : "off"}>
+              {state === "connected" ? `Connected · ${c.lastEventAgo}` : state === "waiting" ? "Waiting for WATI" : "Off"}
+            </StatusPill>
+            {state !== "off" && !c.repliesTracked && <StatusPill tone="warn">Replies not tracked</StatusPill>}
           </div>
         </div>
-        <button type="button" onClick={() => setOpen((o) => !o)} className={ghostBtnCls}>
-          {open ? "Close" : here ? "Edit" : elsewhere.length ? "Add" : "Link"}
+        <button type="button" onClick={onEdit} className={btn.secondary}>
+          Edit
         </button>
       </div>
 
-      {here && !open && waLinks.map((w) => <WaLinkRow key={w.number} url={w.url} />)}
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-3 border-b border-zinc-100 px-4 py-3 dark:border-zinc-800 sm:grid-cols-4">
+        <Stat label="Customers" value={c.contacts.toLocaleString("en-MY")} />
+        <Stat label="New today" value={`+${c.contactsToday}`} />
+        <Stat label="Last customer" value={c.lastCustomerAgo ?? "None yet"} tone={quiet ? "warn" : undefined} />
+        <Stat
+          label="Median reply today"
+          value={c.repliesTracked && c.replyMedianToday !== null ? fmtReply(c.replyMedianToday) : "—"}
+          tone={c.repliesTracked && c.replyMedianToday !== null ? "accent" : undefined}
+        />
+      </dl>
 
-      {open && (
-        <div className="mt-3 space-y-3">
-          <fieldset className="space-y-2">
-            <legend className={labelCls}>Number{phones.length > 1 ? "s" : ""}</legend>
-            {phones.map((p, i) => (
-              <div key={i} className="flex gap-2">
-                <select
-                  aria-label={`Number ${i + 1}`}
-                  value={p}
-                  onChange={(e) => setPhones((ps) => ps.map((x, j) => (j === i ? e.target.value : x)))}
-                  className={fieldCls}
-                >
-                  <option value="">Any number</option>
-                  {options.map((n) => (
-                    <option key={n} value={n}>
-                      {fmtPhone(n)}
-                    </option>
-                  ))}
-                </select>
-                {phones.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => setPhones((ps) => ps.filter((_, j) => j !== i))}
-                    aria-label={`Remove number ${i + 1}`}
-                    className={`${ghostBtnCls} shrink-0 px-3`}
-                  >
-                    ✕
-                  </button>
-                )}
-              </div>
-            ))}
-            <button
-              type="button"
-              onClick={() => setPhones((ps) => [...ps, options.find((n) => !ps.includes(n)) ?? ""])}
-              className={ghostBtnCls}
+      <div className="flex-1 space-y-4 px-4 py-4">
+        <div>
+          <Label>Webhook URL</Label>
+          <div className="flex gap-2">
+            <div
+              ref={urlRef}
+              title={c.webhookUrl}
+              className="flex h-11 min-w-0 flex-1 items-center overflow-hidden rounded-lg border border-zinc-200 bg-zinc-50 px-3 font-mono text-xs text-zinc-700 select-all dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-300 lg:h-9"
             >
-              + Add number
+              <span className="truncate">{c.webhookUrl}</span>
+            </div>
+            <button type="button" onClick={() => copyUrl(c.webhookUrl)} className={btn.primary}>
+              {urlState === "yes" ? "Copied ✓" : urlState === "failed" ? "Select" : "Copy"}
             </button>
-          </fieldset>
-          <div>
-            <label htmlFor={`code-${conn.id}-${h.accountId}`} className={labelCls}>
-              Code
-            </label>
-            <input
-              id={`code-${conn.id}-${h.accountId}`}
-              type="text"
-              value={code}
-              onChange={(e) => setCode(e.target.value.toUpperCase())}
-              maxLength={12}
-              autoCapitalize="characters"
-              placeholder={h.handle.replace(/[^a-z0-9]/gi, "").slice(0, 4).toUpperCase()}
-              className={fieldCls}
-            />
           </div>
-          <label className="flex min-h-11 items-center gap-3 text-[15px]">
-            <input
-              type="checkbox"
-              checked={autoFill}
-              onChange={(e) => setAutoFill(e.target.checked)}
-              className="h-5 w-5"
-            />
-            Auto-fill blank Total PM
-          </label>
-          {err && (
-            <p role="status" className="text-sm text-red-600 dark:text-red-400">
-              {err}
-            </p>
-          )}
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => save(phones)}
-              disabled={busy}
-              className={`${solidBtnCls} flex-1 sm:flex-none`}
-            >
-              {busy ? "Saving…" : "Save"}
-            </button>
-            {here && (
-              <button
-                type="button"
-                onClick={() => save([])}
-                disabled={busy}
-                className={`${ghostBtnCls} flex-1 border-red-300 text-red-700 sm:flex-none dark:border-red-900 dark:text-red-400`}
+        </div>
+
+        <div>
+          <Label>API</Label>
+          <div className="flex flex-wrap items-center gap-2">
+            {c.hasToken && c.apiEndpoint ? (
+              <>
+                <span className="text-sm text-zinc-700 dark:text-zinc-300">Token saved</span>
+                <button type="button" onClick={runTest} disabled={test.busy} className={btn.secondary}>
+                  {test.busy ? "Testing…" : "Test API"}
+                </button>
+              </>
+            ) : (
+              <StatusPill tone="warn">No API token</StatusPill>
+            )}
+            {test.msg && (
+              <span
+                role="status"
+                className={`text-sm ${test.ok ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}
               >
-                Unlink from {conn.name}
-              </button>
+                {test.msg}
+              </span>
             )}
           </div>
         </div>
-      )}
-    </li>
-  );
-}
 
-/** One click-to-WhatsApp link with its copy button. */
-function WaLinkRow({ url }: { url: string }) {
-  const { setRef, state, copy } = useCopy();
-  return (
-    <div className="mt-2 flex items-center gap-2">
-      <span ref={setRef} className="min-w-0 flex-1 truncate font-mono text-xs text-zinc-500 select-all">
-        {url}
-      </span>
-      <button type="button" onClick={() => copy(url)} className={ghostBtnCls}>
-        {state === "yes" ? "Copied ✓" : state === "failed" ? "Select" : "Copy link"}
-      </button>
-    </div>
+        {latest && (
+          <div>
+            <Label>Cross-check</Label>
+            <CheckSummary check={latest} />
+            {c.checks.length > 0 && (
+              <details className="group mt-2">
+                <summary className="inline-flex min-h-9 cursor-pointer list-none items-center gap-1 text-sm font-medium text-blue-600 dark:text-blue-400 [&::-webkit-details-marker]:hidden">
+                  Last {c.checks.length} day{c.checks.length === 1 ? "" : "s"}
+                  <span aria-hidden="true" className="transition-transform group-open:rotate-90">
+                    ›
+                  </span>
+                </summary>
+                <CrossCheckList checks={c.checks} />
+              </details>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="border-t border-zinc-100 px-4 py-2.5 text-xs text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
+        {linkedHere.length ? (
+          <>Handles: {linkedHere.map((h) => `@${h.handle}`).join(", ")}</>
+        ) : (
+          "No handle routed here"
+        )}
+        {c.numbers.length > 0 && <> · Numbers: {c.numbers.map(fmtPhone).join(", ")}</>}
+      </div>
+    </Panel>
   );
 }
 
@@ -580,8 +360,8 @@ function ConnectionForm({
   return (
     <form onSubmit={save} className="space-y-4 pb-2">
       <div>
-        <label htmlFor="wati-name" className={labelCls}>
-          Name
+        <label htmlFor="wati-name">
+          <Label>Name</Label>
         </label>
         <input
           id="wati-name"
@@ -591,12 +371,12 @@ function ConnectionForm({
           maxLength={60}
           placeholder="WATI 1"
           required
-          className={fieldCls}
+          className={field}
         />
       </div>
       <div>
-        <label htmlFor="wati-endpoint" className={labelCls}>
-          API endpoint
+        <label htmlFor="wati-endpoint">
+          <Label>API endpoint</Label>
         </label>
         <input
           id="wati-endpoint"
@@ -606,12 +386,12 @@ function ConnectionForm({
           value={endpoint}
           onChange={(e) => setEndpoint(e.target.value)}
           placeholder="https://live-mt-server.wati.io/123456"
-          className={fieldCls}
+          className={field}
         />
       </div>
       <div>
-        <label htmlFor="wati-token" className={labelCls}>
-          Access token
+        <label htmlFor="wati-token">
+          <Label>Access token</Label>
         </label>
         <input
           id="wati-token"
@@ -620,12 +400,12 @@ function ConnectionForm({
           value={token}
           onChange={(e) => setToken(e.target.value)}
           placeholder={existing?.hasToken ? "Saved" : "Bearer eyJ…"}
-          className={fieldCls}
+          className={field}
         />
       </div>
 
       {existing && (
-        <label className="flex min-h-11 items-center gap-3 text-[15px]">
+        <label className="flex min-h-11 items-center gap-3 text-sm">
           <input
             type="checkbox"
             checked={isActive}
@@ -642,7 +422,7 @@ function ConnectionForm({
         </p>
       )}
 
-      <button type="submit" disabled={busy || !name.trim()} className={`${solidBtnCls} w-full`}>
+      <button type="submit" disabled={busy || !name.trim()} className={`${btn.primary} w-full`}>
         {busy ? "Saving…" : existing ? "Save" : "Add"}
       </button>
 
@@ -654,29 +434,16 @@ function ConnectionForm({
                 The current URL stops working. Paste the new one into WATI.
               </p>
               <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={rotate}
-                  disabled={busy}
-                  className={`${ghostBtnCls} flex-1 border-red-300 text-red-700 dark:border-red-900 dark:text-red-400`}
-                >
+                <button type="button" onClick={rotate} disabled={busy} className={`${btn.danger} flex-1`}>
                   Change URL
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setConfirmRotate(false)}
-                  className={`${ghostBtnCls} flex-1`}
-                >
+                <button type="button" onClick={() => setConfirmRotate(false)} className={`${btn.secondary} flex-1`}>
                   Cancel
                 </button>
               </div>
             </div>
           ) : (
-            <button
-              type="button"
-              onClick={() => setConfirmRotate(true)}
-              className={`${ghostBtnCls} w-full`}
-            >
+            <button type="button" onClick={() => setConfirmRotate(true)} className={`${btn.secondary} w-full`}>
               New webhook URL
             </button>
           )}
@@ -702,78 +469,73 @@ const missingAtFmt = new Intl.DateTimeFormat("en-MY", {
 });
 const dayLabel = (day: string) => checkDayFmt.format(new Date(`${day}T00:00:00Z`));
 
-/** One line under the account name: the latest cross-check's verdict. */
-function CheckSummary({ check }: { check: CrossCheckView | undefined }) {
-  if (!check) return null;
+/** The latest cross-check's verdict, one line. */
+function CheckSummary({ check }: { check: CrossCheckView }) {
   if (check.error) {
     return (
-      <span className="mt-0.5 block text-sm text-zinc-500 dark:text-zinc-400">
-        Cross-check {dayLabel(check.day)}: couldn&apos;t run
-      </span>
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <span className="font-medium">{dayLabel(check.day)}</span>
+        <StatusPill tone="warn">Couldn&apos;t run</StatusPill>
+      </div>
     );
   }
   const n = check.missing.length;
   return (
-    <span
-      className={`mt-0.5 block text-sm ${
-        n > 0 ? "font-medium text-red-600 dark:text-red-400" : "text-emerald-700 dark:text-emerald-400"
-      }`}
-    >
-      {dayLabel(check.day)}: WATI {check.watiCustomers} · TT Stars {check.found}
-      {n > 0 ? ` · ${n} missing` : " ✓"}
-    </span>
+    <div className="flex flex-wrap items-center gap-2 text-sm">
+      <span className="font-medium">{dayLabel(check.day)}</span>
+      <span className="tabular-nums text-zinc-600 dark:text-zinc-300">
+        WATI {check.watiCustomers} · TT Stars {check.found}
+      </span>
+      {n > 0 ? <StatusPill tone="bad">{n} missing</StatusPill> : <StatusPill tone="ok">Match</StatusPill>}
+    </div>
   );
 }
 
 /** The last week of cross-checks, with the missing customers listed. */
 function CrossCheckList({ checks }: { checks: CrossCheckView[] }) {
-  if (checks.length === 0) return null;
   return (
-    <div>
-      <div className="mb-1 text-sm text-zinc-500 dark:text-zinc-400">Cross-check with WATI (new customers)</div>
-      <ul className="divide-y divide-zinc-100 rounded-xl border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
-        {checks.map((k) => (
-          <li key={k.day} className="px-3 py-2.5 text-sm">
-            <div className="flex items-baseline justify-between gap-3">
-              <span className="font-medium">{dayLabel(k.day)}</span>
-              {k.error ? (
-                <span className="text-right text-zinc-500">{k.error}</span>
-              ) : (
-                <span className="text-right tabular-nums">
-                  WATI {k.watiCustomers} · TT Stars {k.found}{" "}
-                  {k.missing.length > 0 ? (
-                    <span className="font-semibold text-red-600 dark:text-red-400">· {k.missing.length} missing</span>
-                  ) : (
-                    <span className="text-emerald-600 dark:text-emerald-400">✓</span>
-                  )}
-                </span>
-              )}
+    <ul className="mt-2 divide-y divide-zinc-100 rounded-lg border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
+      {checks.map((k) => (
+        <li key={k.day} className="px-3 py-2.5 text-sm">
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="font-medium">{dayLabel(k.day)}</span>
+            {k.error ? (
+              <span className="text-right text-zinc-500">{k.error}</span>
+            ) : (
+              <span className="text-right tabular-nums">
+                WATI {k.watiCustomers} · TT Stars {k.found}{" "}
+                {k.missing.length > 0 ? (
+                  <span className="font-semibold text-red-600 dark:text-red-400">· {k.missing.length} missing</span>
+                ) : (
+                  <span className="text-emerald-600 dark:text-emerald-400">✓</span>
+                )}
+              </span>
+            )}
+          </div>
+          {!k.error && (k.notCustomers > 0 || k.unchecked > 0) && (
+            <div className="mt-0.5 text-xs text-zinc-500">
+              {k.notCustomers > 0 && `${k.notCustomers} other new WATI contact${k.notCustomers === 1 ? "" : "s"} (CS wrote first, or another number)`}
+              {k.notCustomers > 0 && k.unchecked > 0 && " · "}
+              {k.unchecked > 0 && `${k.unchecked} not checked`}
             </div>
-            {!k.error && (k.notCustomers > 0 || k.unchecked > 0) && (
-              <div className="mt-0.5 text-xs text-zinc-500">
-                {k.notCustomers > 0 && `${k.notCustomers} other new WATI contact${k.notCustomers === 1 ? "" : "s"} (CS wrote first, or another number)`}
-                {k.notCustomers > 0 && k.unchecked > 0 && " · "}
-                {k.unchecked > 0 && `${k.unchecked} not checked`}
-              </div>
-            )}
-            {k.missing.length > 0 && (
-              <ul className="mt-2 space-y-1">
-                {k.missing.map((m, i) => (
-                  <li
-                    key={`${m.last4}-${i}`}
-                    className="rounded-lg bg-red-50 px-2.5 py-1.5 text-xs text-red-900 dark:bg-red-950/30 dark:text-red-300"
-                  >
-                    <span className="font-mono">•••• {m.last4}</span>
-                    {m.name ? ` · ${m.name}` : ""} · {missingAtFmt.format(new Date(m.at))} · to …{m.number}
-                  </li>
-                ))}
-              </ul>
-            )}
-            <div className="mt-0.5 text-xs text-zinc-400">Checked {k.checkedAgo}</div>
-          </li>
-        ))}
-      </ul>
-    </div>
+          )}
+          {k.missing.length > 0 && (
+            <ul className="mt-2 space-y-1">
+              {k.missing.map((m, i) => (
+                <li
+                  key={`${m.last4}-${i}`}
+                  className="rounded-md bg-red-50 px-2.5 py-1.5 text-xs text-red-900 dark:bg-red-950/30 dark:text-red-300"
+                >
+                  <span className="font-mono">•••• {m.last4}</span>
+                  {m.name ? ` · ${m.name}` : ""} · {missingAtFmt.format(new Date(m.at))} · to …{m.number}
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="mt-0.5 text-xs text-zinc-400">Checked {k.checkedAgo}</div>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -797,30 +559,27 @@ function CrossCheckRun({ yesterday }: { yesterday: string }) {
   }
 
   return (
-    <div className="mt-3 flex flex-wrap items-end gap-2">
-      <label className="block">
-        <span className={labelCls}>Cross-check day</span>
-        <input
-          type="date"
-          value={day}
-          max={yesterday}
-          onChange={(e) => setDay(e.target.value)}
-          disabled={busy}
-          className={`${fieldCls} w-auto`}
-        />
-      </label>
-      <button type="button" onClick={run} disabled={busy || !day} className={ghostBtnCls}>
+    <div className="mt-3 flex flex-wrap items-center gap-2">
+      <span className="text-sm text-zinc-500 dark:text-zinc-400">Cross-check a day</span>
+      <input
+        type="date"
+        aria-label="Cross-check day"
+        value={day}
+        max={yesterday}
+        onChange={(e) => setDay(e.target.value)}
+        disabled={busy}
+        className={field.replace("w-full", "w-44")}
+      />
+      <button type="button" onClick={run} disabled={busy || !day} className={btn.secondary}>
         {busy ? "Checking WATI…" : "Check now"}
       </button>
       {msg && (
-        <p
+        <span
           role="status"
-          className={`basis-full text-sm ${
-            msg.ok ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
-          }`}
+          className={`text-sm ${msg.ok ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}
         >
           {msg.text}
-        </p>
+        </span>
       )}
     </div>
   );

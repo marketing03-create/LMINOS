@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { refreshEverywhere } from "@/app/actions/refresh-everywhere";
+import { Label, Panel, Section, StatusPill, btn, field } from "./ui";
 
 /**
  * Google Drive for customer documents: the service account key TT Stars uses,
@@ -15,10 +16,8 @@ export type DriveHandleView = {
   sharedDriveName: string | null;
 };
 
-const INPUT =
-  "block min-h-11 w-full rounded-xl border border-zinc-300 bg-white px-3 text-sm text-zinc-900 focus:border-blue-500 focus:outline-none disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100";
-const BUTTON =
-  "inline-flex min-h-11 items-center justify-center rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white active:bg-blue-700 disabled:opacity-60";
+const INPUT = field;
+const BUTTON = btn.primary;
 
 async function post(url: string, body: unknown): Promise<{ ok: boolean; error?: string }> {
   try {
@@ -52,75 +51,75 @@ export function DriveSetup({ email, handles }: { email: string | null; handles: 
   }
 
   return (
-    <section className="rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950 lg:rounded-xl lg:p-5">
-      <div className="mb-3 flex items-baseline justify-between gap-3">
-        <h2 className="font-semibold">Google Drive (customer documents)</h2>
-        <span
-          className={`text-xs font-medium uppercase tracking-wider ${
-            email ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"
-          }`}
-        >
-          {email ? "connected" : "not connected"}
-        </span>
-      </div>
-
-      {email && !editingKey && (
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-          <p className="break-all text-sm text-zinc-600 dark:text-zinc-400">{email}</p>
-          <button
-            type="button"
-            onClick={() => setEditingKey(true)}
-            className="min-h-11 text-sm font-medium text-blue-600 dark:text-blue-400"
-          >
-            Change key
-          </button>
-        </div>
-      )}
-
-      {editingKey && (
-        <div className="mb-4 space-y-2">
-          <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300" htmlFor="drive-key">
-            Service account JSON key
-          </label>
-          <textarea
-            id="drive-key"
-            value={key}
-            onChange={(e) => setKey(e.target.value)}
-            rows={4}
-            spellCheck={false}
-            autoComplete="off"
-            disabled={busy}
-            className={`${INPUT} py-2 font-mono text-xs`}
-          />
-          {err && <p className="text-sm text-red-600 dark:text-red-400">{err}</p>}
-          <div className="flex gap-3">
-            <button type="button" onClick={saveKey} disabled={busy || !key.trim()} className={BUTTON}>
-              {busy ? "Checking…" : "Save key"}
-            </button>
-            {email && (
-              <button
-                type="button"
-                onClick={() => {
-                  setEditingKey(false);
-                  setErr(null);
-                }}
-                className="min-h-11 px-2 text-sm text-zinc-600 dark:text-zinc-400"
-              >
-                Cancel
-              </button>
-            )}
+    <Section id="drive" title="Google Drive" meta="customer documents">
+      <Panel>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-100 px-4 py-3 dark:border-zinc-800">
+          <div className="min-w-0">
+            <div className="font-semibold">Service account</div>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <StatusPill tone={email ? "ok" : "warn"}>{email ? "Connected" : "Not connected"}</StatusPill>
+              {email && <span className="break-all text-sm text-zinc-600 dark:text-zinc-400">{email}</span>}
+            </div>
           </div>
+          {email && !editingKey && (
+            <button type="button" onClick={() => setEditingKey(true)} className={btn.secondary}>
+              Change key
+            </button>
+          )}
         </div>
-      )}
 
-      {email && (
-        <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
-          {handles.map((h) => (
-            <HandleDrive key={h.accountId} h={h} />
-          ))}
-        </ul>
-      )}
-    </section>
+        {editingKey && (
+          <div className="space-y-2 border-b border-zinc-100 px-4 py-4 dark:border-zinc-800">
+            <label htmlFor="drive-key">
+              <Label>Service account JSON key</Label>
+            </label>
+            <textarea
+              id="drive-key"
+              value={key}
+              onChange={(e) => setKey(e.target.value)}
+              rows={4}
+              spellCheck={false}
+              autoComplete="off"
+              disabled={busy}
+              className={`${INPUT.replace("h-11", "").replace("lg:h-9", "")} py-2 font-mono text-xs`}
+            />
+            {err && <p className="text-sm text-red-600 dark:text-red-400">{err}</p>}
+            <div className="flex gap-2">
+              <button type="button" onClick={saveKey} disabled={busy || !key.trim()} className={BUTTON}>
+                {busy ? "Checking…" : "Save key"}
+              </button>
+              {email && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingKey(false);
+                    setErr(null);
+                  }}
+                  className={btn.secondary}
+                >
+                  Cancel
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {email && (
+          <>
+            <div className="hidden grid-cols-[12rem_1fr_auto] gap-4 border-b border-zinc-200 bg-zinc-50 px-4 py-2.5 text-xs font-medium uppercase tracking-wider text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900 lg:grid">
+              <span>Handle</span>
+              <span>Shared Drive</span>
+              <span className="sr-only">Actions</span>
+            </div>
+            <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
+              {handles.map((h) => (
+                <HandleDrive key={h.accountId} h={h} />
+              ))}
+            </ul>
+          </>
+        )}
+      </Panel>
+    </Section>
   );
 }
 
@@ -141,25 +140,21 @@ function HandleDrive({ h }: { h: DriveHandleView }) {
   }
 
   return (
-    <li className="py-3">
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <p className="font-mono text-sm">@{h.handle}</p>
-          <p className="break-words text-xs text-zinc-500 dark:text-zinc-400">
-            {h.sharedDriveId ? (h.sharedDriveName ?? h.sharedDriveId) : "No Shared Drive"}
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => setOpen((v) => !v)}
-          aria-expanded={open}
-          className="min-h-11 shrink-0 text-sm font-medium text-blue-600 dark:text-blue-400"
-        >
+    <li className="px-4 py-3">
+      <div className="flex items-center justify-between gap-3 lg:grid lg:grid-cols-[12rem_1fr_auto] lg:gap-4">
+        <p className="font-mono text-sm font-medium">@{h.handle}</p>
+        <p className="hidden min-w-0 break-words text-sm text-zinc-600 dark:text-zinc-400 lg:block">
+          {h.sharedDriveId ? (h.sharedDriveName ?? h.sharedDriveId) : <span className="text-zinc-400">Not linked</span>}
+        </p>
+        <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} className={btn.secondary}>
           {open ? "Close" : h.sharedDriveId ? "Change" : "Link"}
         </button>
       </div>
+      <p className="mt-0.5 break-words text-xs text-zinc-500 dark:text-zinc-400 lg:hidden">
+        {h.sharedDriveId ? (h.sharedDriveName ?? h.sharedDriveId) : "Not linked"}
+      </p>
       {open && (
-        <div className="mt-2 space-y-2">
+        <div className="mt-3 space-y-2">
           <input
             value={value}
             onChange={(e) => setValue(e.target.value)}
@@ -170,17 +165,12 @@ function HandleDrive({ h }: { h: DriveHandleView }) {
             className={INPUT}
           />
           {err && <p className="text-sm text-red-600 dark:text-red-400">{err}</p>}
-          <div className="flex gap-3">
+          <div className="flex gap-2">
             <button type="button" onClick={() => save(value)} disabled={busy || !value.trim()} className={BUTTON}>
               {busy ? "Checking…" : "Save"}
             </button>
             {h.sharedDriveId && (
-              <button
-                type="button"
-                onClick={() => save(null)}
-                disabled={busy}
-                className="min-h-11 px-2 text-sm text-red-600 dark:text-red-400"
-              >
+              <button type="button" onClick={() => save(null)} disabled={busy} className={btn.danger}>
                 Unlink
               </button>
             )}

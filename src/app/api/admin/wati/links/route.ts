@@ -8,16 +8,14 @@ import { cleanCode } from "@/lib/wati/attribution";
 import { normalizePhone } from "@/lib/wati/payload";
 
 /**
- * Set which numbers on ONE WATI account carry a TikTok handle's leads. A handle
- * can be linked to several WATI accounts (one call each) and several numbers
- * per account. Admin auth.
+ * Set every WATI account + number a TikTok handle's leads arrive on — a
+ * streamer can have several CS numbers, even on several WATI accounts. Admin auth.
  *
- * Body: { accountId, connectionId, phones: string[], code?, autoFillTotalLeads? }
- *  - `phones` replaces the handle's numbers on that account; "" = any number.
- *    An empty list unlinks the handle from that account.
- *  - `code` and `autoFillTotalLeads` belong to the handle, so they are written
- *    to all of its links, on every account.
- *  - `{ accountId, connectionId: null }` unlinks the handle everywhere.
+ * Body: { accountId, links: { connectionId, phone }[], code?, autoFillTotalLeads? }
+ *  - `links` replaces all of the handle's links; phone "" = any number on that
+ *    account. An empty list unlinks the handle.
+ *  - `code` and `autoFillTotalLeads` belong to the handle (same on every row).
+ *  - `{ accountId, connectionId: null }` (older clients) unlinks it too.
  */
 export async function POST(request: NextRequest) {
   const auth = await requireRole(ADMIN_ROLES);
@@ -26,7 +24,7 @@ export async function POST(request: NextRequest) {
   const body = (await request.json().catch(() => null)) as {
     accountId?: string;
     connectionId?: string | null;
-    phones?: unknown;
+    links?: unknown;
     code?: string | null;
     autoFillTotalLeads?: boolean;
   } | null;
@@ -53,31 +51,33 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
-  const connectionId = typeof body?.connectionId === "string" ? body.connectionId : "";
-  const conn = connectionId
-    ? await db.query.watiConnections.findFirst({
-        where: eq(watiConnections.id, connectionId),
-        columns: { id: true },
-      })
-    : null;
-  if (!conn) return NextResponse.json({ ok: false, error: "Pick a WATI account." }, { status: 400 });
-
-  if (!Array.isArray(body?.phones) || body.phones.length > 10) {
+  if (!Array.isArray(body?.links) || body.links.length > 20) {
     return NextResponse.json({ ok: false, error: "invalid body" }, { status: 400 });
   }
-  const phones = new Set<string | null>();
-  for (const raw of body.phones) {
-    const s = typeof raw === "string" ? raw.trim() : "";
-    if (!s) {
-      phones.add(null);
-      continue;
+  const known = new Set(
+    (await db.select({ id: watiConnections.id }).from(watiConnections)).map((c) => c.id)
+  );
+  // connectionId -> numbers (null = any number on that account).
+  const wanted = new Map<string, Set<string | null>>();
+  for (const raw of body.links as unknown[]) {
+    const l = (raw ?? {}) as { connectionId?: unknown; phone?: unknown };
+    const connectionId = typeof l.connectionId === "string" ? l.connectionId : "";
+    if (!known.has(connectionId)) {
+      return NextResponse.json({ ok: false, error: "Pick a WATI account for every number." }, { status: 400 });
     }
-    const p = normalizePhone(s);
-    if (!p) return NextResponse.json({ ok: false, error: "That number looks wrong." }, { status: 400 });
-    phones.add(p);
+    const typed = typeof l.phone === "string" ? l.phone.trim() : "";
+    const phone = typed ? normalizePhone(typed) : null;
+    if (typed && !phone) {
+      return NextResponse.json({ ok: false, error: `${typed} doesn't look like a phone number.` }, { status: 400 });
+    }
+    const set = wanted.get(connectionId) ?? new Set<string | null>();
+    set.add(phone);
+    wanted.set(connectionId, set);
   }
-  // "Any number" already covers every number on the account.
-  const rows = phones.has(null) ? [null] : [...phones];
+  // "Any number" already covers every number on that account.
+  const rows = [...wanted].flatMap(([connectionId, phones]) =>
+    (phones.has(null) ? [null] : [...phones]).map((channelPhone) => ({ connectionId, channelPhone }))
+  );
 
   const codeRaw = typeof body?.code === "string" ? body.code.trim() : "";
   const code = codeRaw ? cleanCode(codeRaw) : null;
@@ -99,19 +99,10 @@ export async function POST(request: NextRequest) {
   const handleSettings = { code, autoFillTotalLeads: !!body?.autoFillTotalLeads };
 
   await db.transaction(async (tx) => {
-    await tx
-      .delete(tiktokWaLinks)
-      .where(and(eq(tiktokWaLinks.accountId, accountId), eq(tiktokWaLinks.connectionId, connectionId)));
+    await tx.delete(tiktokWaLinks).where(eq(tiktokWaLinks.accountId, accountId));
     if (rows.length > 0) {
-      await tx
-        .insert(tiktokWaLinks)
-        .values(rows.map((channelPhone) => ({ accountId, connectionId, channelPhone, ...handleSettings })));
+      await tx.insert(tiktokWaLinks).values(rows.map((r) => ({ accountId, ...r, ...handleSettings })));
     }
-    // The handle's other links (other WATI accounts) share its code + auto-fill.
-    await tx
-      .update(tiktokWaLinks)
-      .set({ ...handleSettings, updatedAt: new Date() })
-      .where(eq(tiktokWaLinks.accountId, accountId));
   });
 
   await writeAudit({
@@ -120,7 +111,7 @@ export async function POST(request: NextRequest) {
     entityType: "tiktok_account",
     entityId: accountId,
     before,
-    after: { handle: account.handle, connectionId, phones: rows, ...handleSettings },
+    after: { handle: account.handle, links: rows, ...handleSettings },
   });
   return NextResponse.json({ ok: true });
 }

@@ -1,7 +1,5 @@
 import { headers } from "next/headers";
 import { eq, isNotNull, sql } from "drizzle-orm";
-import { Disclosure } from "@/components/mobile/disclosure";
-import { IntegrationRows } from "./integration-rows";
 import { SyncNowButton } from "./sync-now-button";
 import { TelegramLinkButton } from "./telegram-link-button";
 import {
@@ -11,6 +9,7 @@ import {
 } from "./wati-connections";
 import { requireAdminPage } from "@/lib/auth/page-guard";
 import { DriveSetup, type DriveHandleView } from "./drive-setup";
+import { Panel, Section, StatusPill, type Tone } from "./ui";
 
 /**
  * External-service status. LMIROS is TikTok-Live-only — the Zoho, Google Sheets
@@ -224,22 +223,11 @@ export default async function IntegrationsPage() {
   const aiConfigured = !!process.env.AI_GATEWAY_API_KEY;
 
   /**
-   * One string per service, written once and used by both renderings — the
-   * phone sheet and the desktop paragraph — so the two can never end up saying
-   * different things about the same dot.
-   *
-   * The env-var names are gone from all three. `TIKTOK_LIVE_PROVIDER +
-   * TIKTOK_LIVE_API_KEY` is not something an admin on a phone can act on, and
-   * the sentence it sat in described the *unconfigured* state as a problem when
-   * it is in fact how this deployment runs: capture is the self-hosted Fly.io
-   * connector, and no vendor is the normal, paid-for-nothing steady state. Note
-   * these are strings built on the server from presence booleans only; the one
-   * value that appears is the provider name, which today's HTML already
-   * prints (contract 22).
+   * Shown only when a service is off — a status line, not standing copy. Built
+   * on the server from presence booleans only; no env value reaches the page
+   * except the TikTok provider name (contract 22). No vendor is how this
+   * deployment runs (the Fly.io connector captures lives), so it isn't a fault.
    */
-  const tiktokDetail = tiktokConfigured
-    ? `Vendor: ${tiktokProvider}. Pulls finished LIVE sessions (viewers, likes, comments, shares) for tracked handles.`
-    : "No vendor configured — lives are still captured by the Fly.io connector.";
   const aiDetail = aiConfigured
     ? "Reads a streamer's uploaded LIVE screenshots into metrics."
     : "Screenshot reading is off — streamers type numbers by hand.";
@@ -247,197 +235,144 @@ export default async function IntegrationsPage() {
     ? "Each admin taps Link my Telegram once to get alerts in Telegram."
     : "Telegram is off — no reminders or capture alerts are delivered.";
 
+  // The overview strip: one tile per service, each a jump link to its section.
+  const watiTotal = watiViews?.length ?? 0;
+  const watiConnected = watiViews?.filter((c) => c.isActive && c.lastEventAt).length ?? 0;
+  const watiQuiet = watiViews?.some((c) => c.isActive && (c.lastCustomerHours === null || c.lastCustomerHours > 24)) ?? false;
+  const tiles: { href: string; name: string; tone: Tone; status: string }[] = [
+    ...(watiViews
+      ? [
+          {
+            href: "#whatsapp",
+            name: "WhatsApp (WATI)",
+            tone: (watiTotal === 0 ? "warn" : watiQuiet ? "warn" : "ok") as Tone,
+            status: watiTotal === 0 ? "No account" : `${watiConnected} of ${watiTotal} connected`,
+          },
+        ]
+      : []),
+    ...(drive
+      ? [
+          {
+            href: "#drive",
+            name: "Google Drive",
+            tone: (drive.email ? "ok" : "warn") as Tone,
+            status: drive.email ? "Connected" : "Not connected",
+          },
+        ]
+      : []),
+    {
+      href: "#services",
+      name: "TikTok Live capture",
+      tone: "ok",
+      status: tiktokConfigured ? `Vendor · ${tiktokProvider}` : "Fly.io connector",
+    },
+    { href: "#services", name: "Screenshot reading", tone: aiConfigured ? "ok" : "warn", status: aiConfigured ? "On" : "Off" },
+    {
+      href: "#services",
+      name: "Telegram",
+      tone: telegramConfigured ? "ok" : "warn",
+      status: telegramConfigured ? `${pairedUsers.length} paired` : "Off",
+    },
+  ];
+
   return (
-    <div className="px-4 py-5 sm:p-8">
+    <div className="mx-auto max-w-7xl px-4 py-5 sm:p-8">
       <header className="mb-6">
-        <h1 className="text-xl font-semibold tracking-tight lg:text-2xl">
-          Integrations
-        </h1>
+        <h1 className="text-xl font-semibold tracking-tight lg:text-2xl">Integrations</h1>
       </header>
 
       {error && (
-        <div className="mb-6 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
+        <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
           Database unavailable. <span className="opacity-70">{error}</span>
         </div>
       )}
 
-      {/* Phone: the one thing anyone comes here to do, first and full width,
-          then the three answers, then the roster. It is a sibling of the
-          desktop sections below, not a replacement — at `lg` this whole block
-          is gone and the page reads exactly as it does today (P5).
+      <nav aria-label="Services" className="mb-10 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+        {tiles.map((t) => (
+          <a
+            key={t.name}
+            href={t.href}
+            className="rounded-xl border border-zinc-200 bg-white px-4 py-3 transition-colors hover:border-zinc-300 active:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700 lg:dark:bg-zinc-950"
+          >
+            <span className="block truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">{t.name}</span>
+            <span className="mt-1.5 block">
+              <StatusPill tone={t.tone}>{t.status}</StatusPill>
+            </span>
+          </a>
+        ))}
+      </nav>
 
-          Two `SyncNowButton`s therefore exist in the DOM, one per breakpoint.
-          That is deliberate: the button belongs *inside* the TikTok card on a
-          laptop and *above everything* on a phone, and no amount of `order-*`
-          moves a child out of its parent. Only one is ever visible, so the
-          duplicated state can never diverge in front of anyone. */}
-      <div className="lg:hidden">
-        <SyncNowButton variant="tiktok" />
-
-        <div className="mt-6">
-          <IntegrationRows
-            rows={[
-              {
-                id: "tiktok",
-                name: "TikTok Live capture",
-                ok: tiktokConfigured,
-                neutralWhenOff: true,
-                detail: tiktokDetail,
-              },
-              {
-                id: "ai",
-                name: "Screenshot reading (AI)",
-                ok: aiConfigured,
-                detail: aiDetail,
-              },
-              {
-                id: "telegram",
-                name: "Telegram bot",
-                ok: telegramConfigured,
-                detail: telegramDetail,
-              },
-            ]}
-          />
-        </div>
-
-        {telegramConfigured && (
-          <div className="mt-6">
-            <TelegramLinkButton />
-          </div>
+      <div className="space-y-12">
+        {watiViews && wati && (
+          <WatiConnections connections={watiViews} handles={wati.handles} yesterday={wati.yesterday} />
         )}
 
-        <div className="mt-6 overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-          <Disclosure
-            title={`Paired users (${pairedUsers.length})`}
-            headingLevel={2}
-          >
-            {pairedUsers.length === 0 ? (
-              <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                No users paired yet.
-              </p>
-            ) : (
-              <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
-                {pairedUsers.map((u) => (
-                  /* Two lines, both breakable. On one line these are two
-                     unbreakable strings — an email and a chat id — pulled apart
-                     by `justify-between` across about 440px of text in a 311px
-                     card, which is how a page starts panning sideways. */
-                  <li key={u.email} className="min-h-14 py-3">
-                    <div className="break-all text-sm">{u.email}</div>
-                    <div className="mt-0.5 break-all text-xs text-zinc-500 dark:text-zinc-400">
-                      {u.role} · chat {u.telegramChatId}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Disclosure>
-        </div>
+        {drive && <DriveSetup email={drive.email} handles={drive.handles} />}
 
-      </div>
-
-      {/* Desktop: today's three cards, in today's order. */}
-      <div className="hidden lg:block">
-        <section className="mb-8 border border-zinc-200 dark:border-zinc-800 rounded-xl bg-white dark:bg-zinc-950 p-5">
-          <div className="flex items-baseline justify-between mb-3">
-            <h2 className="font-semibold">TikTok Live capture</h2>
-            <StatusDot ok={tiktokConfigured} neutralWhenOff />
-          </div>
-          <p className="text-sm text-zinc-500 mb-4">{tiktokDetail}</p>
-          <SyncNowButton variant="tiktok" />
-        </section>
-
-        <section className="mb-8 border border-zinc-200 dark:border-zinc-800 rounded-xl bg-white dark:bg-zinc-950 p-5">
-          <div className="flex items-baseline justify-between mb-3">
-            <h2 className="font-semibold">Screenshot reading (AI)</h2>
-            <StatusDot ok={aiConfigured} />
-          </div>
-          {/* Only when it is off. Configured, the sentence said the dot two
-              inches away already says — and a string that cannot be false is a
-              string nobody reads. */}
-          {!aiConfigured && (
-            <p className="text-sm text-zinc-500">{aiDetail}</p>
-          )}
-        </section>
-
-        <section className="border border-zinc-200 dark:border-zinc-800 rounded-xl bg-white dark:bg-zinc-950 p-5">
-          <div className="flex items-baseline justify-between mb-3">
-            <h2 className="font-semibold">Telegram bot</h2>
-            <StatusDot ok={telegramConfigured} />
-          </div>
-          <p className="text-sm text-zinc-500 mb-4">{telegramDetail}</p>
-          {telegramConfigured && (
-            <div className="mb-5">
-              <TelegramLinkButton />
-            </div>
-          )}
-          <div className="text-xs uppercase tracking-wider text-zinc-500 mb-2">
-            Paired users ({pairedUsers.length})
-          </div>
-          <ul className="text-sm space-y-1">
-            {pairedUsers.length === 0 && (
-              <li className="text-zinc-500">No users paired yet.</li>
-            )}
-            {pairedUsers.map((u) => (
-              <li key={u.email} className="flex justify-between font-mono text-xs">
-                <span>{u.email}</span>
-                <span className="text-zinc-500">
-                  {u.role} · chat {u.telegramChatId}
-                </span>
+        <Section id="services" title="Services">
+          <Panel>
+            <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
+              <li className="flex flex-col gap-3 px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
+                <ServiceName
+                  name="TikTok Live capture"
+                  tone="ok"
+                  status={tiktokConfigured ? `Vendor · ${tiktokProvider}` : "Fly.io connector"}
+                />
+                <SyncNowButton variant="tiktok" />
               </li>
-            ))}
-          </ul>
-        </section>
-
+              <li className="flex flex-col gap-1 px-4 py-4">
+                <ServiceName name="Screenshot reading (AI)" tone={aiConfigured ? "ok" : "warn"} status={aiConfigured ? "On" : "Off"} />
+                {!aiConfigured && <p className="text-sm text-zinc-500">{aiDetail}</p>}
+              </li>
+              <li className="px-4 py-4">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                  <ServiceName
+                    name="Telegram bot"
+                    tone={telegramConfigured ? "ok" : "warn"}
+                    status={telegramConfigured ? "On" : "Off"}
+                  />
+                  {telegramConfigured && <TelegramLinkButton />}
+                </div>
+                {!telegramConfigured && <p className="mt-1 text-sm text-zinc-500">{telegramDetail}</p>}
+                <details className="group mt-3">
+                  <summary className="inline-flex min-h-9 cursor-pointer list-none items-center gap-1 text-sm font-medium text-blue-600 dark:text-blue-400 [&::-webkit-details-marker]:hidden">
+                    Paired users ({pairedUsers.length})
+                    <span aria-hidden="true" className="transition-transform group-open:rotate-90">
+                      ›
+                    </span>
+                  </summary>
+                  {pairedUsers.length === 0 ? (
+                    <p className="mt-2 text-sm text-zinc-500">No users paired yet.</p>
+                  ) : (
+                    <ul className="mt-2 divide-y divide-zinc-100 rounded-lg border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
+                      {pairedUsers.map((u) => (
+                        <li
+                          key={u.email}
+                          className="flex flex-col gap-0.5 px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-4"
+                        >
+                          <span className="break-all">{u.email}</span>
+                          <span className="break-all text-xs text-zinc-500">
+                            {u.role} · chat {u.telegramChatId}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </details>
+              </li>
+            </ul>
+          </Panel>
+        </Section>
       </div>
-
-      {/* Once, below both renderings: its rows already collapse, and two copies
-          would mean two sets of form ids on the page. */}
-      {watiViews && wati && (
-        <div className="mt-8">
-          <WatiConnections connections={watiViews} handles={wati.handles} yesterday={wati.yesterday} />
-        </div>
-      )}
-
-      {drive && (
-        <div className="mt-8">
-          <DriveSetup email={drive.email} handles={drive.handles} />
-        </div>
-      )}
     </div>
   );
 }
 
-/**
- * `neutralWhenOff` is for a service whose "off" is the expected state rather
- * than a fault — the TikTok vendor, which this deployment deliberately does
- * without. Amber on a permanent condition is an alarm that never stops, and one
- * nobody can silence is one nobody reads.
- */
-function StatusDot({
-  ok,
-  neutralWhenOff,
-}: {
-  ok: boolean;
-  neutralWhenOff?: boolean;
-}) {
-  const offText = neutralWhenOff
-    ? "text-zinc-500 dark:text-zinc-400"
-    : "text-amber-600 dark:text-amber-400";
-  const offDot = neutralWhenOff ? "bg-zinc-400" : "bg-amber-500";
-
+function ServiceName({ name, tone, status }: { name: string; tone: Tone; status: string }) {
   return (
-    <span
-      className={`inline-flex items-center gap-2 text-xs font-medium uppercase tracking-wider ${
-        ok ? "text-emerald-600 dark:text-emerald-400" : offText
-      }`}
-    >
-      <span
-        className={`inline-block w-2 h-2 rounded-full ${
-          ok ? "bg-emerald-500" : offDot
-        }`}
-      />
-      {ok ? "configured" : "not configured"}
-    </span>
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="font-medium">{name}</span>
+      <StatusPill tone={tone}>{status}</StatusPill>
+    </div>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { btn } from "./ui";
 
 /**
  * Pull TikTok Live data on demand. (The Sheets / Zoho / Google Ads variants left
@@ -66,7 +67,7 @@ export function SyncNowButton({ variant = "tiktok" }: { variant?: Variant }) {
       <button
         onClick={onClick}
         disabled={busy}
-        className="flex h-14 w-full items-center justify-center rounded-xl bg-zinc-900 px-4 text-base font-medium text-zinc-50 active:bg-zinc-700 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 lg:inline-flex lg:h-9 lg:w-auto lg:rounded-md lg:text-sm dark:bg-zinc-50 dark:text-zinc-900 dark:active:bg-zinc-200"
+        className={`${btn.secondary} w-full lg:w-auto`}
       >
         {busy ? cfg.busyLabel : cfg.label}
       </button>
