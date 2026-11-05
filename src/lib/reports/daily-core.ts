@@ -73,11 +73,25 @@ export function dailyReport(lives: ReportLive[], fromDay: string, toDay: string)
 
 export const REPORT_HEADER = ["Date", "Lives", "Views", "Comment", "DM", "Whatsapp", "Total Leads", "Get Documents"];
 
+const WEEKDAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+/**
+ * 2026-11-05 → "05/11/2026 (Thu)". Text on purpose: Google Sheets turns a date
+ * it recognises into its serial number (46331) and shows that in an
+ * unformatted column, so the Sheet would need formatting by hand.
+ */
+export function sheetDate(iso: string): string {
+  const [y, m, d] = iso.split("-");
+  return `${d}/${m}/${y} (${WEEKDAY[new Date(`${iso}T00:00:00Z`).getUTCDay()]})`;
+}
+
 /** CSV for IMPORTDATA: header + one line per row; blanks stay empty cells. */
 export function reportCsv(rows: ReportRow[]): string {
   const cell = (v: number | string | null) => (v === null ? "" : String(v));
   const lines = rows.map((r) =>
-    [r.date, r.lives, r.views, r.comments, r.directMessages, r.whatsapp, r.totalLeads, r.documents].map(cell).join(",")
+    [sheetDate(r.date), r.lives, r.views, r.comments, r.directMessages, r.whatsapp, r.totalLeads, r.documents]
+      .map(cell)
+      .join(",")
   );
   return [REPORT_HEADER.join(","), ...lines].join("\n") + "\n";
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dailyReport, reportCsv, type ReportLive } from "./daily-core";
+import { dailyReport, reportCsv, sheetDate, type ReportLive } from "./daily-core";
 
 // 9pm MYT = 13:00Z.
 const live = (day: string, over: Partial<ReportLive> = {}): ReportLive => ({
@@ -72,7 +72,14 @@ describe("reportCsv", () => {
   it("writes a header and empty cells for blanks", () => {
     const csv = reportCsv(dailyReport([live("2026-10-26", { directMessages: null })], "2026-10-26", "2026-10-26"));
     expect(csv).toBe(
-      "Date,Lives,Views,Comment,DM,Whatsapp,Total Leads,Get Documents\n2026-10-26,1,100,10,,,40,20\n"
+      "Date,Lives,Views,Comment,DM,Whatsapp,Total Leads,Get Documents\n26/10/2026 (Mon),1,100,10,,,40,20\n"
     );
+  });
+});
+
+describe("sheetDate", () => {
+  it("writes a day as dd/mm/yyyy with its weekday", () => {
+    expect(sheetDate("2026-11-05")).toBe("05/11/2026 (Thu)");
+    expect(sheetDate("2026-11-01")).toBe("01/11/2026 (Sun)");
   });
 });
