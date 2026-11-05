@@ -8,10 +8,16 @@ import { cleanCode } from "@/lib/wati/attribution";
 import { normalizePhone } from "@/lib/wati/payload";
 
 /**
- * Link a TikTok handle to the WATI account (and number) its leads arrive on —
- * or unlink it with `connectionId: null`. Admin auth. One link per handle.
+ * Set which numbers on ONE WATI account carry a TikTok handle's leads. A handle
+ * can be linked to several WATI accounts (one call each) and several numbers
+ * per account. Admin auth.
  *
- * Body: { accountId, connectionId | null, channelPhone?, code?, autoFillTotalLeads? }
+ * Body: { accountId, connectionId, phones: string[], code?, autoFillTotalLeads? }
+ *  - `phones` replaces the handle's numbers on that account; "" = any number.
+ *    An empty list unlinks the handle from that account.
+ *  - `code` and `autoFillTotalLeads` belong to the handle, so they are written
+ *    to all of its links, on every account.
+ *  - `{ accountId, connectionId: null }` unlinks the handle everywhere.
  */
 export async function POST(request: NextRequest) {
   const auth = await requireRole(ADMIN_ROLES);
@@ -20,7 +26,7 @@ export async function POST(request: NextRequest) {
   const body = (await request.json().catch(() => null)) as {
     accountId?: string;
     connectionId?: string | null;
-    channelPhone?: string | null;
+    phones?: unknown;
     code?: string | null;
     autoFillTotalLeads?: boolean;
   } | null;
@@ -33,7 +39,7 @@ export async function POST(request: NextRequest) {
   });
   if (!account) return NextResponse.json({ ok: false, error: "not found" }, { status: 404 });
 
-  const before = await db.query.tiktokWaLinks.findFirst({ where: eq(tiktokWaLinks.accountId, accountId) });
+  const before = await db.query.tiktokWaLinks.findMany({ where: eq(tiktokWaLinks.accountId, accountId) });
 
   if (body?.connectionId === null) {
     await db.delete(tiktokWaLinks).where(eq(tiktokWaLinks.accountId, accountId));
@@ -56,11 +62,22 @@ export async function POST(request: NextRequest) {
     : null;
   if (!conn) return NextResponse.json({ ok: false, error: "Pick a WATI account." }, { status: 400 });
 
-  const phoneRaw = typeof body?.channelPhone === "string" ? body.channelPhone.trim() : "";
-  const channelPhone = phoneRaw ? normalizePhone(phoneRaw) : null;
-  if (phoneRaw && !channelPhone) {
-    return NextResponse.json({ ok: false, error: "That number looks wrong." }, { status: 400 });
+  if (!Array.isArray(body?.phones) || body.phones.length > 10) {
+    return NextResponse.json({ ok: false, error: "invalid body" }, { status: 400 });
   }
+  const phones = new Set<string | null>();
+  for (const raw of body.phones) {
+    const s = typeof raw === "string" ? raw.trim() : "";
+    if (!s) {
+      phones.add(null);
+      continue;
+    }
+    const p = normalizePhone(s);
+    if (!p) return NextResponse.json({ ok: false, error: "That number looks wrong." }, { status: 400 });
+    phones.add(p);
+  }
+  // "Any number" already covers every number on the account.
+  const rows = phones.has(null) ? [null] : [...phones];
 
   const codeRaw = typeof body?.code === "string" ? body.code.trim() : "";
   const code = codeRaw ? cleanCode(codeRaw) : null;
@@ -79,28 +96,31 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, error: "Another handle already uses that code." }, { status: 409 });
     }
   }
+  const handleSettings = { code, autoFillTotalLeads: !!body?.autoFillTotalLeads };
 
-  const values = {
-    connectionId,
-    channelPhone,
-    code,
-    autoFillTotalLeads: !!body?.autoFillTotalLeads,
-  };
-  await db
-    .insert(tiktokWaLinks)
-    .values({ accountId, ...values })
-    .onConflictDoUpdate({
-      target: tiktokWaLinks.accountId,
-      set: { ...values, updatedAt: new Date() },
-    });
+  await db.transaction(async (tx) => {
+    await tx
+      .delete(tiktokWaLinks)
+      .where(and(eq(tiktokWaLinks.accountId, accountId), eq(tiktokWaLinks.connectionId, connectionId)));
+    if (rows.length > 0) {
+      await tx
+        .insert(tiktokWaLinks)
+        .values(rows.map((channelPhone) => ({ accountId, connectionId, channelPhone, ...handleSettings })));
+    }
+    // The handle's other links (other WATI accounts) share its code + auto-fill.
+    await tx
+      .update(tiktokWaLinks)
+      .set({ ...handleSettings, updatedAt: new Date() })
+      .where(eq(tiktokWaLinks.accountId, accountId));
+  });
 
   await writeAudit({
     actorUserId: auth.userId,
-    eventType: "wati.handle_linked",
+    eventType: rows.length > 0 ? "wati.handle_linked" : "wati.handle_unlinked",
     entityType: "tiktok_account",
     entityId: accountId,
     before,
-    after: { handle: account.handle, ...values },
+    after: { handle: account.handle, connectionId, phones: rows, ...handleSettings },
   });
   return NextResponse.json({ ok: true });
 }

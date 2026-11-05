@@ -152,18 +152,24 @@ async function loadWati(): Promise<WatiData | null> {
             : Math.round(Number(r.replyMedianToday) * 10) / 10,
       })),
       yesterday,
-      handles: handles.map(({ accountId, handle, connectionId, ...link }) => ({
-        accountId,
-        handle,
-        link: connectionId
-          ? {
-              connectionId,
-              channelPhone: link.channelPhone,
-              code: link.code,
-              autoFillTotalLeads: link.autoFillTotalLeads ?? false,
-            }
-          : null,
-      })),
+      // One entry per handle, with all its links (it can have several).
+      handles: [...handles
+        .reduce((acc, r) => {
+          const h = acc.get(r.accountId) ?? {
+            accountId: r.accountId,
+            handle: r.handle,
+            code: r.code ?? null,
+            autoFillTotalLeads: r.autoFillTotalLeads ?? false,
+            links: [] as { connectionId: string; channelPhone: string | null }[],
+          };
+          if (r.connectionId) {
+            h.links.push({ connectionId: r.connectionId, channelPhone: r.channelPhone });
+            h.code ??= r.code;
+            h.autoFillTotalLeads ||= !!r.autoFillTotalLeads;
+          }
+          return acc.set(r.accountId, h);
+        }, new Map<string, HandleLinkView>())
+        .values()],
     };
   } catch (err) {
     console.error("[integrations] WATI load failed:", err);

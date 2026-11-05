@@ -140,3 +140,25 @@ describe("summarize", () => {
     expect(summarize([])).toEqual({ waLeads: 0, replied: 0, waiting: 0, medianReplyMinutes: null });
   });
 });
+
+describe("a handle linked to several numbers", () => {
+  // @abangduit.my on its own number AND on a second CS number in another WATI account.
+  const CONN_RYAN = "conn-ryan";
+  const multi: WaLink[] = [
+    ...links,
+    { accountId: ABG, connectionId: CONN_RYAN, channelPhone: "601133355093", code: null },
+  ];
+
+  it("counts a lead on either number for that handle's live", () => {
+    const a = contact({ connectionId: CONN_ADMIN, channelPhone: "60115581398" });
+    const b = contact({ connectionId: CONN_RYAN, channelPhone: "601133355093" });
+    const r = attributeContacts([live("abg-12", ABG, "12:10", "13:00")], multi, [a, b]);
+    expect(r.get(a.id)).toBe("abg-12");
+    expect(r.get(b.id)).toBe("abg-12");
+  });
+
+  it("still ignores a number the handle isn't linked to", () => {
+    const c = contact({ connectionId: CONN_RYAN, channelPhone: "60199999999" });
+    expect(attributeContacts([live("abg-12", ABG, "12:10", "13:00")], multi, [c]).get(c.id)).toBeNull();
+  });
+});

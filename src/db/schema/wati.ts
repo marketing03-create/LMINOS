@@ -6,6 +6,7 @@ import {
   pgTable,
   text,
   timestamp,
+  unique,
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
@@ -113,8 +114,9 @@ export const whatsappContacts = pgTable(
 );
 
 /**
- * Which WATI account (and which of its numbers) carries a TikTok handle's
- * leads — one row per handle. This is what turns WhatsApp contacts into a
+ * Which WATI accounts (and which of their numbers) carry a TikTok handle's
+ * leads — one row per handle + account + number, so a streamer with two CS
+ * numbers (even on two WATI accounts) links both. This is what turns WhatsApp contacts into a
  * per-live lead count: a contact on this number whose first message lands in
  * one of the handle's live windows belongs to that live.
  *
@@ -122,6 +124,7 @@ export const whatsappContacts = pgTable(
  * click-to-WhatsApp link. A first message containing it is credited to this
  * handle even when several handles share one number. `autoFillTotalLeads`
  * lets the 10am job write the WhatsApp count into a live's blank Total Leads.
+ * Both are per HANDLE: the links API keeps them the same on all its rows.
  *
  * A separate table rather than columns on tiktok_accounts, so pages that read
  * tiktok_accounts never depend on this migration.
@@ -129,8 +132,9 @@ export const whatsappContacts = pgTable(
 export const tiktokWaLinks = pgTable(
   "tiktok_wa_links",
   {
+    id: id(),
     accountId: uuid("account_id")
-      .primaryKey()
+      .notNull()
       .references(() => tiktokAccounts.id, { onDelete: "cascade" }),
     connectionId: uuid("connection_id")
       .notNull()
@@ -142,7 +146,10 @@ export const tiktokWaLinks = pgTable(
     ...timestamps(),
   },
   (t) => ({
-    codeUq: uniqueIndex("tiktok_wa_links_code_uq").on(t.code),
+    // A null number means "any number on that account"; NULLS NOT DISTINCT so
+    // a handle can't hold two "any number" rows for one account.
+    uq: unique("tiktok_wa_links_uq").on(t.accountId, t.connectionId, t.channelPhone).nullsNotDistinct(),
+    accountIdx: index("tiktok_wa_links_account_idx").on(t.accountId),
   })
 );
 

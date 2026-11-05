@@ -102,11 +102,13 @@ export async function whatsappLog(f: LogFilter): Promise<LogResult> {
     .orderBy(watiConnections.createdAt);
   const allConnections = connections.map((c) => ({ id: c.id, name: c.name }));
   if (f.accountId) {
-    const link = await db.query.tiktokWaLinks.findFirst({
+    // Every WATI account the handle is linked to (it can have several).
+    const links = await db.query.tiktokWaLinks.findMany({
       where: eq(tiktokWaLinks.accountId, f.accountId),
       columns: { connectionId: true },
     });
-    connections = connections.filter((c) => c.id === link?.connectionId);
+    const mine = new Set(links.map((l) => l.connectionId));
+    connections = connections.filter((c) => mine.has(c.id));
   }
   if (f.connIds?.length) connections = connections.filter((c) => f.connIds!.includes(c.id));
 

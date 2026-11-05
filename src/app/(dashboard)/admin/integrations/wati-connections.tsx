@@ -50,15 +50,14 @@ export type CrossCheckView = {
   checkedAgo: string;
 };
 
+/** A handle and every WATI account + number its leads arrive on (can be several). */
 export type HandleLinkView = {
   accountId: string;
   handle: string;
-  link: {
-    connectionId: string;
-    channelPhone: string | null;
-    code: string | null;
-    autoFillTotalLeads: boolean;
-  } | null;
+  code: string | null;
+  autoFillTotalLeads: boolean;
+  /** channelPhone null = any number on that account. */
+  links: { connectionId: string; channelPhone: string | null }[];
 };
 
 const fieldCls =
@@ -216,7 +215,7 @@ function ConnectionRow({
       : state === "waiting"
         ? "Waiting for WATI"
         : "Off";
-  const linkedHere = handles.filter((h) => h.link?.connectionId === c.id);
+  const linkedHere = handles.filter((h) => h.links.some((l) => l.connectionId === c.id));
 
   async function runTest() {
     setTest({ busy: true, msg: null, ok: false });
@@ -339,28 +338,38 @@ function HandleRow({
   conn: WatiConnectionView;
   connections: WatiConnectionView[];
 }) {
-  const here = h.link?.connectionId === conn.id;
-  const elsewhere = h.link && !here ? connections.find((c) => c.id === h.link!.connectionId) : null;
+  const linksHere = h.links.filter((l) => l.connectionId === conn.id);
+  const here = linksHere.length > 0;
+  const elsewhere = [
+    ...new Set(h.links.filter((l) => l.connectionId !== conn.id).map((l) => l.connectionId)),
+  ]
+    .map((id) => connections.find((c) => c.id === id)?.name)
+    .filter(Boolean);
   const [open, setOpen] = useState(false);
-  const [phone, setPhone] = useState(here ? (h.link!.channelPhone ?? "") : (conn.numbers[0] ?? ""));
-  const [code, setCode] = useState(here ? (h.link!.code ?? "") : "");
-  const [autoFill, setAutoFill] = useState(here ? h.link!.autoFillTotalLeads : false);
+  // One entry per number; "" = any number on this account.
+  const [phones, setPhones] = useState<string[]>(
+    here ? linksHere.map((l) => l.channelPhone ?? "") : [conn.numbers[0] ?? ""]
+  );
+  const [code, setCode] = useState(h.code ?? "");
+  const [autoFill, setAutoFill] = useState(h.autoFillTotalLeads);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const { setRef: waRef, state: waState, copy: copyWa } = useCopy();
 
-  const linkPhone = here ? (h.link!.channelPhone ?? conn.numbers[0] ?? null) : null;
-  const waUrl = linkPhone
-    ? `https://wa.me/${linkPhone}?text=${encodeURIComponent(h.link?.code ? `Hi ${h.link.code}` : "Hi")}`
-    : null;
+  // A click-to-WhatsApp link per linked number ("any number" uses the account's first).
+  const waLinks = [
+    ...new Set(linksHere.map((l) => l.channelPhone ?? conn.numbers[0]).filter((n): n is string => !!n)),
+  ].map((n) => ({
+    number: n,
+    url: `https://wa.me/${n}?text=${encodeURIComponent(h.code ? `Hi ${h.code}` : "Hi")}`,
+  }));
 
-  async function save(connectionId: string | null) {
+  async function save(list: string[]) {
     setBusy(true);
     setErr(null);
     const r = await call("/api/admin/wati/links", {
       accountId: h.accountId,
-      connectionId,
-      channelPhone: phone,
+      connectionId: conn.id,
+      phones: list,
       code,
       autoFillTotalLeads: autoFill,
     });
@@ -376,15 +385,18 @@ function HandleRow({
 
   const summary = here
     ? [
-        h.link!.channelPhone ? fmtPhone(h.link!.channelPhone) : "Any number",
-        h.link!.code,
-        h.link!.autoFillTotalLeads ? "Auto-fill on" : null,
+        linksHere.map((l) => (l.channelPhone ? fmtPhone(l.channelPhone) : "Any number")).join(" + "),
+        h.code,
+        h.autoFillTotalLeads ? "Auto-fill on" : null,
+        elsewhere.length ? `also ${elsewhere.join(", ")}` : null,
       ]
         .filter(Boolean)
         .join(" · ")
-    : elsewhere
-      ? `On ${elsewhere.name}`
+    : elsewhere.length
+      ? `On ${elsewhere.join(", ")}`
       : "Not linked";
+
+  const options = [...new Set([...conn.numbers, ...phones.filter(Boolean)])];
 
   return (
     <li className="px-3 py-3">
@@ -400,44 +412,51 @@ function HandleRow({
           </div>
         </div>
         <button type="button" onClick={() => setOpen((o) => !o)} className={ghostBtnCls}>
-          {open ? "Close" : here ? "Edit" : "Link"}
+          {open ? "Close" : here ? "Edit" : elsewhere.length ? "Add" : "Link"}
         </button>
       </div>
 
-      {here && waUrl && !open && (
-        <div className="mt-2 flex items-center gap-2">
-          <span
-            ref={waRef}
-            className="min-w-0 flex-1 truncate font-mono text-xs text-zinc-500 select-all"
-          >
-            {waUrl}
-          </span>
-          <button type="button" onClick={() => copyWa(waUrl)} className={ghostBtnCls}>
-            {waState === "yes" ? "Copied ✓" : waState === "failed" ? "Select" : "Copy link"}
-          </button>
-        </div>
-      )}
+      {here && !open && waLinks.map((w) => <WaLinkRow key={w.number} url={w.url} />)}
 
       {open && (
         <div className="mt-3 space-y-3">
-          <div>
-            <label htmlFor={`num-${conn.id}-${h.accountId}`} className={labelCls}>
-              Number
-            </label>
-            <select
-              id={`num-${conn.id}-${h.accountId}`}
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              className={fieldCls}
+          <fieldset className="space-y-2">
+            <legend className={labelCls}>Number{phones.length > 1 ? "s" : ""}</legend>
+            {phones.map((p, i) => (
+              <div key={i} className="flex gap-2">
+                <select
+                  aria-label={`Number ${i + 1}`}
+                  value={p}
+                  onChange={(e) => setPhones((ps) => ps.map((x, j) => (j === i ? e.target.value : x)))}
+                  className={fieldCls}
+                >
+                  <option value="">Any number</option>
+                  {options.map((n) => (
+                    <option key={n} value={n}>
+                      {fmtPhone(n)}
+                    </option>
+                  ))}
+                </select>
+                {phones.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => setPhones((ps) => ps.filter((_, j) => j !== i))}
+                    aria-label={`Remove number ${i + 1}`}
+                    className={`${ghostBtnCls} shrink-0 px-3`}
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={() => setPhones((ps) => [...ps, options.find((n) => !ps.includes(n)) ?? ""])}
+              className={ghostBtnCls}
             >
-              <option value="">Any number</option>
-              {[...new Set([...conn.numbers, ...(phone ? [phone] : [])])].map((n) => (
-                <option key={n} value={n}>
-                  {fmtPhone(n)}
-                </option>
-              ))}
-            </select>
-          </div>
+              + Add number
+            </button>
+          </fieldset>
           <div>
             <label htmlFor={`code-${conn.id}-${h.accountId}`} className={labelCls}>
               Code
@@ -470,7 +489,7 @@ function HandleRow({
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              onClick={() => save(conn.id)}
+              onClick={() => save(phones)}
               disabled={busy}
               className={`${solidBtnCls} flex-1 sm:flex-none`}
             >
@@ -479,17 +498,32 @@ function HandleRow({
             {here && (
               <button
                 type="button"
-                onClick={() => save(null)}
+                onClick={() => save([])}
                 disabled={busy}
                 className={`${ghostBtnCls} flex-1 border-red-300 text-red-700 sm:flex-none dark:border-red-900 dark:text-red-400`}
               >
-                Unlink
+                Unlink from {conn.name}
               </button>
             )}
           </div>
         </div>
       )}
     </li>
+  );
+}
+
+/** One click-to-WhatsApp link with its copy button. */
+function WaLinkRow({ url }: { url: string }) {
+  const { setRef, state, copy } = useCopy();
+  return (
+    <div className="mt-2 flex items-center gap-2">
+      <span ref={setRef} className="min-w-0 flex-1 truncate font-mono text-xs text-zinc-500 select-all">
+        {url}
+      </span>
+      <button type="button" onClick={() => copy(url)} className={ghostBtnCls}>
+        {state === "yes" ? "Copied ✓" : state === "failed" ? "Select" : "Copy link"}
+      </button>
+    </div>
   );
 }
 

@@ -143,10 +143,17 @@ export async function waLeadsForLives(liveIds: string[]): Promise<Map<string, Li
   );
 
   const windows = liveWindows(lives.filter((l) => l.startedAt).map((l) => ({ ...l, startedAt: l.startedAt! })));
-  const linkByAccount = new Map(links.map((l) => [l.accountId, l]));
+  // A handle can have several links (numbers / WATI accounts). Its live is
+  // fully tracked only once ALL of them were connected, partly once any was.
+  const connectedByAccount = new Map<string, { first: number; last: number }>();
+  for (const l of links) {
+    const t = l.connectedAt.getTime();
+    const c = connectedByAccount.get(l.accountId);
+    connectedByAccount.set(l.accountId, c ? { first: Math.min(c.first, t), last: Math.max(c.last, t) } : { first: t, last: t });
+  }
   for (const t of targets) {
     if (!t.startedAt) continue;
-    const link = linkByAccount.get(t.accountId)!;
+    const connected = connectedByAccount.get(t.accountId)!;
     const mine = contacts.filter((c) => assigned.get(c.id) === t.id);
     out.set(t.id, {
       ...summarize(mine),
@@ -160,9 +167,9 @@ export async function waLeadsForLives(liveIds: string[]): Promise<Map<string, Li
         firstReplyBy: c.firstReplyBy,
       })),
       tracking:
-        t.startedAt >= link.connectedAt
+        t.startedAt.getTime() >= connected.last
           ? "full"
-          : (windows.get(t.id)?.closes ?? 0) > link.connectedAt.getTime()
+          : (windows.get(t.id)?.closes ?? 0) > connected.first
             ? "partial"
             : "none",
     });
@@ -270,11 +277,12 @@ export async function replySpeedFor(
       .from(watiConnections)
       .orderBy(watiConnections.createdAt);
     if (accountId) {
-      const link = await db.query.tiktokWaLinks.findFirst({
+      const links = await db.query.tiktokWaLinks.findMany({
         where: eq(tiktokWaLinks.accountId, accountId),
         columns: { connectionId: true },
       });
-      connections = connections.filter((c) => c.id === link?.connectionId);
+      const mine = new Set(links.map((l) => l.connectionId));
+      connections = connections.filter((c) => mine.has(c.id));
     }
     if (!connections.some((c) => c.repliesSeenAt)) return null;
 
