@@ -51,3 +51,15 @@ describe("admin APIs require an admin", () => {
     expect(guards.length).toBeGreaterThanOrEqual(handlers.length);
   });
 });
+
+describe("public report links check their key", () => {
+  // /api/reports is public in proxy.ts (Google Sheets fetches it without a
+  // login), so every route there must look its key up before answering.
+  const routes = files(join(ROOT, "src/app/api/reports"), "route.ts");
+
+  it.each(routes.map(rel))("%s answers only to a valid key", (p) => {
+    const src = readFileSync(join(ROOT, p), "utf8");
+    expect(src).toMatch(/eq\(reportLinks\.key, key\)/);
+    expect(src).toMatch(/status: 404/);
+  });
+});

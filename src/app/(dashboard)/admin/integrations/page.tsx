@@ -10,6 +10,7 @@ import {
 import { requireAdminPage } from "@/lib/auth/page-guard";
 import { DriveSetup, type DriveHandleView } from "./drive-setup";
 import { Panel, Section, StatusPill, type Tone } from "./ui";
+import { SheetReports, type SheetReportView } from "./sheet-reports";
 
 /**
  * External-service status. LMIROS is TikTok-Live-only — the Zoho, Google Sheets
@@ -203,11 +204,41 @@ async function loadDrive(): Promise<{ email: string | null; handles: DriveHandle
   }
 }
 
+/** Each active handle's Google Sheet link (key + last pull). Null = hide the card. */
+async function loadReports(): Promise<
+  { accountId: string; handle: string; key: string | null; lastFetchedAgo: string | null }[] | null
+> {
+  try {
+    const { db } = await import("@/db/client");
+    const { reportLinks, tiktokAccounts } = await import("@/db/schema");
+    const rows = await db
+      .select({
+        accountId: tiktokAccounts.id,
+        handle: tiktokAccounts.handle,
+        key: reportLinks.key,
+        lastFetchedAt: reportLinks.lastFetchedAt,
+      })
+      .from(tiktokAccounts)
+      .leftJoin(reportLinks, eq(reportLinks.accountId, tiktokAccounts.id))
+      .where(eq(tiktokAccounts.isActive, true))
+      .orderBy(tiktokAccounts.handle);
+    const now = Date.now();
+    return rows.map(({ lastFetchedAt, ...r }) => ({
+      ...r,
+      lastFetchedAgo: lastFetchedAt ? ago(now - lastFetchedAt.getTime()) : null,
+    }));
+  } catch (err) {
+    console.error("[integrations] report links load failed:", err);
+    return null;
+  }
+}
+
 export default async function IntegrationsPage() {
   // Page-level role check: the layout's check can be skipped (see page-guard.ts).
   await requireAdminPage();
   const [{ pairedUsers, error }, wati] = await Promise.all([load(), loadWati()]);
   const drive = await loadDrive();
+  const reportRows = await loadReports();
   // The webhook URL WATI must call, on whatever host this page is served from.
   const h = await headers();
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "lmiros.vercel.app";
@@ -216,6 +247,13 @@ export default async function IntegrationsPage() {
     wati?.rows.map(({ webhookKey, ...r }) => ({
       ...r,
       webhookUrl: `${proto}://${host}/api/webhooks/wati/${webhookKey}`,
+    })) ?? null;
+  const sheetReports: SheetReportView[] | null =
+    reportRows?.map((r) => ({
+      accountId: r.accountId,
+      handle: r.handle,
+      formula: r.key ? `=IMPORTDATA("${proto}://${host}/api/reports/sheet?key=${r.key}")` : null,
+      lastFetchedAgo: r.lastFetchedAgo,
     })) ?? null;
   const telegramConfigured = !!process.env.TELEGRAM_BOT_TOKEN;
   const tiktokProvider = process.env.TIKTOK_LIVE_PROVIDER ?? null;
@@ -260,6 +298,16 @@ export default async function IntegrationsPage() {
           },
         ]
       : []),
+    ...(sheetReports
+      ? [
+          {
+            href: "#sheets",
+            name: "Google Sheets",
+            tone: (sheetReports.some((r) => r.formula) ? "ok" : "off") as Tone,
+            status: `${sheetReports.filter((r) => r.formula).length} report${sheetReports.filter((r) => r.formula).length === 1 ? "" : "s"}`,
+          },
+        ]
+      : []),
     {
       href: "#services",
       name: "TikTok Live capture",
@@ -287,7 +335,7 @@ export default async function IntegrationsPage() {
         </div>
       )}
 
-      <nav aria-label="Services" className="mb-10 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+      <nav aria-label="Services" className="mb-10 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
         {tiles.map((t) => (
           <a
             key={t.name}
@@ -308,6 +356,8 @@ export default async function IntegrationsPage() {
         )}
 
         {drive && <DriveSetup email={drive.email} handles={drive.handles} />}
+
+        {sheetReports && <SheetReports reports={sheetReports} />}
 
         <Section id="services" title="Services">
           <Panel>

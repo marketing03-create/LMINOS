@@ -5,6 +5,7 @@ const PUBLIC_PREFIXES = [
   "/api/ingest", // webhooks, signature-verified
   "/api/webhooks", // Telegram bot etc.
   "/api/cron", // scheduled jobs — self-guard via CRON_SECRET bearer token
+  "/api/reports", // Google Sheet IMPORTDATA links — self-guard via the link's secret key
   "/login",
   "/auth", // Supabase OAuth callback
   "/_next",
