@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dailyReport, reportCsv, sheetDate, type ReportLive } from "./daily-core";
+import { dailyReport, documentRate, reportCsv, weekday, type ReportLive } from "./daily-core";
 
 // 9pm MYT = 13:00Z.
 const live = (day: string, over: Partial<ReportLive> = {}): ReportLive => ({
@@ -72,14 +72,27 @@ describe("reportCsv", () => {
   it("writes a header and empty cells for blanks", () => {
     const csv = reportCsv(dailyReport([live("2026-10-26", { directMessages: null })], "2026-10-26", "2026-10-26"));
     expect(csv).toBe(
-      "Date,Lives,Views,Comment,DM,Whatsapp,Total Leads,Get Documents\n26/10/2026 (Mon),1,100,10,,,40,20\n"
+      "Date,Day,Lives,Views,Comment,DM,Whatsapp,Total Leads,Get Documents,Document (%)\n" +
+        "2026-10-26,Mon,1,100,10,,,40,20,50%\n"
     );
   });
 });
 
-describe("sheetDate", () => {
-  it("writes a day as dd/mm/yyyy with its weekday", () => {
-    expect(sheetDate("2026-11-05")).toBe("05/11/2026 (Thu)");
-    expect(sheetDate("2026-11-01")).toBe("01/11/2026 (Sun)");
+describe("weekday", () => {
+  it("names the day", () => {
+    expect(weekday("2026-11-05")).toBe("Thu");
+    expect(weekday("2026-11-01")).toBe("Sun");
+  });
+});
+
+describe("documentRate", () => {
+  it("is Get Documents ÷ Total Leads, one decimal", () => {
+    expect(documentRate(43, 74)).toBe("58.1%");
+    expect(documentRate(10, 15)).toBe("66.7%");
+  });
+  it("is blank when either is missing or there were no leads", () => {
+    expect(documentRate(null, 74)).toBeNull();
+    expect(documentRate(5, null)).toBeNull();
+    expect(documentRate(0, 0)).toBeNull();
   });
 });
