@@ -4,7 +4,9 @@
  * There is no sub-daily cron on this plan, so `maintainConnection` rides on the
  * webhook: every WATI call may run it, at most once per THROTTLE_MIN per
  * account. On a live night WATI calls constantly, which is exactly when it
- * matters. Each run first reads reply times from the API (sync.ts), then
+ * matters. Each run first reads reply times from the API (sync.ts), re-runs
+ * today's chat cross-check every couple of hours (adding any chat WATI never
+ * sent), then
  * alerts: a lead nobody has answered for MISSED_AFTER_MIN minutes buzzes every
  * admin (in-app bell + phone push).
  *
@@ -15,10 +17,11 @@
  */
 import { and, eq, gte, inArray, isNull, lt, lte, or } from "drizzle-orm";
 import { db } from "@/db/client";
-import { users, watiConnections, whatsappContacts } from "@/db/schema";
+import { users, watiConnections, watiDailyChecks, whatsappContacts } from "@/db/schema";
 import { ADMIN_ROLES } from "@/lib/auth/authorize";
 import { upsertUserNotification } from "@/lib/notifications/user-inbox";
 import { pushToUser } from "@/lib/notifications/push";
+import { crossCheckDay } from "./crosscheck";
 import { refreshLatestFromApi, syncRepliesFromApi } from "./sync";
 
 export const MISSED_AFTER_MIN = 15;
@@ -52,9 +55,28 @@ export async function maintainConnection(connectionId: string, now = new Date())
 
     await syncRepliesFromApi(connectionId, now);
     await refreshLatestFromApi(connectionId, now);
+    await recheckToday(connectionId, now);
     await sweepMissedLeads(connectionId, now);
   } catch (err) {
     console.error("[wati] upkeep failed:", err);
+  }
+}
+
+/** Re-run today's chat cross-check at most every RECHECK_HOURS (it adds any chat WATI skipped). */
+const RECHECK_HOURS = 2;
+
+async function recheckToday(connectionId: string, now: Date): Promise<void> {
+  try {
+    const day = mytDay(now);
+    const [last] = await db
+      .select({ checkedAt: watiDailyChecks.checkedAt })
+      .from(watiDailyChecks)
+      .where(and(eq(watiDailyChecks.connectionId, connectionId), eq(watiDailyChecks.day, day)))
+      .limit(1);
+    if (last && now.getTime() - last.checkedAt.getTime() < RECHECK_HOURS * 3_600_000) return;
+    await crossCheckDay(connectionId, day);
+  } catch (err) {
+    console.error("[wati] today's cross-check failed:", err instanceof Error ? err.name : "error");
   }
 }
 

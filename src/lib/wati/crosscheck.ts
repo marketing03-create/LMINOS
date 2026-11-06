@@ -9,7 +9,9 @@
  *  2. TT Stars' chats that day on those numbers (whatsapp_chat_days) → found.
  *  3. WATI's contacts active since that day (getContacts lists newest activity
  *     first) that TT Stars has no chat for: their chat on each linked number
- *     is read; a customer message that day → MISSING, else not a chat that day.
+ *     is read; a customer message that day → WATI skipped that webhook, so the
+ *     chat is ADDED from WATI's history (listed with added: true), else it
+ *     wasn't a chat that day.
  *     Bulk imports can touch thousands of contacts at once, so at most
  *     MAX_PAGES pages and MAX_CHATS chat reads; the rest are reported as
  *     unchecked rather than guessed.
@@ -32,9 +34,8 @@ import {
   type CrossCheckMissing,
 } from "@/db/schema";
 import { decryptToken } from "@/lib/crypto/envelope";
-import { fetchChat } from "./api";
 import { customerWroteBetween, mytDayBounds } from "./crosscheck-core";
-import { parseMessages } from "./history";
+import { addFromHistory, readChat } from "./import";
 
 const MAX_PAGES = 20; // 2,000 contacts
 const MAX_CHATS = 300;
@@ -131,6 +132,18 @@ export async function crossCheckDay(connectionId: string, day: string): Promise<
     return save({ ...base, error: "Couldn't reach WATI." });
   }
 
+  // Rows TT Stars has for these phones (a chat day may be all that's missing).
+  const existingIds = new Map(
+    candidates.length
+      ? (
+          await db
+            .select({ id: whatsappContacts.id, phone: whatsappContacts.phone })
+            .from(whatsappContacts)
+            .where(and(eq(whatsappContacts.connectionId, connectionId), inArray(whatsappContacts.phone, candidates.map((c) => c.phone))))
+        ).map((r) => [r.phone, r.id])
+      : []
+  );
+
   // 4. Read their chats on the linked numbers.
   const missing: CrossCheckMissing[] = [];
   let notCustomers = 0;
@@ -145,30 +158,48 @@ export async function crossCheckDay(connectionId: string, day: string): Promise<
           unchecked++;
           continue;
         }
-        let wrote: { at: Date; number: string } | null = null;
+        let wrote: { at: Date; number: string; chat: Awaited<ReturnType<typeof readChat>> } | null = null;
         for (const n of numbers) {
           calls++;
-          const body = await fetchChat(conn.apiEndpoint!, token, c.phone, n);
-          if (!body) continue;
-          const at = customerWroteBetween(parseMessages(body).items, start, end);
+          const chat = await readChat(conn.apiEndpoint!, token, c.phone, n, new Date(start));
+          const at = customerWroteBetween(chat.items, start, end);
           if (at) {
-            wrote = { at, number: n };
+            wrote = { at, number: n, chat };
             break;
           }
         }
-        if (wrote) {
-          missing.push({ last4: c.phone.slice(-4), name: c.name, at: wrote.at.toISOString(), number: wrote.number.slice(-4) });
-        } else {
+        if (!wrote) {
           notCustomers++;
+          continue;
         }
+        // WATI never sent this chat to TT Stars (it skips the odd webhook):
+        // add it from WATI's history so the numbers match, and say so.
+        const healed = await addFromHistory({
+          connectionId,
+          phone: c.phone,
+          name: c.name,
+          number: wrote.number,
+          chat: wrote.chat,
+          since: new Date(start),
+          existingId: existingIds.get(c.phone) ?? null,
+        }).catch(() => null);
+        missing.push({
+          last4: c.phone.slice(-4),
+          name: c.name,
+          at: wrote.at.toISOString(),
+          number: wrote.number.slice(-4),
+          added: !!healed,
+        });
       }
     })
   );
 
+  const added = missing.filter((m) => m.added).length;
   return save({
     ...base,
     watiCustomers: have.size + missing.length,
-    found: have.size,
+    // Chats added from WATI's history count as found — TT Stars has them now.
+    found: have.size + added,
     missing,
     notCustomers,
     // A capped contact list means more contacts than we could look at.

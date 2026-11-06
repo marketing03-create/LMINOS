@@ -46,7 +46,8 @@ export type CrossCheckView = {
   day: string;
   watiCustomers: number;
   found: number;
-  missing: { last4: string; name: string | null; at: string; number: string }[];
+  /** Chats WATI had and TT Stars didn't; `added` = healed from WATI's history. */
+  missing: { last4: string; name: string | null; at: string; number: string; added?: boolean }[];
   notCustomers: number;
   unchecked: number;
   error: string | null;
@@ -488,7 +489,8 @@ function CheckSummary({ check }: { check: CrossCheckView }) {
       </div>
     );
   }
-  const n = check.missing.length;
+  const n = check.missing.filter((m) => !m.added).length;
+  const added = check.missing.length - n;
   return (
     <div className="flex flex-wrap items-center gap-2 text-sm">
       <span className="font-medium">{dayLabel(check.day)}</span>
@@ -496,6 +498,7 @@ function CheckSummary({ check }: { check: CrossCheckView }) {
         WATI {check.watiCustomers} · TT Stars {check.found}
       </span>
       {n > 0 ? <StatusPill tone="bad">{n} missing</StatusPill> : <StatusPill tone="ok">Match</StatusPill>}
+      {added > 0 && <StatusPill tone="ok">{added} added from WATI</StatusPill>}
     </div>
   );
 }
@@ -513,8 +516,10 @@ function CrossCheckList({ checks }: { checks: CrossCheckView[] }) {
             ) : (
               <span className="text-right tabular-nums">
                 WATI {k.watiCustomers} · TT Stars {k.found}{" "}
-                {k.missing.length > 0 ? (
-                  <span className="font-semibold text-red-600 dark:text-red-400">· {k.missing.length} missing</span>
+                {k.missing.some((m) => !m.added) ? (
+                  <span className="font-semibold text-red-600 dark:text-red-400">
+                    · {k.missing.filter((m) => !m.added).length} missing
+                  </span>
                 ) : (
                   <span className="text-emerald-600 dark:text-emerald-400">✓</span>
                 )}
@@ -533,10 +538,15 @@ function CrossCheckList({ checks }: { checks: CrossCheckView[] }) {
               {k.missing.map((m, i) => (
                 <li
                   key={`${m.last4}-${i}`}
-                  className="rounded-md bg-red-50 px-2.5 py-1.5 text-xs text-red-900 dark:bg-red-950/30 dark:text-red-300"
+                  className={`rounded-md px-2.5 py-1.5 text-xs ${
+                    m.added
+                      ? "bg-emerald-50 text-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300"
+                      : "bg-red-50 text-red-900 dark:bg-red-950/30 dark:text-red-300"
+                  }`}
                 >
                   <span className="font-mono">•••• {m.last4}</span>
                   {m.name ? ` · ${m.name}` : ""} · {missingAtFmt.format(new Date(m.at))} · to …{m.number}
+                  {m.added ? " · added from WATI" : ""}
                 </li>
               ))}
             </ul>

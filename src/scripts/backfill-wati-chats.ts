@@ -23,14 +23,11 @@ import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import { db } from "@/db/client";
 import { tiktokWaLinks, watiConnections, whatsappContacts } from "@/db/schema";
 import { decryptToken } from "@/lib/crypto/envelope";
-import { fetchChat } from "@/lib/wati/api";
-import { recordChatDaysFromHistory } from "@/lib/wati/chats";
-import { analyzeHistory, chatEnds, parseMessages, type WatiMessage } from "@/lib/wati/history";
+import { addFromHistory, readChat } from "@/lib/wati/import";
 
 const SINCE = new Date("2026-10-25T16:00:00Z"); // 26 Oct 00:00 MYT
 const BURST = 500;
 const MAX_READ = 3000;
-const MAX_PAGES = 6; // 300 messages per chat
 const CONCURRENCY = 4;
 const DRY = process.argv.includes("--dry-run");
 
@@ -66,26 +63,6 @@ const isoDay = (watiDay: string) => {
   return m ? `${m[3]}-${MONTHS[m[1]]}-${m[2]}` : "";
 };
 const mytDay = (t: number) => new Date(t + 8 * 3600e3).toISOString().slice(0, 10);
-
-/** A chat's messages back to SINCE (or its start). */
-async function history(endpoint: string, token: string, phone: string, number: string) {
-  const items: WatiMessage[] = [];
-  let complete = false;
-  let conversationId: string | null = null;
-  for (let page = 1; page <= MAX_PAGES; page++) {
-    const body = await fetchChat(endpoint, token, phone, number, page);
-    if (!body) break;
-    const r = parseMessages(body);
-    items.push(...r.items);
-    conversationId ??= r.conversationId;
-    if (r.complete) {
-      complete = true;
-      break;
-    }
-    if (r.items.length && Math.min(...r.items.map((m) => m.at.getTime())) < SINCE.getTime()) break;
-  }
-  return { items, complete, conversationId };
-}
 
 async function main() {
   console.log(DRY ? "DRY RUN — nothing is written" : "Writing");
@@ -143,57 +120,27 @@ async function main() {
           const c = candidates[next++];
           for (const number of live) {
             reads++;
-            const h = await history(conn.apiEndpoint!, token, c.phone, number);
-            const inbound = h.items
-              .filter((m) => !m.owner && (m.eventType ?? "message") === "message")
-              .map((m) => m.at)
-              .sort((a, b) => +a - +b);
-            const recent = inbound.filter((t) => t >= SINCE);
-            if (recent.length === 0) continue;
-
-            let row = known.get(c.phone);
-            if (!row) {
-              const firstSeen = recent[0];
-              const ends = chatEnds(h.items, h.complete);
-              const analysis = analyzeHistory(h.items, firstSeen);
-              const firstEver = inbound[0];
-              const firstText = h.items.find((m) => !m.owner && m.at.getTime() === firstSeen.getTime())?.text ?? null;
-              if (DRY) {
-                added++;
-                break;
-              }
-              const [ins] = await db
-                .insert(whatsappContacts)
-                .values({
-                  connectionId: conn.id,
-                  phone: c.phone,
-                  name: c.name,
-                  channelPhone: number,
-                  firstMessageAt: firstSeen,
-                  lastMessageAt: recent[recent.length - 1],
-                  firstMessageText: firstText,
-                  firstContactAt: firstEver < firstSeen ? firstEver : null,
-                  firstReplyAt: analysis.firstReply?.at ?? null,
-                  firstReplyBy: analysis.firstReply?.by ?? null,
-                  watiConversationId: h.conversationId,
-                  latestMessageText: ends.latest?.text ?? null,
-                  latestMessageAt: ends.latest?.at ?? null,
-                  latestMessageFrom: ends.latest?.from ?? null,
-                  latestCheckedAt: new Date(),
-                  openingMessageText: ends.opening?.text ?? null,
-                  openingMessageAt: ends.opening?.at ?? null,
-                  openingMessageFrom: ends.opening?.from ?? null,
-                  // Imported, not alerted live — never raise a missed-lead alert for history.
-                  missedAlertedAt: new Date(),
-                })
-                .onConflictDoNothing({ target: [whatsappContacts.connectionId, whatsappContacts.phone] })
-                .returning();
-              if (!ins) break;
-              row = ins;
-              known.set(c.phone, ins);
-              added++;
-            } else filled++;
-            if (!DRY) chatDays += await recordChatDaysFromHistory(row.id, number, h.items, SINCE);
+            const chat = await readChat(conn.apiEndpoint!, token, c.phone, number, SINCE);
+            const wrote = chat.items.some((m) => !m.owner && (m.eventType ?? "message") === "message" && m.at >= SINCE);
+            if (!wrote) continue;
+            const existing = known.get(c.phone);
+            if (DRY) {
+              if (existing) filled++;
+              else added++;
+              break;
+            }
+            const r = await addFromHistory({
+              connectionId: conn.id,
+              phone: c.phone,
+              name: c.name,
+              number,
+              chat,
+              since: SINCE,
+              existingId: existing?.id ?? null,
+            });
+            if (r?.added) added++;
+            else if (r) filled++;
+            chatDays += r?.chatDays ?? 0;
             break;
           }
         }

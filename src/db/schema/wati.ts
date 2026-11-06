@@ -161,7 +161,14 @@ export const tiktokWaLinks = pgTable(
  * `missing` keeps only what an admin needs to find the chat in WATI — last four
  * digits, name, when they first wrote, which number — never the full phone.
  */
-export type CrossCheckMissing = { last4: string; name: string | null; at: string; number: string };
+export type CrossCheckMissing = {
+  last4: string;
+  name: string | null;
+  at: string;
+  number: string;
+  /** The chat was added to TT Stars from WATI's history (self-heal). */
+  added?: boolean;
+};
 
 export const watiDailyChecks = pgTable(
   "wati_daily_checks",
