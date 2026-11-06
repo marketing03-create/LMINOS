@@ -20,11 +20,13 @@ import {
   tiktokLiveSessions,
   tiktokWaLinks,
   watiConnections,
+  whatsappChatDays,
   whatsappContacts,
 } from "@/db/schema";
 import type { DateRange } from "@/lib/date-range";
 import { AFTER_HOURS, attributeContacts } from "./attribution";
 import { firstEverContactIn } from "./leads";
+import { chatDay } from "./chats";
 import { watiChatUrl } from "./payload";
 import { mytDay, trackedRows } from "./reply-speed";
 
@@ -133,24 +135,7 @@ export async function whatsappLog(f: LogFilter): Promise<LogResult> {
 
   const digits = (f.q ?? "").replace(/\D/g, "");
   const contacts = await db
-    .select({
-      id: whatsappContacts.id,
-      connectionId: whatsappContacts.connectionId,
-      channelPhone: whatsappContacts.channelPhone,
-      name: whatsappContacts.name,
-      phone: whatsappContacts.phone,
-      firstMessageAt: whatsappContacts.firstMessageAt,
-      firstContactAt: whatsappContacts.firstContactAt,
-      firstMessageText: whatsappContacts.firstMessageText,
-      firstReplyAt: whatsappContacts.firstReplyAt,
-      firstReplyBy: whatsappContacts.firstReplyBy,
-      watiConversationId: whatsappContacts.watiConversationId,
-      openingMessageText: whatsappContacts.openingMessageText,
-      openingMessageFrom: whatsappContacts.openingMessageFrom,
-      latestMessageText: whatsappContacts.latestMessageText,
-      latestMessageAt: whatsappContacts.latestMessageAt,
-      latestMessageFrom: whatsappContacts.latestMessageFrom,
-    })
+    .select(CONTACT_COLUMNS)
     .from(whatsappContacts)
     .where(
       and(
@@ -165,12 +150,71 @@ export async function whatsappLog(f: LogFilter): Promise<LogResult> {
     .orderBy(desc(whatsappContacts.firstMessageAt));
 
   const inDay = f.day ? contacts.filter((c) => mytDay(c.firstMessageAt) === f.day) : contacts;
+  let rows = await toRows(inDay, connections);
+
+  if (live) rows = rows.filter((r) => r.counted.kind === "live" && r.counted.liveId === live!.id);
+  // Before the status filter, so the status tabs keep their counts while one is picked.
+  const statusCounts = {
+    all: rows.length,
+    replied: rows.filter((r) => r.reply.kind === "replied").length,
+    waiting: rows.filter((r) => r.reply.kind === "waiting").length,
+    untracked: rows.filter((r) => r.reply.kind === "untracked").length,
+  };
+  const status = f.status ?? "all";
+  if (status === "tracked") rows = rows.filter((r) => r.reply.kind !== "untracked");
+  else if (status !== "all") rows = rows.filter((r) => r.reply.kind === status);
+
+  const summary = {
+    customers: rows.length,
+    replied: rows.filter((r) => r.reply.kind === "replied").length,
+    waiting: rows.filter((r) => r.reply.kind === "waiting").length,
+    untracked: rows.filter((r) => r.reply.kind === "untracked").length,
+    counted: rows.filter((r) => r.counted.kind === "live").length,
+  };
+  return {
+    rows: rows.slice(0, LIMIT),
+    total: rows.length,
+    truncated: rows.length > LIMIT,
+    summary,
+    statusCounts,
+    connections: allConnections,
+    live,
+  };
+}
+
+const CONTACT_COLUMNS = {
+  id: whatsappContacts.id,
+  connectionId: whatsappContacts.connectionId,
+  channelPhone: whatsappContacts.channelPhone,
+  name: whatsappContacts.name,
+  phone: whatsappContacts.phone,
+  firstMessageAt: whatsappContacts.firstMessageAt,
+  firstContactAt: whatsappContacts.firstContactAt,
+  firstMessageText: whatsappContacts.firstMessageText,
+  firstReplyAt: whatsappContacts.firstReplyAt,
+  firstReplyBy: whatsappContacts.firstReplyBy,
+  watiConversationId: whatsappContacts.watiConversationId,
+  openingMessageText: whatsappContacts.openingMessageText,
+  openingMessageFrom: whatsappContacts.openingMessageFrom,
+  latestMessageText: whatsappContacts.latestMessageText,
+  latestMessageAt: whatsappContacts.latestMessageAt,
+  latestMessageFrom: whatsappContacts.latestMessageFrom,
+};
+type ContactRow = {
+  [K in keyof typeof CONTACT_COLUMNS]: (typeof CONTACT_COLUMNS)[K]["_"]["notNull"] extends true
+    ? (typeof CONTACT_COLUMNS)[K]["_"]["data"]
+    : (typeof CONTACT_COLUMNS)[K]["_"]["data"] | null;
+};
+type Conn = { id: string; name: string; repliesSeenAt: Date | null; apiEndpoint: string | null };
+
+/** One LogRow per contact: reply status, the live it counts for, messages. */
+async function toRows(inDay: ContactRow[], connections: Conn[]): Promise<LogRow[]> {
   const tracked = new Set(trackedRows(inDay, connections).map((r) => r.id));
   const counted = await attribution(inDay);
   const connName = new Map(connections.map((c) => [c.id, c.name]));
   const connEndpoint = new Map(connections.map((c) => [c.id, c.apiEndpoint]));
 
-  let rows: LogRow[] = inDay.map((c) => {
+  return inDay.map((c) => {
     const replied = c.firstReplyAt && c.firstReplyAt >= c.firstMessageAt;
     const returning =
       c.firstContactAt && c.firstContactAt.getTime() < c.firstMessageAt.getTime() ? c.firstContactAt : null;
@@ -200,36 +244,141 @@ export async function whatsappLog(f: LogFilter): Promise<LogResult> {
             }
           : { kind: "waiting" },
       counted: counted.get(c.id) ?? { kind: "none", reason: returning ? "returning" : "outside" },
-    };
+    } satisfies LogRow;
   });
+}
 
-  if (live) rows = rows.filter((r) => r.counted.kind === "live" && r.counted.liveId === live!.id);
-  // Before the status filter, so the status tabs keep their counts while one is picked.
-  const statusCounts = {
-    all: rows.length,
-    replied: rows.filter((r) => r.reply.kind === "replied").length,
-    waiting: rows.filter((r) => r.reply.kind === "waiting").length,
-    untracked: rows.filter((r) => r.reply.kind === "untracked").length,
+/** A day a customer wrote, with the customer's row — the Chats view. */
+export type ChatRow = LogRow & {
+  chat: {
+    day: string;
+    /** Their last message that day. */
+    at: Date;
+    /** The business number they wrote to. */
+    number: string | null;
+    /** First-ever contact was that day. */
+    isNew: boolean;
+    /** CS's newest message is after their last message that day. */
+    answered: boolean;
   };
-  const status = f.status ?? "all";
-  if (status === "tracked") rows = rows.filter((r) => r.reply.kind !== "untracked");
-  else if (status !== "all") rows = rows.filter((r) => r.reply.kind === status);
+};
 
+export type ChatsResult = {
+  rows: ChatRow[];
+  total: number;
+  truncated: boolean;
+  summary: { chats: number; newChats: number; returning: number; waiting: number };
+  /** Chats and new chats per business number (before the `only` filter). */
+  perNumber: { number: string | null; chats: number; newChats: number }[];
+  connections: { id: string; name: string }[];
+};
+
+/**
+ * The Chats view: every day each customer wrote, per number — what WATI's
+ * Team Inbox shows as that day's chats (a returning customer writing today is
+ * a chat today). Same filters as the log (period, account, handle, number
+ * digits); `day` narrows to one Malaysia day.
+ */
+export async function whatsappChats(
+  f: Omit<LogFilter, "liveId" | "status"> & { only?: "new" | "returning" | "waiting" }
+): Promise<ChatsResult> {
+  let connections: Conn[] = await db
+    .select({
+      id: watiConnections.id,
+      name: watiConnections.name,
+      repliesSeenAt: watiConnections.repliesSeenAt,
+      apiEndpoint: watiConnections.apiEndpoint,
+    })
+    .from(watiConnections)
+    .orderBy(watiConnections.createdAt);
+  const allConnections = connections.map((c) => ({ id: c.id, name: c.name }));
+  if (f.accountId) {
+    const links = await db.query.tiktokWaLinks.findMany({
+      where: eq(tiktokWaLinks.accountId, f.accountId),
+      columns: { connectionId: true },
+    });
+    const mine = new Set(links.map((l) => l.connectionId));
+    connections = connections.filter((c) => mine.has(c.id));
+  }
+  if (f.connIds?.length) connections = connections.filter((c) => f.connIds!.includes(c.id));
+  const none = {
+    rows: [],
+    total: 0,
+    truncated: false,
+    summary: { chats: 0, newChats: 0, returning: 0, waiting: 0 },
+    perNumber: [],
+    connections: allConnections,
+  };
+  if (connections.length === 0) return none;
+
+  const fromDay = f.day ?? chatDay(f.range.start);
+  const toDay = f.day ?? chatDay(new Date(f.range.end.getTime() - 1));
+  const digits = (f.q ?? "").replace(/\D/g, "");
+  const days = await db
+    .select({
+      contactId: whatsappChatDays.contactId,
+      day: whatsappChatDays.day,
+      number: whatsappChatDays.channelPhone,
+      lastAt: whatsappChatDays.lastAt,
+    })
+    .from(whatsappChatDays)
+    .innerJoin(whatsappContacts, eq(whatsappContacts.id, whatsappChatDays.contactId))
+    .where(
+      and(
+        inArray(whatsappContacts.connectionId, connections.map((c) => c.id)),
+        gte(whatsappChatDays.day, fromDay),
+        lte(whatsappChatDays.day, toDay),
+        digits.length >= 3 ? like(whatsappContacts.phone, `%${digits}%`) : undefined
+      )
+    )
+    .orderBy(desc(whatsappChatDays.lastAt));
+  if (days.length === 0) return none;
+
+  const ids = [...new Set(days.map((d) => d.contactId))];
+  const contacts = await db.select(CONTACT_COLUMNS).from(whatsappContacts).where(inArray(whatsappContacts.id, ids));
+  const byId = new Map((await toRows(contacts, connections)).map((r) => [r.id, r]));
+  const firstEver = new Map(contacts.map((c) => [c.id, chatDay(c.firstContactAt ?? c.firstMessageAt)]));
+
+  let rows: ChatRow[] = days.flatMap((d) => {
+    const r = byId.get(d.contactId);
+    if (!r) return [];
+    return [
+      {
+        ...r,
+        chat: {
+          day: d.day,
+          at: d.lastAt,
+          number: d.number,
+          isNew: firstEver.get(d.contactId) === d.day,
+          answered: !!r.latest && r.latest.from === "cs" && r.latest.at >= d.lastAt,
+        },
+      },
+    ];
+  });
   const summary = {
-    customers: rows.length,
-    replied: rows.filter((r) => r.reply.kind === "replied").length,
-    waiting: rows.filter((r) => r.reply.kind === "waiting").length,
-    untracked: rows.filter((r) => r.reply.kind === "untracked").length,
-    counted: rows.filter((r) => r.counted.kind === "live").length,
+    chats: rows.length,
+    newChats: rows.filter((r) => r.chat.isNew).length,
+    returning: rows.filter((r) => !r.chat.isNew).length,
+    waiting: rows.filter((r) => !r.chat.answered).length,
   };
+  const numbers = new Map<string | null, { number: string | null; chats: number; newChats: number }>();
+  for (const r of rows) {
+    const n = numbers.get(r.chat.number) ?? { number: r.chat.number, chats: 0, newChats: 0 };
+    n.chats += 1;
+    if (r.chat.isNew) n.newChats += 1;
+    numbers.set(r.chat.number, n);
+  }
+  const perNumber = [...numbers.values()].sort((a, b) => b.chats - a.chats);
+  if (f.only === "new") rows = rows.filter((r) => r.chat.isNew);
+  else if (f.only === "returning") rows = rows.filter((r) => !r.chat.isNew);
+  else if (f.only === "waiting") rows = rows.filter((r) => !r.chat.answered);
   return {
     rows: rows.slice(0, LIMIT),
     total: rows.length,
     truncated: rows.length > LIMIT,
     summary,
-    statusCounts,
+    perNumber,
     connections: allConnections,
-    live,
   };
 }
 

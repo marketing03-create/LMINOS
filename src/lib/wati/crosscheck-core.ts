@@ -24,6 +24,24 @@ export function classifyChat(items: WatiMessage[], connectedAt: Date): ChatVerdi
     : { kind: "not-customer" };
 }
 
+/**
+ * The customer's first message inside [start, end) — a chat that day — or null.
+ * Our own messages and ticket events don't count.
+ */
+export function customerWroteBetween(items: WatiMessage[], start: number, end: number): Date | null {
+  const times = items
+    .filter((m) => !m.owner && (m.eventType ?? "message") === "message")
+    .map((m) => m.at.getTime())
+    .filter((t) => t >= start && t < end);
+  return times.length ? new Date(Math.min(...times)) : null;
+}
+
+/** A Malaysia day's [start, end) in UTC milliseconds. */
+export function mytDayBounds(day: string): { start: number; end: number } {
+  const start = Date.parse(`${day}T00:00:00+08:00`);
+  return { start, end: start + 86_400_000 };
+}
+
 /** YYYY-MM-DD → WATI's createdDate filter, MM-DD-YYYY. */
 export function watiDateParam(day: string): string {
   const [y, m, d] = day.split("-");

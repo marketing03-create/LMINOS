@@ -190,3 +190,31 @@ export const watiDailyChecks = pgTable(
     dayUq: uniqueIndex("wati_daily_checks_uq").on(t.connectionId, t.day),
   })
 );
+
+/**
+ * Every day a customer wrote, on which number — what WATI's Team Inbox counts
+ * as that day's chats. `whatsapp_contacts` keeps one row per customer (their
+ * first message), so a returning customer writing today was invisible in
+ * today's numbers; this table is what makes "chats today" match WATI.
+ * Written by the webhook on every customer message, and by the history
+ * backfill. `day` is the Malaysia-time date, YYYY-MM-DD.
+ */
+export const whatsappChatDays = pgTable(
+  "whatsapp_chat_days",
+  {
+    id: id(),
+    contactId: uuid("contact_id")
+      .notNull()
+      .references(() => whatsappContacts.id, { onDelete: "cascade" }),
+    day: text("day").notNull(),
+    // The business number they wrote to (digits); null = unknown.
+    channelPhone: text("channel_phone"),
+    firstAt: timestamp("first_at", { withTimezone: true }).notNull(),
+    lastAt: timestamp("last_at", { withTimezone: true }).notNull(),
+    ...timestamps(),
+  },
+  (t) => ({
+    uq: unique("whatsapp_chat_days_uq").on(t.contactId, t.day, t.channelPhone).nullsNotDistinct(),
+    dayIdx: index("whatsapp_chat_days_day_idx").on(t.day),
+  })
+);

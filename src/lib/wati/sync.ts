@@ -20,6 +20,10 @@ import { watiConnections, whatsappContacts } from "@/db/schema";
 import { decryptToken } from "@/lib/crypto/envelope";
 import { fetchChat } from "./api";
 import { analyzeHistory, chatEnds, parseMessages, type ChatMessage } from "./history";
+import { recordChatDaysFromHistory } from "./chats";
+
+/** How far back a history read fills chat days (self-heals a missed webhook). */
+const CHAT_DAYS_BACK_MS = 3 * 86_400_000;
 
 const LOOKBACK_HOURS = 48;
 const MAX_PER_RUN = 25;
@@ -76,6 +80,7 @@ export async function syncRepliesFromApi(
         anyOk = true;
         result.checked += 1;
         const { items, complete, conversationId } = parseMessages(body);
+        await recordChatDaysFromHistory(lead.id, lead.channelPhone, items, new Date(now.getTime() - CHAT_DAYS_BACK_MS)).catch(() => 0);
         const h = items.length > 0 ? analyzeHistory(items, lead.firstMessageAt) : null;
 
         const set: Partial<typeof whatsappContacts.$inferInsert> = {};
@@ -174,6 +179,7 @@ export async function refreshLatestFromApi(connectionId: string, now = new Date(
         if (!body) return;
         read += 1;
         const { items, complete } = parseMessages(body);
+        await recordChatDaysFromHistory(c.id, c.channelPhone, items, new Date(now.getTime() - CHAT_DAYS_BACK_MS)).catch(() => 0);
         const ends = chatEnds(items, complete);
         await db
           .update(whatsappContacts)

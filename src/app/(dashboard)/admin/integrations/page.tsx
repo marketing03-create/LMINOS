@@ -121,6 +121,13 @@ async function loadWati(): Promise<WatiData | null> {
     ]);
     // The last week of cross-checks, newest first. Separate and optional: the
     // table arrives with migration 0040.
+    // Today's chats per number (whatsapp_chat_days): matches WATI's inbox per number.
+    const { chatDay, chatsPerNumberDay } = await import("@/lib/wati/chats");
+    const today = chatDay(new Date());
+    const todayByConn = new Map<string, { number: string | null; chats: number; newChats: number }[]>();
+    for (const n of await chatsPerNumberDay(rows.map((r) => r.id), today, today).catch(() => [])) {
+      todayByConn.set(n.connectionId, [...(todayByConn.get(n.connectionId) ?? []), { number: n.channelPhone, chats: n.chats, newChats: n.newChats }]);
+    }
     const checks = await db
       .select()
       .from(watiDailyChecks)
@@ -131,6 +138,7 @@ async function loadWati(): Promise<WatiData | null> {
     return {
       rows: rows.map((r) => ({
         ...r,
+        today: (todayByConn.get(r.id) ?? []).sort((a, b) => b.chats - a.chats),
         lastEventAt: r.lastEventAt ? r.lastEventAt.toISOString() : null,
         lastEventAgo: r.lastEventAt ? ago(now - r.lastEventAt.getTime()) : null,
         lastCustomerAgo: r.lastCustomerAt ? ago(now - new Date(r.lastCustomerAt).getTime()) : null,

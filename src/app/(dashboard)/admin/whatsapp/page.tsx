@@ -1,9 +1,22 @@
 import Link from "next/link";
 import { rangeFromParams } from "@/lib/date-range";
 import { requireAdminPage } from "@/lib/auth/page-guard";
-import { whatsappLog, type LogResult, type LogRow, type LogStatus } from "@/lib/wati/log";
+import { whatsappChats, whatsappLog, type ChatsResult, type LogResult, type LogStatus } from "@/lib/wati/log";
+import { ChatsView } from "./chats-view";
 import { LogFilters } from "./log-filters";
 import { RevealPhone } from "./reveal-phone";
+import {
+  ChatLink,
+  Counted,
+  Eyebrow,
+  MessageBlock,
+  Reply,
+  byDay,
+  clockFmt,
+  dayFmt,
+  dayLabel,
+  timeFmt,
+} from "./row-parts";
 
 /**
  * WhatsApp log — every customer who WhatsApp'd a connected WATI account, one
@@ -23,6 +36,10 @@ type SP = {
   live?: string;
   status?: string;
   q?: string;
+  /** "chats" (default): every customer who wrote each day, like WATI's inbox. "first": first contact. */
+  view?: string;
+  /** Chats view filter: new | returning | waiting. */
+  only?: string;
 };
 
 const STATUSES: { key: "all" | "replied" | "waiting" | "untracked"; label: string }[] = [
@@ -31,62 +48,6 @@ const STATUSES: { key: "all" | "replied" | "waiting" | "untracked"; label: strin
   { key: "waiting", label: "No reply yet" },
   { key: "untracked", label: "Not tracked" },
 ];
-
-const timeFmt = new Intl.DateTimeFormat("en-MY", {
-  timeZone: "Asia/Kuala_Lumpur",
-  day: "numeric",
-  month: "short",
-  hour: "numeric",
-  minute: "2-digit",
-  hour12: true,
-});
-const dateFmt = new Intl.DateTimeFormat("en-MY", {
-  timeZone: "Asia/Kuala_Lumpur",
-  day: "numeric",
-  month: "short",
-  year: "numeric",
-});
-const dayFmt = new Intl.DateTimeFormat("en-MY", {
-  timeZone: "UTC", // a `day` param is already a Malaysia date
-  weekday: "short",
-  day: "numeric",
-  month: "short",
-});
-
-const clockFmt = new Intl.DateTimeFormat("en-MY", {
-  timeZone: "Asia/Kuala_Lumpur",
-  hour: "numeric",
-  minute: "2-digit",
-  hour12: true,
-});
-const MYT_MS = 8 * 60 * 60 * 1000; // Malaysia is UTC+8, no DST
-const mytDay = (d: Date) => new Date(d.getTime() + MYT_MS).toISOString().slice(0, 10);
-
-/** Rows split by Malaysia day, newest first (rows already arrive newest first). */
-function byDay(rows: LogRow[]): { day: string; rows: LogRow[] }[] {
-  const groups: { day: string; rows: LogRow[] }[] = [];
-  for (const r of rows) {
-    const day = mytDay(r.firstMessageAt);
-    const last = groups[groups.length - 1];
-    if (last?.day === day) last.rows.push(r);
-    else groups.push({ day, rows: [r] });
-  }
-  return groups;
-}
-
-function dayLabel(day: string, now = new Date()): string {
-  if (day === mytDay(now)) return "Today";
-  if (day === mytDay(new Date(now.getTime() - 86_400_000))) return "Yesterday";
-  return dayFmt.format(new Date(`${day}T00:00:00Z`));
-}
-
-function fmtMin(m: number): string {
-  if (m < 1) return "<1 min";
-  if (m < 60) return `${Math.round(m)} min`;
-  const h = Math.floor(m / 60);
-  const r = Math.round(m % 60);
-  return r ? `${h}h ${r}m` : `${h}h`;
-}
 
 const UUID = /^[0-9a-f-]{36}$/i;
 
@@ -108,11 +69,17 @@ export default async function WhatsAppLogPage({ searchParams }: { searchParams: 
   const streamer = sp.streamer && UUID.test(sp.streamer) ? sp.streamer : undefined;
   const connIds = (sp.conn ?? "").split(",").filter((c) => UUID.test(c));
   const q = (sp.q ?? "").replace(/\D/g, "").slice(0, 15);
+  // A live or a reply-status link (from the Dashboard) is about first contacts.
+  const view: "chats" | "first" = sp.view === "first" || live || sp.status ? "first" : "chats";
+  const only = sp.only === "new" || sp.only === "returning" || sp.only === "waiting" ? sp.only : undefined;
 
   let data: LogResult | null = null;
+  let chats: ChatsResult | null = null;
   let error: string | null = null;
   try {
-    data = await whatsappLog({
+    if (view === "chats") {
+      chats = await whatsappChats({ range: choice.range, accountId: streamer, connIds, day, q, only });
+    } else data = await whatsappLog({
       range: choice.range,
       accountId: streamer,
       connIds,
@@ -150,6 +117,8 @@ export default async function WhatsAppLogPage({ searchParams }: { searchParams: 
   if (day) keep.day = day;
   if (streamer) keep.streamer = streamer;
   if (status !== "all") keep.status = status;
+  if (view === "first" && !live && status === "all") keep.view = "first";
+  if (only) keep.only = only;
 
   return (
     <div className="px-4 py-5 sm:p-8">
@@ -162,9 +131,34 @@ export default async function WhatsAppLogPage({ searchParams }: { searchParams: 
         )}
       </header>
 
+      {!live && (
+        <nav aria-label="View" className="mb-4 inline-flex rounded-lg border border-zinc-200 bg-zinc-50 p-1 dark:border-zinc-800 dark:bg-zinc-900">
+          {(
+            [
+              ["chats", "Chats"],
+              ["first", "First contact"],
+            ] as const
+          ).map(([key, label]) => (
+            <Link
+              key={key}
+              href={href({ view: key === "chats" ? undefined : "first", status: undefined, only: undefined })}
+              aria-current={view === key ? "page" : undefined}
+              scroll={false}
+              className={`inline-flex min-h-9 items-center rounded-md px-3 text-sm font-medium ${
+                view === key
+                  ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-800 dark:text-zinc-100"
+                  : "text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+              }`}
+            >
+              {label}
+            </Link>
+          ))}
+        </nav>
+      )}
+
       <LogFilters
         choice={choice}
-        connections={data?.connections ?? []}
+        connections={data?.connections ?? chats?.connections ?? []}
         conn={connIds.length === 1 ? connIds[0] : ""}
         q={q}
         keep={keep}
@@ -193,6 +187,8 @@ export default async function WhatsAppLogPage({ searchParams }: { searchParams: 
           {error}
         </div>
       )}
+
+      {chats && <ChatsView data={chats} only={only} href={(o) => href({ only: o })} />}
 
       {data && (
         <>
@@ -388,135 +384,5 @@ export default async function WhatsAppLogPage({ searchParams }: { searchParams: 
         </>
       )}
     </div>
-  );
-}
-
-/** Today's messages show the time; older ones the date too. */
-function when(at: Date): string {
-  return mytDay(at) === mytDay(new Date()) ? clockFmt.format(at) : timeFmt.format(at);
-}
-
-/** Small label above a message: who sent it, and (for the newest) when. */
-function Eyebrow({ from, at }: { from: "customer" | "cs"; at?: Date }) {
-  return (
-    <span className="mb-0.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider">
-      <span className={from === "cs" ? "text-emerald-600 dark:text-emerald-400" : "text-sky-600 dark:text-sky-400"}>
-        {from === "cs" ? "CS" : "Customer"}
-      </span>
-      {at && <span className="font-normal normal-case tracking-normal text-zinc-500">· {when(at)}</span>}
-    </span>
-  );
-}
-
-/** Phone card: one message with what it is (First / Newest) and who sent it. */
-function MessageBlock({
-  label,
-  from,
-  at,
-  text,
-}: {
-  label: string;
-  from: "customer" | "cs";
-  at?: Date;
-  text: string | null;
-}) {
-  return (
-    <div className="rounded-lg bg-zinc-50 px-3 py-2 text-sm dark:bg-zinc-950">
-      <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
-        {label}
-        <span className="text-zinc-300 dark:text-zinc-700">·</span>
-        <span className={from === "cs" ? "text-emerald-600 dark:text-emerald-400" : "text-sky-600 dark:text-sky-400"}>
-          {from === "cs" ? "CS" : "Customer"}
-        </span>
-        {at && <span className="font-normal normal-case tracking-normal">· {when(at)}</span>}
-      </span>
-      <p className="mt-0.5 line-clamp-2 text-zinc-700 dark:text-zinc-300">{text ?? "—"}</p>
-    </div>
-  );
-}
-
-/** Opens this customer's chat in WATI Team Inbox, in a new tab. */
-function ChatLink({ url }: { url: string | null }) {
-  if (!url) return null;
-  return (
-    <a
-      href={url}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="inline-flex min-h-8 items-center gap-1 rounded-md border border-emerald-300 px-2 text-xs font-medium text-emerald-700 active:bg-emerald-50 lg:hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-300 dark:active:bg-emerald-950/40 lg:dark:hover:bg-emerald-950/40"
-    >
-      Chat
-      <span aria-hidden="true">↗</span>
-      <span className="sr-only">(opens WATI in a new tab)</span>
-    </a>
-  );
-}
-
-function Reply({ r }: { r: LogRow }) {
-  if (r.reply.kind === "replied") {
-    return (
-      <span className="inline-flex flex-col items-end text-right lg:items-start lg:text-left">
-        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
-          {fmtMin(r.reply.minutes)}
-        </span>
-        {r.reply.by && <span className="mt-0.5 text-xs text-zinc-500">by {r.reply.by}</span>}
-      </span>
-    );
-  }
-  if (r.reply.kind === "waiting") {
-    return (
-      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
-        No reply yet
-      </span>
-    );
-  }
-  return (
-    <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
-      Not tracked
-    </span>
-  );
-}
-
-function Counted({ r }: { r: LogRow }) {
-  // Their real first message (WATI history) is earlier than the one TT Stars
-  // first saw. Only an earlier DAY is a return; the same day just means they
-  // wrote before TT Stars heard them (e.g. before the account was connected).
-  const sameDay =
-    r.firstContactAt && dateFmt.format(r.firstContactAt) === dateFmt.format(r.firstMessageAt);
-  const returning = r.firstContactAt ? (
-    <span className="ml-1 rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
-      {sameDay
-        ? `First wrote ${timeFmt.format(r.firstContactAt)}`
-        : `Returning · since ${dateFmt.format(r.firstContactAt)}`}
-    </span>
-  ) : null;
-  if (r.counted.kind === "live") {
-    return (
-      <span>
-        <Link
-          href={`/tiktok-live/${r.counted.liveId}`}
-          className="font-medium text-blue-600 hover:underline dark:text-blue-400"
-        >
-          @{r.counted.handle} · {timeFmt.format(r.counted.startedAt)}
-        </Link>
-        {returning}
-      </span>
-    );
-  }
-  // A returning customer's badge already says so — don't say it twice.
-  if (r.counted.reason === "returning" && returning) {
-    return <span className="text-zinc-500">{returning}</span>;
-  }
-  const why =
-    r.counted.reason === "no-handle"
-      ? "No TikTok handle linked"
-      : r.counted.reason === "returning"
-        ? "Returning customer"
-        : "Outside live hours";
-  return (
-    <span className="text-zinc-500">
-      {why}
-      {returning}
-    </span>
   );
 }

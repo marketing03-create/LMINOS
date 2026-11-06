@@ -11,6 +11,7 @@ import {
   parseOutbound,
 } from "@/lib/wati/payload";
 import { maintainConnection } from "@/lib/wati/missed";
+import { recordChatDay } from "@/lib/wati/chats";
 
 /**
  * WATI webhook — one URL per connected WATI account:
@@ -124,7 +125,7 @@ export async function POST(
   if (!msg) return NextResponse.json({ ok: true, stored: false });
 
   const ex = sql.raw("excluded");
-  await db
+  const [saved] = await db
     .insert(whatsappContacts)
     .values({
       connectionId: connection.id,
@@ -155,7 +156,16 @@ export async function POST(
         latestMessageAt: sql`greatest(${whatsappContacts.latestMessageAt}, ${ex}.latest_message_at)`,
         updatedAt: now,
       },
-    });
+    })
+    .returning({ id: whatsappContacts.id, channelPhone: whatsappContacts.channelPhone });
+
+  // That they wrote TODAY (on this number) — what WATI's inbox counts as a chat.
+  // Best-effort: a hiccup here must not make WATI retry the whole message.
+  if (saved) {
+    await recordChatDay(saved.id, msg.channelPhone ?? saved.channelPhone, msg.at).catch((err) =>
+      console.error("[wati] chat day not recorded:", err instanceof Error ? err.message : err)
+    );
+  }
 
   return NextResponse.json({ ok: true, stored: true });
 }

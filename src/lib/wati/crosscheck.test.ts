@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { classifyChat, inWorkingHours, isQuiet, mytYesterday, watiDateParam } from "./crosscheck-core";
+import {
+  classifyChat,
+  customerWroteBetween,
+  inWorkingHours,
+  isQuiet,
+  mytDayBounds,
+  mytYesterday,
+  watiDateParam,
+} from "./crosscheck-core";
 import type { WatiMessage } from "./history";
 
 const msg = (at: string, owner: boolean, eventType: string | null = "message"): WatiMessage => ({
@@ -56,5 +64,25 @@ describe("quiet WhatsApp alert", () => {
 
   it("stays quiet at night", () => {
     expect(inWorkingHours(new Date("2026-11-02T16:00:00Z"))).toBe(false); // midnight MYT
+  });
+});
+
+describe("customerWroteBetween / mytDayBounds", () => {
+  const { start, end } = mytDayBounds("2026-11-06");
+  it("bounds a Malaysia day", () => {
+    expect(new Date(start).toISOString()).toBe("2026-11-05T16:00:00.000Z");
+    expect(end - start).toBe(86_400_000);
+  });
+  it("finds the customer's first message that day only", () => {
+    const items = [
+      msg("2026-11-05T15:59:00Z", false), // 5 Nov 11:59pm MYT — the day before
+      msg("2026-11-06T03:00:00Z", true), // our message
+      msg("2026-11-06T04:00:00Z", false),
+      msg("2026-11-06T02:00:00Z", false, "ticket"),
+    ];
+    expect(customerWroteBetween(items, start, end)?.toISOString()).toBe("2026-11-06T04:00:00.000Z");
+  });
+  it("is null when they only wrote on other days", () => {
+    expect(customerWroteBetween([msg("2026-11-05T10:00:00Z", false)], start, end)).toBeNull();
   });
 });

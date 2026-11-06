@@ -31,6 +31,8 @@ export type WatiConnectionView = {
   replyMedianToday: number | null;
   contacts: number;
   contactsToday: number;
+  /** Today's chats per number (customers who wrote today) and how many were new. */
+  today: { number: string | null; chats: number; newChats: number }[];
   /** Business numbers seen on this account (digits). */
   numbers: string[];
   /** Last message a customer sent: "5m ago", worked out on the server. */
@@ -225,8 +227,8 @@ function AccountCard({
       </div>
 
       <dl className="grid grid-cols-2 gap-x-4 gap-y-3 border-b border-zinc-100 px-4 py-3 dark:border-zinc-800 sm:grid-cols-4">
-        <Stat label="Customers" value={c.contacts.toLocaleString("en-MY")} />
-        <Stat label="New today" value={`+${c.contactsToday}`} />
+        <Stat label="Chats today" value={c.today.reduce((s, n) => s + n.chats, 0)} />
+        <Stat label="New today" value={c.today.reduce((s, n) => s + n.newChats, 0)} />
         <Stat label="Last customer" value={c.lastCustomerAgo ?? "None yet"} tone={quiet ? "warn" : undefined} />
         <Stat
           label="Median reply today"
@@ -278,7 +280,7 @@ function AccountCard({
 
         {latest && (
           <div>
-            <Label>Cross-check</Label>
+            <Label>Chats vs WATI</Label>
             <CheckSummary check={latest} />
             {c.checks.length > 0 && (
               <details className="group mt-2">
@@ -301,7 +303,14 @@ function AccountCard({
         ) : (
           "No handle routed here"
         )}
-        {c.numbers.length > 0 && <> · Numbers: {c.numbers.map(fmtPhone).join(", ")}</>}
+        {c.today.length > 0 && (
+          <span className="mt-1 block">
+            Today:{" "}
+            {c.today
+              .map((n) => `${n.number ? fmtPhone(n.number) : "number unknown"} · ${n.chats} chat${n.chats === 1 ? "" : "s"} · ${n.newChats} new`)
+              .join("   |   ")}
+          </span>
+        )}
       </div>
     </Panel>
   );
@@ -514,9 +523,9 @@ function CrossCheckList({ checks }: { checks: CrossCheckView[] }) {
           </div>
           {!k.error && (k.notCustomers > 0 || k.unchecked > 0) && (
             <div className="mt-0.5 text-xs text-zinc-500">
-              {k.notCustomers > 0 && `${k.notCustomers} other new WATI contact${k.notCustomers === 1 ? "" : "s"} (CS wrote first, or another number)`}
+              {k.notCustomers > 0 && `${k.notCustomers} other active WATI contact${k.notCustomers === 1 ? "" : "s"}, no chat that day on these numbers`}
               {k.notCustomers > 0 && k.unchecked > 0 && " · "}
-              {k.unchecked > 0 && `${k.unchecked} not checked`}
+              {k.unchecked > 0 && "some contacts not checked (too many at once, e.g. a contact import)"}
             </div>
           )}
           {k.missing.length > 0 && (

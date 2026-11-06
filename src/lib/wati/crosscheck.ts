@@ -1,15 +1,23 @@
 /**
- * Daily cross-check: did TT Stars receive every new WhatsApp customer WATI
- * has? SERVER-ONLY. Rules in crosscheck-core.ts.
+ * Daily cross-check: did TT Stars get every WhatsApp CHAT WATI had that day,
+ * on the numbers that matter? SERVER-ONLY. Rules in crosscheck-core.ts.
  *
- * For one account and one day:
- *  1. WATI's contacts created that day (getContacts?createdDate=…).
- *  2. Ones TT Stars already has (same phone, same account) → found.
- *  3. The rest: their chat on each linked number is read (getMessages). A
- *     customer message after TT Stars was connected → MISSING; anything else
- *     → not a customer chat. At most MAX_CHATS chats per run; any left over
- *     are reported as unchecked rather than guessed.
+ * A chat = a customer who wrote at least once that Malaysia day, on a number —
+ * the same thing WATI's Team Inbox counts. For one account and one day:
+ *  1. The numbers: the ones linked to a TikTok handle (Lead routing). Other
+ *     numbers on the same WATI account are deliberately ignored.
+ *  2. TT Stars' chats that day on those numbers (whatsapp_chat_days) → found.
+ *  3. WATI's contacts active since that day (getContacts lists newest activity
+ *     first) that TT Stars has no chat for: their chat on each linked number
+ *     is read; a customer message that day → MISSING, else not a chat that day.
+ *     Bulk imports can touch thousands of contacts at once, so at most
+ *     MAX_PAGES pages and MAX_CHATS chat reads; the rest are reported as
+ *     unchecked rather than guessed.
  * The result replaces that account's row for that day in wati_daily_checks.
+ *
+ * Known limit: WATI doesn't always move a contact's lastUpdated when they
+ * write, so a chat TT Stars ALSO missed could go unseen here. The background
+ * history sync (sync.ts) backs this up by filling chat days from WATI history.
  *
  * Never logs WATI's error text or a phone number.
  */
@@ -19,16 +27,18 @@ import {
   tiktokWaLinks,
   watiConnections,
   watiDailyChecks,
+  whatsappChatDays,
   whatsappContacts,
   type CrossCheckMissing,
 } from "@/db/schema";
 import { decryptToken } from "@/lib/crypto/envelope";
 import { fetchChat } from "./api";
-import { classifyChat, watiDateParam } from "./crosscheck-core";
+import { customerWroteBetween, mytDayBounds } from "./crosscheck-core";
 import { parseMessages } from "./history";
 
-const MAX_PAGES = 30;
-const MAX_CHATS = 80;
+const MAX_PAGES = 20; // 2,000 contacts
+const MAX_CHATS = 300;
+const CONCURRENCY = 4;
 
 type Row = typeof watiDailyChecks.$inferInsert;
 
@@ -47,31 +57,49 @@ export async function crossCheckDay(connectionId: string, day: string): Promise<
     return save({ ...base, error: "The saved API token can't be read — enter it again." });
   }
 
-  // The numbers TikTok leads arrive on: linked ones, plus any seen on this account.
-  const numbers = new Set<string>();
-  for (const r of await db
+  // 1. The numbers that matter: linked to a handle. ("Any number" links fall
+  //    back to every number TT Stars has seen on this account.)
+  const links = await db
     .select({ p: tiktokWaLinks.channelPhone })
     .from(tiktokWaLinks)
-    .where(eq(tiktokWaLinks.connectionId, connectionId)))
-    if (r.p) numbers.add(r.p);
-  for (const r of await db
-    .selectDistinct({ p: whatsappContacts.channelPhone })
-    .from(whatsappContacts)
-    .where(and(eq(whatsappContacts.connectionId, connectionId), isNotNull(whatsappContacts.channelPhone))))
-    if (r.p) numbers.add(r.p);
+    .where(eq(tiktokWaLinks.connectionId, connectionId));
+  const numbers = new Set(links.map((l) => l.p).filter((p): p is string => !!p));
+  if (links.some((l) => !l.p)) {
+    for (const r of await db
+      .selectDistinct({ p: whatsappContacts.channelPhone })
+      .from(whatsappContacts)
+      .where(and(eq(whatsappContacts.connectionId, connectionId), isNotNull(whatsappContacts.channelPhone))))
+      if (r.p) numbers.add(r.p);
+  }
   if (numbers.size === 0) {
     return save({ ...base, error: "No WhatsApp number linked to this account yet." });
   }
+  const { start, end } = mytDayBounds(day);
 
-  // 1. WATI's new contacts that day.
-  const created: { phone: string; name: string | null }[] = [];
+  // 2. TT Stars' chats that day on those numbers.
+  const ours = await db
+    .selectDistinct({ phone: whatsappContacts.phone })
+    .from(whatsappChatDays)
+    .innerJoin(whatsappContacts, eq(whatsappContacts.id, whatsappChatDays.contactId))
+    .where(
+      and(
+        eq(whatsappContacts.connectionId, connectionId),
+        eq(whatsappChatDays.day, day),
+        inArray(whatsappChatDays.channelPhone, [...numbers])
+      )
+    );
+  const have = new Set(ours.map((r) => r.phone));
+
+  // 3. WATI's contacts active since that day, minus the ones TT Stars has.
+  const candidates: { phone: string; name: string | null }[] = [];
+  let capped = false;
   try {
-    for (let page = 1; page <= MAX_PAGES; page++) {
-      const qs = new URLSearchParams({
-        pageSize: "100",
-        pageNumber: String(page),
-        createdDate: watiDateParam(day),
-      });
+    for (let page = 1; ; page++) {
+      if (page > MAX_PAGES) {
+        capped = true;
+        break;
+      }
+      const qs = new URLSearchParams({ pageSize: "100", pageNumber: String(page) });
       const res = await fetch(`${conn.apiEndpoint}/api/v1/getContacts?${qs}`, {
         headers: { Authorization: `Bearer ${token}` },
         signal: AbortSignal.timeout(20_000),
@@ -81,72 +109,70 @@ export async function crossCheckDay(connectionId: string, day: string): Promise<
         return save({ ...base, error: res.status === 401 || res.status === 403 ? "WATI refused the token." : `WATI answered ${res.status}.` });
       }
       const body = (await res.json().catch(() => null)) as {
-        contact_list?: { wAid?: unknown; fullName?: unknown; firstName?: unknown }[];
-        link?: { nextPage?: unknown };
+        contact_list?: { wAid?: unknown; fullName?: unknown; lastUpdated?: unknown }[];
       } | null;
-      for (const c of body?.contact_list ?? []) {
+      const list = body?.contact_list ?? [];
+      let older = 0;
+      for (const c of list) {
+        const at = typeof c.lastUpdated === "string" ? Date.parse(c.lastUpdated) : NaN;
+        if (!(at >= start)) {
+          older++;
+          continue;
+        }
         const phone = typeof c.wAid === "string" ? c.wAid.replace(/\D/g, "") : "";
-        if (!phone) continue;
+        if (!phone || have.has(phone)) continue;
         const name = typeof c.fullName === "string" && c.fullName.trim() ? c.fullName.trim() : null;
         // WATI puts the number in the name when it has none.
-        created.push({ phone, name: name && name.replace(/\D/g, "") !== phone ? name : null });
+        candidates.push({ phone, name: name && name.replace(/\D/g, "") !== phone ? name : null });
       }
-      if (!body?.link?.nextPage) break;
+      if (list.length < 100 || older === list.length) break;
     }
   } catch {
     return save({ ...base, error: "Couldn't reach WATI." });
   }
 
-  // 2. Which of them TT Stars has.
-  const phones = [...new Set(created.map((c) => c.phone))];
-  const have = new Set(
-    phones.length
-      ? (
-          await db
-            .select({ p: whatsappContacts.phone })
-            .from(whatsappContacts)
-            .where(and(eq(whatsappContacts.connectionId, connectionId), inArray(whatsappContacts.phone, phones)))
-        ).map((r) => r.p)
-      : []
-  );
-  const candidates = created.filter((c, i) => !have.has(c.phone) && created.findIndex((x) => x.phone === c.phone) === i);
-  const found = phones.length - candidates.length;
-
-  // 3. Read the chats of the rest.
+  // 4. Read their chats on the linked numbers.
   const missing: CrossCheckMissing[] = [];
   let notCustomers = 0;
   let calls = 0;
   let unchecked = 0;
-  for (const c of candidates) {
-    if (calls >= MAX_CHATS) {
-      unchecked++;
-      continue;
-    }
-    let verdict: ReturnType<typeof classifyChat> = { kind: "not-customer" };
-    let on = "";
-    for (const n of numbers) {
-      if (calls >= MAX_CHATS) break;
-      calls++;
-      const body = await fetchChat(conn.apiEndpoint, token, c.phone, n);
-      if (!body) continue;
-      verdict = classifyChat(parseMessages(body).items, conn.createdAt);
-      on = n;
-      if (verdict.kind === "customer") break;
-    }
-    if (verdict.kind === "customer") {
-      missing.push({ last4: c.phone.slice(-4), name: c.name, at: verdict.firstInboundAt.toISOString(), number: on.slice(-4) });
-    } else {
-      notCustomers++;
-    }
-  }
+  let next = 0;
+  await Promise.all(
+    Array.from({ length: CONCURRENCY }, async () => {
+      while (next < candidates.length) {
+        const c = candidates[next++];
+        if (calls >= MAX_CHATS) {
+          unchecked++;
+          continue;
+        }
+        let wrote: { at: Date; number: string } | null = null;
+        for (const n of numbers) {
+          calls++;
+          const body = await fetchChat(conn.apiEndpoint!, token, c.phone, n);
+          if (!body) continue;
+          const at = customerWroteBetween(parseMessages(body).items, start, end);
+          if (at) {
+            wrote = { at, number: n };
+            break;
+          }
+        }
+        if (wrote) {
+          missing.push({ last4: c.phone.slice(-4), name: c.name, at: wrote.at.toISOString(), number: wrote.number.slice(-4) });
+        } else {
+          notCustomers++;
+        }
+      }
+    })
+  );
 
   return save({
     ...base,
-    watiCustomers: found + missing.length,
-    found,
+    watiCustomers: have.size + missing.length,
+    found: have.size,
     missing,
     notCustomers,
-    unchecked,
+    // A capped contact list means more contacts than we could look at.
+    unchecked: unchecked + (capped ? 1 : 0),
     error: null,
   });
 }
