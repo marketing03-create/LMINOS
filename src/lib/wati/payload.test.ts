@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  customerIdOf,
+  isPhone,
   watiChatUrl,
   countsAsReply,
   eventTypeOf,
@@ -187,5 +189,34 @@ describe("watiChatUrl", () => {
     expect(watiChatUrl("https://live-mt-server.wati.io/10181090", null)).toBeNull();
     expect(watiChatUrl(null, "6ae86eb7")).toBeNull();
     expect(watiChatUrl("https://live-mt-server.wati.io/", "6ae86eb7")).toBeNull();
+  });
+});
+
+describe("username-only customers (no phone shared)", () => {
+  const base = {
+    eventType: "message",
+    owner: false,
+    text: "nnti admin contact ke",
+    timestamp: "1793361480",
+    channelPhoneNumber: "601133355093",
+  };
+
+  it("uses the BSUID when WATI sends no phone number", () => {
+    expect(parseInbound({ ...base, bsuid: "MY.1012858718513962" }, NOW)?.phone).toBe("MY.1012858718513962");
+    expect(parseInbound({ ...base, waId: "MY.1012858718513962" }, NOW)?.phone).toBe("MY.1012858718513962");
+  });
+
+  it("prefers the phone number when there is one", () => {
+    expect(parseInbound({ ...base, waId: "60136697652", bsuid: "MY.1012858718513962" }, NOW)?.phone).toBe("60136697652");
+  });
+
+  it("never mistakes a short BSUID for a phone number", () => {
+    expect(customerIdOf("MY.123456789012")).toBe("MY.123456789012");
+    expect(isPhone("MY.123456789012")).toBe(false);
+    expect(isPhone("60136697652")).toBe(true);
+  });
+
+  it("drops a message with neither", () => {
+    expect(parseInbound(base, NOW)).toBeNull();
   });
 });

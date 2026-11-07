@@ -114,8 +114,20 @@ export function fmtPhone(d: string): string {
   return m ? `+60 ${m[1]}-${m[2]} ${m[3]}` : `+${d}`;
 }
 
-/** The customer's full number — selectable, and findable with the browser's search. */
+/**
+ * The customer's full number — selectable, and findable with the browser's
+ * search. A customer who writes with a WhatsApp username and keeps their
+ * number private has a WATI ID ("MY.1012…") instead.
+ */
 export function PhoneNumber({ phone }: { phone: string }) {
+  if (!/^\d+$/.test(phone)) {
+    return (
+      <span className="inline-flex flex-col leading-tight">
+        <span className="text-xs font-medium text-zinc-600 dark:text-zinc-300">No number shared</span>
+        <span className="select-all font-mono text-[11px] text-zinc-400">{phone}</span>
+      </span>
+    );
+  }
   return <span className="select-all font-mono tabular-nums">{fmtPhone(phone)}</span>;
 }
 

@@ -14,6 +14,7 @@
  * single message in TT Stars (e.g. one Meta hasn't approved) are skipped.
  *
  *   npx tsx --env-file=.env.local src/scripts/backfill-wati-chats.ts --plan      (counts only)
+ *   npx tsx --env-file=.env.local src/scripts/backfill-wati-chats.ts --only-hidden   (username-only customers)
  *   npx tsx --env-file=.env.local src/scripts/backfill-wati-chats.ts --dry-run
  *   npx tsx --env-file=.env.local src/scripts/backfill-wati-chats.ts
  *
@@ -24,6 +25,7 @@ import { db } from "@/db/client";
 import { tiktokWaLinks, watiConnections, whatsappContacts } from "@/db/schema";
 import { decryptToken } from "@/lib/crypto/envelope";
 import { addFromHistory, readChat } from "@/lib/wati/import";
+import { customerIdOf, isPhone } from "@/lib/wati/payload";
 
 const SINCE = new Date("2026-10-25T16:00:00Z"); // 26 Oct 00:00 MYT
 const BURST = 500;
@@ -41,7 +43,9 @@ async function allContacts(endpoint: string, token: string): Promise<WatiContact
     });
     const list: Record<string, unknown>[] = ((await r.json().catch(() => null)) as { contact_list?: Record<string, unknown>[] } | null)?.contact_list ?? [];
     for (const c of list) {
-      const phone = typeof c.wAid === "string" ? c.wAid.replace(/\D/g, "") : "";
+      // A username-only customer has a BSUID instead of a phone number.
+      const scoped = Array.isArray(c.scopedUsers) ? (c.scopedUsers[0] as { bsuid?: unknown } | undefined)?.bsuid : undefined;
+      const phone = customerIdOf(c.wAid, scoped) ?? "";
       if (!phone) continue;
       const name = typeof c.fullName === "string" && c.fullName.trim() ? c.fullName.trim() : null;
       out.push({
@@ -96,6 +100,8 @@ async function main() {
       const burst = (perDay.get(c.createdDay) ?? 0) > BURST;
       return !(burst && mytDay(c.lastUpdated) === isoDay(c.createdDay));
     });
+    // --only-hidden: just the username-only customers (no phone number shared).
+    if (process.argv.includes("--only-hidden")) candidates = candidates.filter((c) => !isPhone(c.phone));
     // Too many to read one by one (old imports touched again later): keep the
     // known customers and the contacts WATI shows active since SINCE.
     if (candidates.length > MAX_READ) {

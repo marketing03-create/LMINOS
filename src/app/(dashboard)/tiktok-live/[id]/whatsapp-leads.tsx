@@ -111,7 +111,9 @@ export function WhatsAppLeads({
                 <li key={c.id} className="flex items-start justify-between gap-3 px-4 py-3">
                   <div className="min-w-0">
                     <div className="break-words text-sm font-medium">{c.name ?? "—"}</div>
-                    <div className="mt-0.5 font-mono text-xs text-zinc-500">+{c.phone}</div>
+                    <div className="mt-0.5 font-mono text-xs text-zinc-500">
+                      {/^\d+$/.test(c.phone) ? `+${c.phone}` : "No number shared"}
+                    </div>
                     {c.firstMessageText && (
                       <div className="mt-1 line-clamp-2 break-words text-xs text-zinc-500">
                         {c.firstMessageText}

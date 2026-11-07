@@ -54,7 +54,7 @@ export async function fetchChat(
   const qs = new URLSearchParams({ pageSize: "50", pageNumber: String(pageNumber) });
   if (channelPhone) qs.set("channelPhoneNumber", channelPhone);
   try {
-    const res = await fetch(`${endpoint}/api/v1/getMessages/${phone}?${qs}`, {
+    const res = await fetch(`${endpoint}/api/v1/getMessages/${encodeURIComponent(phone)}?${qs}`, {
       headers: { Authorization: `Bearer ${token}` },
       signal: AbortSignal.timeout(10_000),
       cache: "no-store",

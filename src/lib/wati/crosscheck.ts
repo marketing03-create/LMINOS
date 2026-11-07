@@ -36,6 +36,7 @@ import {
 import { decryptToken } from "@/lib/crypto/envelope";
 import { customerWroteBetween, mytDayBounds } from "./crosscheck-core";
 import { addFromHistory, readChat } from "./import";
+import { customerIdOf } from "./payload";
 
 const MAX_PAGES = 20; // 2,000 contacts
 const MAX_CHATS = 300;
@@ -110,7 +111,12 @@ export async function crossCheckDay(connectionId: string, day: string): Promise<
         return save({ ...base, error: res.status === 401 || res.status === 403 ? "WATI refused the token." : `WATI answered ${res.status}.` });
       }
       const body = (await res.json().catch(() => null)) as {
-        contact_list?: { wAid?: unknown; fullName?: unknown; lastUpdated?: unknown }[];
+        contact_list?: {
+          wAid?: unknown;
+          fullName?: unknown;
+          lastUpdated?: unknown;
+          scopedUsers?: { bsuid?: unknown }[];
+        }[];
       } | null;
       const list = body?.contact_list ?? [];
       let older = 0;
@@ -120,7 +126,8 @@ export async function crossCheckDay(connectionId: string, day: string): Promise<
           older++;
           continue;
         }
-        const phone = typeof c.wAid === "string" ? c.wAid.replace(/\D/g, "") : "";
+        // A username-only customer has a BSUID instead of a phone number.
+        const phone = customerIdOf(c.wAid, c.scopedUsers?.[0]?.bsuid) ?? "";
         if (!phone || have.has(phone)) continue;
         const name = typeof c.fullName === "string" && c.fullName.trim() ? c.fullName.trim() : null;
         // WATI puts the number in the name when it has none.

@@ -90,6 +90,27 @@ export function conversationIdOf(v: unknown): string | null {
   return s && /^[A-Za-z0-9_-]{6,64}$/.test(s) ? s : null;
 }
 
+/**
+ * WhatsApp's business-scoped user ID ("MY.1012858718…"): what WATI sends
+ * instead of a phone number for a customer who writes with a WhatsApp username
+ * and keeps their number private. Null unless it looks like one.
+ */
+export function bsuidOf(raw: unknown): string | null {
+  return typeof raw === "string" && /^[A-Z]{2}\.\d{6,30}$/.test(raw.trim()) ? raw.trim() : null;
+}
+
+/**
+ * Who the customer is: their phone number (digits), or — when they keep it
+ * private behind a WhatsApp username — their BSUID. TT Stars stores either in
+ * `whatsapp_contacts.phone`; a BSUID is never all digits, so the two can't clash.
+ */
+export function customerIdOf(waId: unknown, bsuid?: unknown): string | null {
+  return bsuidOf(waId) ?? normalizePhone(waId) ?? bsuidOf(bsuid);
+}
+
+/** True when a customer id is a phone number rather than a BSUID. */
+export const isPhone = (id: string) => /^\d+$/.test(id);
+
 /** Top-level field names of a body (never values) — for diagnosing new shapes. */
 export function keysOf(body: unknown): string[] | null {
   if (!body || typeof body !== "object" || Array.isArray(body)) return null;
@@ -147,7 +168,7 @@ export function parseOutbound(body: unknown, now: Date = new Date()): OutboundMe
   const outbound = OUTBOUND_EVENTS.has(eventType) || (eventType === "message" && b.owner === true);
   if (!outbound) return null;
 
-  const phone = normalizePhone(b.waId);
+  const phone = customerIdOf(b.waId, b.bsuid);
   if (!phone) return null;
 
   const at = parseTime(b.timestamp) ?? parseTime(b.created) ?? now;
@@ -191,7 +212,7 @@ export function parseInbound(body: unknown, now: Date = new Date()): InboundMess
   if (!eventType || !INBOUND_EVENTS.has(eventType)) return null;
   if (b.owner === true) return null;
 
-  const phone = normalizePhone(b.waId);
+  const phone = customerIdOf(b.waId, b.bsuid);
   if (!phone) return null;
 
   const text = str(b.text);
