@@ -108,6 +108,17 @@ export function MessageBlock({
   );
 }
 
+/** 60123456789 → +60 12-345 6789 (Malaysian mobiles); anything else as +digits. */
+export function fmtPhone(d: string): string {
+  const m = /^60(1\d)(\d{3,4})(\d{4})$/.exec(d);
+  return m ? `+60 ${m[1]}-${m[2]} ${m[3]}` : `+${d}`;
+}
+
+/** The customer's full number — selectable, and findable with the browser's search. */
+export function PhoneNumber({ phone }: { phone: string }) {
+  return <span className="select-all font-mono tabular-nums">{fmtPhone(phone)}</span>;
+}
+
 /** Opens this customer's chat in WATI Team Inbox, in a new tab. */
 export function ChatLink({ url }: { url: string | null }) {
   if (!url) return null;

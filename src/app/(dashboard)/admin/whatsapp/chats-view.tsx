@@ -1,7 +1,6 @@
 import Link from "next/link";
 import type { ChatRow, ChatsResult } from "@/lib/wati/log";
-import { RevealPhone } from "./reveal-phone";
-import { ChatLink, Counted, Eyebrow, MessageBlock, clockFmt, dayLabel } from "./row-parts";
+import { ChatLink, Counted, Eyebrow, MessageBlock, PhoneNumber, clockFmt, dayLabel, fmtPhone } from "./row-parts";
 
 /**
  * The WhatsApp log's Chats view: every customer who wrote on each day, per
@@ -10,10 +9,6 @@ import { ChatLink, Counted, Eyebrow, MessageBlock, clockFmt, dayLabel } from "./
  * day; Returning = they had written before.
  */
 
-const fmtPhone = (d: string) => {
-  const m = /^60(1\d)(\d{3,4})(\d{4})$/.exec(d);
-  return m ? `+60 ${m[1]}-${m[2]} ${m[3]}` : `+${d}`;
-};
 
 function groupByDay(rows: ChatRow[]): { day: string; rows: ChatRow[] }[] {
   const groups = new Map<string, ChatRow[]>();
@@ -117,7 +112,7 @@ export function ChatsView({
                             <NewBadge isNew={r.chat.isNew} />
                           </div>
                           <div className="flex flex-wrap items-center gap-2 text-sm text-zinc-500">
-                            <RevealPhone id={r.id} last4={r.phoneLast4} />
+                            <PhoneNumber phone={r.phone} />
                             <ChatLink url={r.chatUrl} />
                           </div>
                         </div>
@@ -177,7 +172,7 @@ export function ChatsView({
                           <NewBadge isNew={r.chat.isNew} />
                         </div>
                         <div className="flex items-center gap-2 whitespace-nowrap text-zinc-500">
-                          <RevealPhone id={r.id} last4={r.phoneLast4} />
+                          <PhoneNumber phone={r.phone} />
                           <ChatLink url={r.chatUrl} />
                         </div>
                         {r.chat.number && (

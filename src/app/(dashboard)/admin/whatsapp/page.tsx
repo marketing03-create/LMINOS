@@ -4,12 +4,12 @@ import { requireAdminPage } from "@/lib/auth/page-guard";
 import { whatsappChats, whatsappLog, type ChatsResult, type LogResult, type LogStatus } from "@/lib/wati/log";
 import { ChatsView } from "./chats-view";
 import { LogFilters } from "./log-filters";
-import { RevealPhone } from "./reveal-phone";
 import {
   ChatLink,
   Counted,
   Eyebrow,
   MessageBlock,
+  PhoneNumber,
   Reply,
   byDay,
   clockFmt,
@@ -271,7 +271,7 @@ export default async function WhatsAppLogPage({ searchParams }: { searchParams: 
                             <div className="min-w-0">
                               <div className="truncate text-[15px] font-semibold">{r.name || "No name"}</div>
                               <div className="flex flex-wrap items-center gap-2 text-sm text-zinc-500">
-                                <RevealPhone id={r.id} last4={r.phoneLast4} />
+                                <PhoneNumber phone={r.phone} />
                                 <ChatLink url={r.chatUrl} />
                               </div>
                             </div>
@@ -340,7 +340,7 @@ export default async function WhatsAppLogPage({ searchParams }: { searchParams: 
                             <td className="w-60 px-3 py-3">
                               <div className="line-clamp-1 font-medium">{r.name || "No name"}</div>
                               <div className="flex items-center gap-2 whitespace-nowrap text-zinc-500">
-                                <RevealPhone id={r.id} last4={r.phoneLast4} />
+                                <PhoneNumber phone={r.phone} />
                                 <ChatLink url={r.chatUrl} />
                               </div>
                               {!connIds.length && (

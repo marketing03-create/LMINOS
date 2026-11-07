@@ -10,8 +10,8 @@
  *   - the live: attributeContacts over the first-EVER contact (attribution.ts),
  *     like waLeadsForLives, with a live's rows windowed exactly as it does.
  *
- * Phones never leave this module whole: rows carry the last four digits only.
- * The full number is revealed one at a time through an audited admin route.
+ * Rows carry the customer's full phone number: this is an admin-only page
+ * (requireAdminPage) and admins asked to see and search every number.
  */
 import { and, desc, eq, gte, inArray, like, lt, lte } from "drizzle-orm";
 import { db } from "@/db/client";
@@ -53,6 +53,8 @@ export type LogFilter = {
 export type LogRow = {
   id: string;
   name: string | null;
+  /** Full number, digits (60123456789). Admin-only page. */
+  phone: string;
   phoneLast4: string;
   connectionName: string;
   /** This customer's chat in WATI Team Inbox; null until TT Stars has its id. */
@@ -221,6 +223,7 @@ async function toRows(inDay: ContactRow[], connections: Conn[]): Promise<LogRow[
     return {
       id: c.id,
       name: c.name,
+      phone: c.phone,
       phoneLast4: c.phone.slice(-4),
       connectionName: connName.get(c.connectionId) ?? "WATI",
       chatUrl: watiChatUrl(connEndpoint.get(c.connectionId) ?? null, c.watiConversationId),
