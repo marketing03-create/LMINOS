@@ -152,6 +152,8 @@ async function loadWati(): Promise<WatiData | null> {
             missing: k.missing,
             notCustomers: k.notCustomers,
             unchecked: k.unchecked,
+            skipped: k.skipped,
+            skippedInfo: k.skippedInfo ?? null,
             error: k.error,
             checkedAgo: ago(now - k.checkedAt.getTime()),
           })),

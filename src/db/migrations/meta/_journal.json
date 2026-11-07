@@ -330,6 +330,13 @@
       "when": 1793938813181,
       "tag": "0046_wati_chat_days",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1794077520373,
+      "tag": "0047_wati_check_skipped",
+      "breakpoints": true
     }
   ]
 }

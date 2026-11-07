@@ -50,6 +50,12 @@ export type CrossCheckView = {
   missing: { last4: string; name: string | null; at: string; number: string; added?: boolean }[];
   notCustomers: number;
   unchecked: number;
+  /** Mass-synced contacts the check skipped (WhatsApp Business App sync), to double-check in WATI. */
+  skipped: number;
+  skippedInfo: {
+    bursts: { hour: string; count: number }[];
+    sample: { phone: string; name: string | null; at: string }[];
+  } | null;
   error: string | null;
   checkedAgo: string;
 };
@@ -499,6 +505,7 @@ function CheckSummary({ check }: { check: CrossCheckView }) {
       </span>
       {n > 0 ? <StatusPill tone="bad">{n} missing</StatusPill> : <StatusPill tone="ok">Match</StatusPill>}
       {added > 0 && <StatusPill tone="ok">{added} added from WATI</StatusPill>}
+      {check.skipped > 0 && <StatusPill tone="warn">{check.skipped.toLocaleString("en-MY")} mass-synced skipped</StatusPill>}
     </div>
   );
 }
@@ -551,10 +558,66 @@ function CrossCheckList({ checks }: { checks: CrossCheckView[] }) {
               ))}
             </ul>
           )}
+          {!k.error && k.skipped > 0 && <SkippedList k={k} />}
           <div className="mt-0.5 text-xs text-zinc-400">Checked {k.checkedAgo}</div>
         </li>
       ))}
     </ul>
+  );
+}
+
+/** "2026-11-05 16:00" (Malaysia hour) → "5 Nov, 4–5 pm". */
+function burstLabel(hour: string): string {
+  const t = new Date(`${hour.replace(" ", "T")}:00+08:00`);
+  const h = (d: Date) => burstHourFmt.format(d).replace(/\s?[ap]m$/i, "");
+  const end = new Date(t.getTime() + 3_600_000);
+  return `${burstDayFmt.format(t)}, ${h(t)}–${burstHourFmt.format(end).toLowerCase()}`;
+}
+const burstDayFmt = new Intl.DateTimeFormat("en-MY", { timeZone: "Asia/Kuala_Lumpur", day: "numeric", month: "short" });
+const burstHourFmt = new Intl.DateTimeFormat("en-MY", { timeZone: "Asia/Kuala_Lumpur", hour: "numeric", hour12: true });
+
+/** The mass-synced contacts a check skipped: when the syncs happened, and the numbers to look up in WATI. */
+function SkippedList({ k }: { k: CrossCheckView }) {
+  const info = k.skippedInfo;
+  return (
+    <details className="group/skip mt-2 rounded-md bg-amber-50 px-2.5 py-1.5 text-xs text-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
+      <summary className="flex min-h-8 cursor-pointer list-none items-center justify-between gap-2 font-medium [&::-webkit-details-marker]:hidden">
+        <span>
+          {k.skipped.toLocaleString("en-MY")} mass-synced contact{k.skipped === 1 ? "" : "s"} skipped
+          {info?.bursts.length === 1 ? ` · ${burstLabel(info.bursts[0].hour)}` : info?.bursts.length ? ` · ${info.bursts.length} sync hours` : ""}
+        </span>
+        <span aria-hidden="true" className="transition-transform group-open/skip:rotate-90">
+          ›
+        </span>
+      </summary>
+      {info && (
+        <>
+          {info.bursts.length > 1 && (
+            <ul className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 tabular-nums">
+              {info.bursts.map((b) => (
+                <li key={b.hour}>
+                  {burstLabel(b.hour)}: {b.count.toLocaleString("en-MY")}
+                </li>
+              ))}
+            </ul>
+          )}
+          <ul className="mt-1.5 max-h-72 space-y-0.5 overflow-y-auto">
+            {info.sample.map((s) => (
+              <li key={s.phone} className="flex flex-wrap gap-x-2">
+                <span className="select-all font-mono">{/^\d+$/.test(s.phone) ? fmtPhone(s.phone) : s.phone}</span>
+                {s.name && <span>{s.name}</span>}
+                <span className="text-amber-700/80 dark:text-amber-400/80">{missingAtFmt.format(new Date(s.at))}</span>
+              </li>
+            ))}
+          </ul>
+          {k.skipped > info.sample.length && (
+            <div className="mt-1 text-amber-700/80 dark:text-amber-400/80">
+              Newest {info.sample.length} of {k.skipped.toLocaleString("en-MY")}
+            </div>
+          )}
+        </>
+      )}
+    </details>
   );
 }
 

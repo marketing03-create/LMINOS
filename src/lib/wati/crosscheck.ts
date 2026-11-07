@@ -12,9 +12,11 @@
  *     is read; a customer message that day → WATI skipped that webhook, so the
  *     chat is ADDED from WATI's history (listed with added: true), else it
  *     wasn't a chat that day.
- *     Bulk imports can touch thousands of contacts at once, so at most
- *     MAX_PAGES pages and MAX_CHATS chat reads; the rest are reported as
- *     unchecked rather than guessed.
+ *     Mass syncs (WhatsApp Business App contacts copied into WATI, thousands
+ *     in an hour, sometimes re-copied days later) are skipped — sync-looking
+ *     and last touched in a burst hour, never chatted since — and recorded (count, hours, a sample with full numbers)
+ *     so an admin can double-check them in WATI. At most MAX_PAGES pages and
+ *     MAX_CHATS chat reads; the rest are reported as unchecked, not guessed.
  * The result replaces that account's row for that day in wati_daily_checks.
  *
  * Known limit: WATI doesn't always move a contact's lastUpdated when they
@@ -32,15 +34,19 @@ import {
   whatsappChatDays,
   whatsappContacts,
   type CrossCheckMissing,
+  type SkippedInfo,
 } from "@/db/schema";
 import { decryptToken } from "@/lib/crypto/envelope";
-import { customerWroteBetween, mytDayBounds } from "./crosscheck-core";
+import { customerWroteBetween, mytDayBounds, looksSynced, splitMassSync, type SyncCandidate } from "./crosscheck-core";
 import { addFromHistory, readChat } from "./import";
 import { customerIdOf } from "./payload";
 
-const MAX_PAGES = 20; // 2,000 contacts
+const MAX_PAGES = 400; // 40,000 contacts — room for a mass sync on the day
 const MAX_CHATS = 300;
 const CONCURRENCY = 4;
+const PAGE_BATCH = 8; // contact pages fetched at once
+const PAGE_BUDGET_MS = 150_000; // stop paging after this; the rest counts as unchecked
+const SAMPLE = 200; // skipped contacts listed by number
 
 type Row = typeof watiDailyChecks.$inferInsert;
 
@@ -93,51 +99,81 @@ export async function crossCheckDay(connectionId: string, day: string): Promise<
   const have = new Set(ours.map((r) => r.phone));
 
   // 3. WATI's contacts active since that day, minus the ones TT Stars has.
-  const candidates: { phone: string; name: string | null }[] = [];
+  const active: SyncCandidate[] = [];
   let capped = false;
   try {
-    for (let page = 1; ; page++) {
-      if (page > MAX_PAGES) {
-        capped = true;
-        break;
-      }
+    type Page = {
+      wAid?: unknown;
+      fullName?: unknown;
+      source?: unknown;
+      contactStatus?: unknown;
+      lastUpdated?: unknown;
+      scopedUsers?: { bsuid?: unknown }[];
+    }[];
+    const fetchPage = async (page: number): Promise<Page | number> => {
       const qs = new URLSearchParams({ pageSize: "100", pageNumber: String(page) });
       const res = await fetch(`${conn.apiEndpoint}/api/v1/getContacts?${qs}`, {
         headers: { Authorization: `Bearer ${token}` },
         signal: AbortSignal.timeout(20_000),
         cache: "no-store",
       });
-      if (!res.ok) {
-        return save({ ...base, error: res.status === 401 || res.status === 403 ? "WATI refused the token." : `WATI answered ${res.status}.` });
+      if (!res.ok) return res.status;
+      return (((await res.json().catch(() => null)) as { contact_list?: Page } | null)?.contact_list ?? []);
+    };
+    let done = false;
+    const t0 = Date.now();
+    for (let first = 1; !done; first += PAGE_BATCH) {
+      if (first > MAX_PAGES || Date.now() - t0 > PAGE_BUDGET_MS) {
+        capped = true;
+        break;
       }
-      const body = (await res.json().catch(() => null)) as {
-        contact_list?: {
-          wAid?: unknown;
-          fullName?: unknown;
-          lastUpdated?: unknown;
-          scopedUsers?: { bsuid?: unknown }[];
-        }[];
-      } | null;
-      const list = body?.contact_list ?? [];
-      let older = 0;
-      for (const c of list) {
-        const at = typeof c.lastUpdated === "string" ? Date.parse(c.lastUpdated) : NaN;
-        if (!(at >= start)) {
-          older++;
-          continue;
+      const pages = await Promise.all(Array.from({ length: PAGE_BATCH }, (_, i) => fetchPage(first + i)));
+      for (const list of pages) {
+        if (typeof list === "number") {
+          return save({ ...base, error: list === 401 || list === 403 ? "WATI refused the token." : `WATI answered ${list}.` });
         }
-        // A username-only customer has a BSUID instead of a phone number.
-        const phone = customerIdOf(c.wAid, c.scopedUsers?.[0]?.bsuid) ?? "";
-        if (!phone || have.has(phone)) continue;
-        const name = typeof c.fullName === "string" && c.fullName.trim() ? c.fullName.trim() : null;
-        // WATI puts the number in the name when it has none.
-        candidates.push({ phone, name: name && name.replace(/\D/g, "") !== phone ? name : null });
+        let older = 0;
+        for (const c of list) {
+          const at = typeof c.lastUpdated === "string" ? Date.parse(c.lastUpdated) : NaN;
+          if (!(at >= start)) {
+            older++;
+            continue;
+          }
+          // A username-only customer has a BSUID instead of a phone number.
+          const phone = customerIdOf(c.wAid, c.scopedUsers?.[0]?.bsuid) ?? "";
+          if (!phone) continue;
+          const name = typeof c.fullName === "string" && c.fullName.trim() ? c.fullName.trim() : null;
+          active.push({
+            phone,
+            // WATI puts the number in the name when it has none.
+            name: name && name.replace(/\D/g, "") !== phone ? name.slice(0, 120) : null,
+            synced: looksSynced(c.source, c.contactStatus),
+            lastUpdated: at,
+          });
+        }
+        if (list.length < 100 || older === list.length) {
+          done = true;
+          break;
+        }
       }
-      if (list.length < 100 || older === list.length) break;
     }
   } catch {
     return save({ ...base, error: "Couldn't reach WATI." });
   }
+
+  // Mass-synced contacts are skipped but recorded, newest first.
+  const split = splitMassSync(active);
+  const candidates = split.keep.filter((c) => !have.has(c.phone));
+  const skipped = split.skipped.filter((c) => !have.has(c.phone));
+  const skippedInfo: SkippedInfo | null = skipped.length
+    ? {
+        bursts: split.bursts,
+        sample: skipped
+          .sort((a, b) => b.lastUpdated - a.lastUpdated)
+          .slice(0, SAMPLE)
+          .map((c) => ({ phone: c.phone, name: c.name, at: new Date(c.lastUpdated).toISOString() })),
+      }
+    : null;
 
   // Rows TT Stars has for these phones (a chat day may be all that's missing).
   const existingIds = new Map(
@@ -211,6 +247,8 @@ export async function crossCheckDay(connectionId: string, day: string): Promise<
     notCustomers,
     // A capped contact list means more contacts than we could look at.
     unchecked: unchecked + (capped ? 1 : 0),
+    skipped: skipped.length,
+    skippedInfo,
     error: null,
   });
 }
@@ -228,6 +266,8 @@ async function save(row: Row): Promise<Row> {
         missing: row.missing ?? [],
         notCustomers: row.notCustomers ?? 0,
         unchecked: row.unchecked ?? 0,
+        skipped: row.skipped ?? 0,
+        skippedInfo: row.skippedInfo ?? null,
         error: row.error ?? null,
       },
     });

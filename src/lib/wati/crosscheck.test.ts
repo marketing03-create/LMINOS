@@ -6,6 +6,8 @@ import {
   isQuiet,
   mytDayBounds,
   mytYesterday,
+  looksSynced,
+  splitMassSync,
   watiDateParam,
 } from "./crosscheck-core";
 import type { WatiMessage } from "./history";
@@ -84,5 +86,36 @@ describe("customerWroteBetween / mytDayBounds", () => {
   });
   it("is null when they only wrote on other days", () => {
     expect(customerWroteBetween([msg("2026-11-05T10:00:00Z", false)], start, end)).toBeNull();
+  });
+});
+
+describe("splitMassSync", () => {
+  const at = (iso: string) => Date.parse(iso);
+  // 5 Nov 4pm MYT = 08:00Z. 600 sync-looking contacts touched in that hour.
+  const synced = Array.from({ length: 600 }, (_, i) => ({
+    phone: `6011000${String(i).padStart(4, "0")}`,
+    name: null,
+    synced: true,
+    lastUpdated: at("2026-11-05T08:10:00Z"),
+  }));
+  const chattedLater = { phone: "60119990001", name: "Siti", synced: true, lastUpdated: at("2026-11-05T14:00:00Z") };
+  const realInBurst = { phone: "60119990002", name: null, synced: false, lastUpdated: at("2026-11-05T08:20:00Z") };
+
+  it("skips sync-looking contacts touched in a mass-sync hour", () => {
+    const r = splitMassSync([...synced, chattedLater, realInBurst]);
+    expect(r.skipped).toHaveLength(600);
+    expect(r.bursts).toEqual([{ hour: "2026-11-05 16:00", count: 600 }]);
+  });
+  it("still reads a synced contact who chatted later, and other contacts touched in the burst hour", () => {
+    const r = splitMassSync([...synced, chattedLater, realInBurst]);
+    expect(r.keep.map((c) => c.phone)).toEqual(["60119990001", "60119990002"]);
+  });
+  it("skips nothing on a normal day", () => {
+    expect(splitMassSync(synced.slice(0, 40)).skipped).toHaveLength(0);
+  });
+  it("only WhatsApp Business App contacts not confirmed look synced", () => {
+    expect(looksSynced("WhatsApp Business App", "UNCONFIRMED")).toBe(true);
+    expect(looksSynced("WhatsApp Business App", "VALID")).toBe(false);
+    expect(looksSynced("WhatsApp", "UNCONFIRMED")).toBe(false);
   });
 });

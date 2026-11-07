@@ -70,3 +70,43 @@ export function isQuiet(lastCustomerAt: Date | null, weekCustomers: number, now:
   if (!lastCustomerAt || weekCustomers < ACTIVE_WEEKLY) return false;
   return now.getTime() - lastCustomerAt.getTime() >= QUIET_HOURS * 3_600_000;
 }
+
+// ── Mass-sync contacts (WhatsApp Business App contacts copied into WATI) ──
+
+/** More sync-looking contacts than this touched in one hour = a mass sync. */
+export const SYNC_BURST = 200;
+
+/**
+ * A contact as WATI's WhatsApp Business App sync writes it: source "WhatsApp
+ * Business App" and not VALID (never confirmed by a chat over the API). Real
+ * customers can share that source, so this alone never skips anyone.
+ */
+export const looksSynced = (source: unknown, status: unknown) =>
+  source === "WhatsApp Business App" && status !== "VALID";
+
+/** "2026-11-05 16:00" — the Malaysia hour of an instant. */
+export const mytHour = (t: number) => new Date(t + 8 * 3_600_000).toISOString().slice(0, 13).replace("T", " ") + ":00";
+
+export type SyncCandidate = { phone: string; name: string | null; synced: boolean; lastUpdated: number };
+
+/**
+ * Split WATI contacts into ones worth reading and mass-synced ones to skip.
+ * Skipped = sync-looking AND last touched in an hour when more than `burst`
+ * sync-looking contacts were touched (WATI copies — and later re-copies —
+ * thousands at once). Anyone who wrote since keeps a later lastUpdated, and
+ * every other contact is read as normal.
+ */
+export function splitMassSync(contacts: SyncCandidate[], burst = SYNC_BURST) {
+  const perHour = new Map<string, number>();
+  for (const c of contacts) {
+    if (!c.synced) continue;
+    const h = mytHour(c.lastUpdated);
+    perHour.set(h, (perHour.get(h) ?? 0) + 1);
+  }
+  const burstHours = new Set([...perHour].filter(([, n]) => n > burst).map(([h]) => h));
+  const keep: SyncCandidate[] = [];
+  const skipped: SyncCandidate[] = [];
+  for (const c of contacts) (c.synced && burstHours.has(mytHour(c.lastUpdated)) ? skipped : keep).push(c);
+  const bursts = [...burstHours].sort().map((hour) => ({ hour, count: perHour.get(hour) ?? 0 }));
+  return { keep, skipped, bursts };
+}

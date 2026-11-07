@@ -170,6 +170,12 @@ export type CrossCheckMissing = {
   added?: boolean;
 };
 
+/** The mass-sync contacts a cross-check skipped: per sync hour, and a sample to look up in WATI. */
+export type SkippedInfo = {
+  bursts: { hour: string; count: number }[];
+  sample: { phone: string; name: string | null; at: string }[];
+};
+
 export const watiDailyChecks = pgTable(
   "wati_daily_checks",
   {
@@ -190,6 +196,11 @@ export const watiDailyChecks = pgTable(
     notCustomers: integer("not_customers").notNull().default(0),
     // Contacts left unchecked because the run hit its API-call cap.
     unchecked: integer("unchecked").notNull().default(0),
+    // Contacts the check skipped because a mass sync created them (WhatsApp
+    // Business App contacts copied into WATI) and they never chatted since —
+    // shown to admins so they can double-check in WATI.
+    skipped: integer("skipped").notNull().default(0),
+    skippedInfo: jsonb("skipped_info").$type<SkippedInfo>(),
     // Why the check couldn't run (no API token, WATI refused…). Null = it ran.
     error: text("error"),
   },
