@@ -37,7 +37,7 @@ type WatiContact = { phone: string; name: string | null; createdDay: string; las
 
 async function allContacts(endpoint: string, token: string): Promise<WatiContact[]> {
   const out: WatiContact[] = [];
-  for (let p = 1; p <= 400; p++) {
+  for (let p = 1; p <= 1000; p++) {
     const r = await fetch(`${endpoint}/api/v1/getContacts?pageSize=100&pageNumber=${p}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -101,7 +101,8 @@ async function main() {
       return !(burst && mytDay(c.lastUpdated) === isoDay(c.createdDay));
     });
     // --only-hidden: just the username-only customers (no phone number shared).
-    if (process.argv.includes("--only-hidden")) candidates = candidates.filter((c) => !isPhone(c.phone));
+    // Bulk imports are phone lists, so the import filter doesn't apply to them.
+    if (process.argv.includes("--only-hidden")) candidates = contacts.filter((c) => !isPhone(c.phone));
     // Too many to read one by one (old imports touched again later): keep the
     // known customers and the contacts WATI shows active since SINCE.
     if (candidates.length > MAX_READ) {
