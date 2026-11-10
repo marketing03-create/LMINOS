@@ -131,7 +131,18 @@ export function CompactDateFilter({
     goDates(ymd(s), ymd(e));
   }
   const nextDisabled = today ? parseYmd(choice.endStr) >= today : false;
-  const canApply = Boolean(customStart && customEnd);
+  // No day after today can be picked: the pickers grey them out, and a typed one won't apply.
+  const T = today ? ymd(today) : undefined;
+  const canApply = Boolean(customStart && customEnd && customStart <= customEnd && (!T || customEnd <= T));
+
+  // Opening the filter starts the custom range on this month (1st → today).
+  function toggle() {
+    if (!open && today) {
+      setCustomStart(ymd(new Date(today.getFullYear(), today.getMonth(), 1)));
+      setCustomEnd(ymd(today));
+    }
+    setOpen((v) => !v);
+  }
 
   return (
     <div ref={ref} className="relative inline-flex items-center gap-1 text-sm">
@@ -144,7 +155,7 @@ export function CompactDateFilter({
       </button>
 
       <button
-        onClick={() => setOpen((v) => !v)}
+        onClick={toggle}
         aria-haspopup="dialog"
         aria-expanded={open}
         className="inline-flex min-h-11 items-center gap-2 rounded-md border border-blue-500 bg-white dark:bg-zinc-950 px-3 py-1.5 font-medium text-zinc-900 dark:text-zinc-100 hover:bg-zinc-50 dark:hover:bg-zinc-900 active:bg-zinc-100 dark:active:bg-zinc-800 lg:min-h-0"
@@ -184,7 +195,7 @@ export function CompactDateFilter({
               <input
                 type="date"
                 value={customStart}
-                max={customEnd || undefined}
+                max={customEnd || T}
                 onChange={(e) => setCustomStart(e.target.value)}
                 className={inputCls}
                 aria-label="Start date"
@@ -194,6 +205,7 @@ export function CompactDateFilter({
                 type="date"
                 value={customEnd}
                 min={customStart || undefined}
+                max={T}
                 onChange={(e) => setCustomEnd(e.target.value)}
                 className={inputCls}
                 aria-label="End date"
@@ -201,7 +213,8 @@ export function CompactDateFilter({
             </div>
             <button
               onClick={() => canApply && goDates(customStart, customEnd)}
-              className="mt-2 w-full rounded-md bg-zinc-900 dark:bg-zinc-50 text-zinc-50 dark:text-zinc-900 px-3 py-1.5 text-sm font-medium"
+              disabled={!canApply}
+              className="mt-2 w-full disabled:opacity-50 rounded-md bg-zinc-900 dark:bg-zinc-50 text-zinc-50 dark:text-zinc-900 px-3 py-1.5 text-sm font-medium"
             >
               Apply
             </button>
@@ -248,7 +261,7 @@ export function CompactDateFilter({
                   <input
                     type="date"
                     value={customStart}
-                    max={customEnd || undefined}
+                    max={customEnd || T}
                     onChange={(e) => setCustomStart(e.target.value)}
                     className={sheetInputCls}
                   />
@@ -261,6 +274,7 @@ export function CompactDateFilter({
                     type="date"
                     value={customEnd}
                     min={customStart || undefined}
+                    max={T}
                     onChange={(e) => setCustomEnd(e.target.value)}
                     className={sheetInputCls}
                   />
