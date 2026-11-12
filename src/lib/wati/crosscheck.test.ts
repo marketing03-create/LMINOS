@@ -9,6 +9,7 @@ import {
   looksSynced,
   splitMassSync,
   watiDateParam,
+  webhookSilent,
 } from "./crosscheck-core";
 import type { WatiMessage } from "./history";
 
@@ -117,5 +118,19 @@ describe("splitMassSync", () => {
     expect(looksSynced("WhatsApp Business App", "UNCONFIRMED")).toBe(true);
     expect(looksSynced("WhatsApp Business App", "VALID")).toBe(false);
     expect(looksSynced("WhatsApp", "UNCONFIRMED")).toBe(false);
+  });
+});
+
+describe("webhookSilent", () => {
+  const now = new Date("2026-11-12T08:00:00Z");
+  it("flags an account WATI hasn't called for an hour or more", () => {
+    expect(webhookSilent(new Date("2026-11-11T23:52:00Z"), now)).toBe(true);
+    expect(webhookSilent(new Date("2026-11-12T07:00:00Z"), now)).toBe(true);
+  });
+  it("leaves a busy account alone", () => {
+    expect(webhookSilent(new Date("2026-11-12T07:58:00Z"), now)).toBe(false);
+  });
+  it("never flags an account that was never connected", () => {
+    expect(webhookSilent(null, now)).toBe(false);
   });
 });

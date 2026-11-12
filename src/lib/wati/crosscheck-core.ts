@@ -71,6 +71,17 @@ export function isQuiet(lastCustomerAt: Date | null, weekCustomers: number, now:
   return now.getTime() - lastCustomerAt.getTime() >= QUIET_HOURS * 3_600_000;
 }
 
+/** No webhook call for this long = the account's webhook has gone silent. */
+export const WEBHOOK_QUIET_MIN = 60;
+
+/**
+ * Pure: has WATI stopped calling this account's webhook? An account that was
+ * never connected (no event yet) isn't "quiet" — there's nothing to catch up.
+ */
+export function webhookSilent(lastEventAt: Date | null, now: Date): boolean {
+  return !!lastEventAt && now.getTime() - lastEventAt.getTime() >= WEBHOOK_QUIET_MIN * 60_000;
+}
+
 // ── Mass-sync contacts (WhatsApp Business App contacts copied into WATI) ──
 
 /** More sync-looking contacts than this touched in one hour = a mass sync. */

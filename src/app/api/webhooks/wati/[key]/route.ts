@@ -10,7 +10,7 @@ import {
   parseInbound,
   parseOutbound,
 } from "@/lib/wati/payload";
-import { maintainConnection } from "@/lib/wati/missed";
+import { catchUpQuietAccounts, maintainConnection } from "@/lib/wati/missed";
 import { recordChatDay } from "@/lib/wati/chats";
 
 /**
@@ -65,6 +65,8 @@ export async function POST(
 
   // Reply times from the API, then missed-lead alerts — throttled inside.
   after(() => maintainConnection(connection.id));
+  // Accounts whose own webhook has gone silent are caught up from the API here.
+  after(() => catchUpQuietAccounts(connection.id));
 
   const out = parseOutbound(body, now);
   if (out) {

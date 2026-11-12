@@ -1,5 +1,6 @@
 import { after, NextResponse } from "next/server";
 import { checkQuietAccounts } from "@/lib/wati/quiet";
+import { catchUpQuietAccounts } from "@/lib/wati/missed";
 import { desc, gte } from "drizzle-orm";
 import { db } from "@/db/client";
 import { appNotifications } from "@/db/schema";
@@ -22,6 +23,8 @@ export async function GET() {
   // Admins' open dashboards are also what notice a silent WATI webhook
   // (lib/wati/quiet.ts) — throttled, once per account per day, after the reply.
   after(() => checkQuietAccounts());
+  // ...and catch those accounts up from WATI's API (lib/wati/missed.ts).
+  after(() => catchUpQuietAccounts());
 
   const since = new Date(Date.now() - 10 * 60 * 1000);
   try {
