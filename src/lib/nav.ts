@@ -18,6 +18,7 @@ const ADMIN_NAV: NavGroup[] = [
     items: [
       { href: "/admin/tiktok/all", label: "Dashboard" },
       { href: "/admin/analytics", label: "Analytics" },
+      { href: "/admin/sales", label: "Sales" },
       { href: "/tiktok-live", label: "TikTok Live" },
       { href: "/tiktok-live/import", label: "Add live results" },
       { href: "/tiktok-live/customers", label: "Customers" },

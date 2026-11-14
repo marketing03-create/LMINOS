@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-// LMIROS is TikTok-only: leads, sales, websites and Google Ads moved to Adrify.
+// LMIROS is TikTok-first; Sales reads approved loans per source from Finance Connect.
 const OPERATIONS = [
   { href: "/admin/tiktok/all", label: "Dashboard" },
   { href: "/admin/analytics", label: "Analytics" },
+  { href: "/admin/sales", label: "Sales" },
   { href: "/tiktok-live", label: "TikTok Live" },
   { href: "/tiktok-live/customers", label: "Customers" },
 ];

@@ -16,3 +16,4 @@ export * from "./worker-heartbeats";
 export * from "./audit-logs";
 export * from "./processed-jobs";
 export * from "./report-links";
+export * from "./source-stats";
