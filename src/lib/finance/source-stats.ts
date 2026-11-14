@@ -2,7 +2,8 @@
  * Source Statistics API (Finance Connect) — approved loans and lead outcomes
  * per marketing source. SERVER-ONLY.
  *
- *  1. POST /external/auth/token with FINANCE_CONNECT_CLIENT_ID / _SECRET →
+ *  1. POST /external/auth/token with FINANCE_CONNECT_CLIENT_ID / _SECRET (or
+ *     FINANCECONNECT_*) →
  *     a Bearer token valid 1 hour, kept in memory and reused.
  *  2. GET /external/v1/source-stats?date_from&date_to[&platform] (Malaysia
  *     days, ≤ 366 days).
@@ -16,8 +17,12 @@ import { maxAgeMs, parseSourceStats, statsKey, type SourceStats } from "./source
 
 const BASE = "https://api.financeconnect.work";
 
+// Either spelling of the env names works (Vercel has FINANCECONNECT_*).
+const clientId = () => process.env.FINANCE_CONNECT_CLIENT_ID || process.env.FINANCECONNECT_CLIENT_ID;
+const clientSecret = () => process.env.FINANCE_CONNECT_CLIENT_SECRET || process.env.FINANCECONNECT_CLIENT_SECRET;
+
 export function sourceStatsConfigured(): boolean {
-  return !!(process.env.FINANCE_CONNECT_CLIENT_ID && process.env.FINANCE_CONNECT_CLIENT_SECRET);
+  return !!(clientId() && clientSecret());
 }
 
 /** A failure the page can show as is (no secrets, no API body). */
@@ -51,8 +56,8 @@ async function getToken(force = false): Promise<string> {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      client_id: process.env.FINANCE_CONNECT_CLIENT_ID,
-      client_secret: process.env.FINANCE_CONNECT_CLIENT_SECRET,
+      client_id: clientId(),
+      client_secret: clientSecret(),
     }),
   });
   const data = (body.data ?? {}) as { access_token?: unknown; expires_in?: unknown };
