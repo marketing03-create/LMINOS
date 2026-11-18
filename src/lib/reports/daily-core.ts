@@ -9,6 +9,9 @@
  *    WATI was connected, or a handle with no WhatsApp link) — never a false 0.
  *  - Total Leads, Get Documents: streamers type the DAY's total into each of
  *    the day's lives, so it is taken once (the highest entered), not added up.
+ *  - Remarks: each live's remarks, in the order the lives ran, joined with
+ *    " | " (the same text twice shows once). Phone-like numbers are masked —
+ *    the Sheet link is public to anyone holding it.
  * Every day from `fromDay` to `toDay` gets a row, newest first; a day without
  * a live shows 0 lives and blanks.
  */
@@ -22,6 +25,8 @@ export type ReportLive = {
   whatsapp: number | null;
   totalLeads: number | null;
   documents: number | null;
+  /** The live's free-text remarks; null/blank = none. */
+  remarks?: string | null;
 };
 
 export type ReportRow = {
@@ -33,6 +38,7 @@ export type ReportRow = {
   whatsapp: number | null;
   totalLeads: number | null;
   documents: number | null;
+  remarks: string | null;
 };
 
 const MYT_MS = 8 * 60 * 60 * 1000; // Malaysia is UTC+8, no DST
@@ -42,6 +48,26 @@ const sumOf = (xs: (number | null)[]) => {
   const n = xs.filter((x): x is number => x !== null);
   return n.length ? n.reduce((a, b) => a + b, 0) : null;
 };
+/** Remarks for a public sheet: one line, phone-like numbers masked to their last 4 digits. */
+export function cleanRemark(text: string): string {
+  return text
+    .replace(/\s+/g, " ")
+    .replace(/\+?\d[\d\s-]{6,}\d/g, (m) => {
+      const digits = m.replace(/\D/g, "");
+      return digits.length >= 8 ? `…${digits.slice(-4)}` : m;
+    })
+    .trim();
+}
+
+const remarksOf = (xs: (string | null | undefined)[]) => {
+  const seen = new Set<string>();
+  for (const x of xs) {
+    const t = x ? cleanRemark(x) : "";
+    if (t) seen.add(t);
+  }
+  return seen.size ? [...seen].join(" | ") : null;
+};
+
 const maxOf = (xs: (number | null)[]) => {
   const n = xs.filter((x): x is number => x !== null);
   return n.length ? Math.max(...n) : null;
@@ -66,6 +92,7 @@ export function dailyReport(lives: ReportLive[], fromDay: string, toDay: string)
       whatsapp: sumOf(day.map((l) => l.whatsapp)),
       totalLeads: maxOf(day.map((l) => l.totalLeads)),
       documents: maxOf(day.map((l) => l.documents)),
+      remarks: remarksOf([...day].sort((a, b) => a.startedAt.getTime() - b.startedAt.getTime()).map((l) => l.remarks)),
     });
   }
   return rows;
@@ -82,6 +109,7 @@ export const REPORT_HEADER = [
   "Total Leads",
   "Get Documents",
   "Document (%)",
+  "Remarks",
 ];
 
 /**
@@ -115,7 +143,12 @@ export function documentRate(documents: number | null, totalLeads: number | null
  * once and it shows as 05/11/2026).
  */
 export function reportCsv(rows: ReportRow[]): string {
-  const cell = (v: number | string | null) => (v === null ? "" : String(v));
+  // Quoted when it holds a comma or a quote (remarks), quotes doubled.
+  const cell = (v: number | string | null) => {
+    if (v === null) return "";
+    const t = String(v);
+    return /[",\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+  };
   const lines = rows.map((r) =>
     [
       r.date,
@@ -128,6 +161,7 @@ export function reportCsv(rows: ReportRow[]): string {
       r.totalLeads,
       r.documents,
       documentRate(r.documents, r.totalLeads),
+      r.remarks,
     ]
       .map(cell)
       .join(",")

@@ -22,6 +22,7 @@ export async function handleDailyReport(accountId: string, now = new Date()): Pr
       directMessages: tiktokLiveSessions.directMessages,
       totalLeads: tiktokLiveSessions.totalLeads,
       documents: tiktokLiveSessions.filteredLeads,
+      remarks: tiktokLiveSessions.remarks,
     })
     .from(tiktokLiveSessions)
     .where(and(eq(tiktokLiveSessions.accountId, accountId), gte(tiktokLiveSessions.startedAt, floor)))

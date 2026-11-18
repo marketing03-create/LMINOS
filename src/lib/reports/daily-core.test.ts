@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dailyReport, documentRate, reportCsv, sheetFormula, weekday, type ReportLive } from "./daily-core";
+import { cleanRemark, dailyReport, documentRate, reportCsv, sheetFormula, weekday, type ReportLive } from "./daily-core";
 
 // 9pm MYT = 13:00Z.
 const live = (day: string, over: Partial<ReportLive> = {}): ReportLive => ({
@@ -33,6 +33,7 @@ describe("dailyReport", () => {
       whatsapp: null,
       totalLeads: 74,
       documents: 43,
+      remarks: null,
     });
   });
 
@@ -72,9 +73,36 @@ describe("reportCsv", () => {
   it("writes a header and empty cells for blanks", () => {
     const csv = reportCsv(dailyReport([live("2026-10-26", { directMessages: null })], "2026-10-26", "2026-10-26"));
     expect(csv).toBe(
-      "Date,Day,Lives,Views,Comment,DM,Whatsapp,Total Leads,Get Documents,Document (%)\n" +
-        "2026-10-26,Mon,1,100,10,,,40,20,50%\n"
+      "Date,Day,Lives,Views,Comment,DM,Whatsapp,Total Leads,Get Documents,Document (%),Remarks\n" +
+        "2026-10-26,Mon,1,100,10,,,40,20,50%,\n"
     );
+  });
+
+  it("joins the day's remarks in live order, once each, quoted for commas", () => {
+    const rows = dailyReport(
+      [
+        live("x", { startedAt: new Date("2026-10-26T13:00:00Z"), remarks: "Mic issue, restarted" }),
+        live("x", { startedAt: new Date("2026-10-26T05:00:00Z"), remarks: 'Promo "Raya"' }),
+        live("x", { startedAt: new Date("2026-10-26T15:00:00Z"), remarks: "Mic issue, restarted" }),
+        live("x", { startedAt: new Date("2026-10-26T14:00:00Z"), remarks: "  " }),
+      ],
+      "2026-10-26",
+      "2026-10-26"
+    );
+    expect(rows.at(0)?.remarks).toBe('Promo "Raya" | Mic issue, restarted');
+    expect(reportCsv(rows).trim().split("\n").at(1)).toBe(
+      '2026-10-26,Mon,4,400,40,20,,40,20,50%,"Promo ""Raya"" | Mic issue, restarted"'
+    );
+  });
+});
+
+describe("cleanRemark", () => {
+  it("masks phone-like numbers and flattens lines", () => {
+    expect(cleanRemark("Call back\n012-345 6789 later")).toBe("Call back …6789 later");
+    expect(cleanRemark("+60123456789")).toBe("…6789");
+  });
+  it("keeps short numbers like counts and times", () => {
+    expect(cleanRemark("Top 3 gifts at 9:30, 1200 viewers")).toBe("Top 3 gifts at 9:30, 1200 viewers");
   });
 });
 
