@@ -13,7 +13,7 @@ import {
   type ScreenshotExtraction,
 } from "./screenshot-extract-core";
 import { matchSessions, type MatchSession } from "./match-session-core";
-import { sessionsForMatching, type MatchCandidate } from "./queries";
+import { sessionsForMatching, tiktokAccountsForPicker, type MatchCandidate } from "./queries";
 
 export type ReviewGroup = MergedGroup & {
   bestMatchSessionId: string | null;
@@ -23,6 +23,9 @@ export type ReviewGroup = MergedGroup & {
 export type ReviewPayload = {
   groups: ReviewGroup[];
   sessions: MatchCandidate[];
+  /** Handles this person may add a NEW live to (a screenshot of a live that
+   * isn't in TT Stars yet). A streamer gets only their own. */
+  accounts: { id: string; handle: string }[];
 };
 
 /** Build the review payload from already-extracted images (lets the caller
@@ -35,6 +38,7 @@ export async function buildReviewFromExtractions(
 
   // A live streamer only matches against their own handles' sessions.
   const candidates = await sessionsForMatching(500, accountIds);
+  const accounts = (await tiktokAccountsForPicker(accountIds)).map((a) => ({ id: a.id, handle: a.handle }));
   const sessions: MatchSession[] = candidates.map((c) => ({
     sessionId: c.sessionId,
     accountId: c.accountId,
@@ -64,6 +68,7 @@ export async function buildReviewFromExtractions(
       };
     }),
     sessions: candidates,
+    accounts,
   };
 }
 

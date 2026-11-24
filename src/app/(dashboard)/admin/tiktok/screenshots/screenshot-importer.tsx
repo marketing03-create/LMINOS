@@ -14,6 +14,7 @@ import { RecordCard } from "@/components/mobile/record-card";
 import { NoticeStrip } from "@/components/mobile/notice-strip";
 import { HelpChip } from "@/components/mobile/metric-help-sheet";
 import type { ReviewGroup, ReviewPayload } from "@/lib/tiktok-live/import-screenshots";
+import { newLiveDefaults, newLiveProblem, type NewLive } from "@/lib/tiktok-live/new-live-core";
 
 const AUTO_SET = new Set<string>(AUTO_COLUMNS);
 // Every TikTok-only "service panel" metric (all MANUAL_TIKTOK_FIELDS except the
@@ -77,6 +78,8 @@ type RowState = {
   values: Record<string, number>;
   applied: boolean;
   msg: string | null;
+  // No live picked → Apply creates this one first (a live not in TT Stars yet).
+  newLive: NewLive | null;
 };
 
 // Each block sits in its own ELEVATED card — a solid surface a shade lighter
@@ -260,6 +263,12 @@ export function ScreenshotImporter() {
             values: { ...(g.values as Record<string, number>) },
             applied: false,
             msg: null,
+            // Not in TT Stars yet (e.g. a new streamer's first live): offer it
+            // as a new live, filled from the screenshot.
+            newLive:
+              g.bestMatchSessionId || !payload.accounts?.length
+                ? null
+                : newLiveDefaults(g, payload.accounts),
           };
         })
       );
@@ -289,22 +298,55 @@ export function ScreenshotImporter() {
 
   async function apply(idx: number, g: ReviewGroup) {
     const row = rows[idx];
-    if (!row.selectedSessionId) {
+    let sid = row.selectedSessionId;
+    if (!sid && !row.newLive) {
       patchRow(idx, { msg: "Pick a live to attach this to first." });
       return;
     }
+    if (!sid && row.newLive) {
+      const problem = newLiveProblem(row.newLive);
+      if (problem) {
+        patchRow(idx, { msg: problem });
+        return;
+      }
+    }
     // Save the product tag too when it differs from what the live already has.
-    const target = review?.sessions.find((s) => s.sessionId === row.selectedSessionId);
+    const target = review?.sessions.find((s) => s.sessionId === sid);
     const productChanged = !sameProducts(row.selectedProducts, target?.products ?? []);
     const remarksChanged = (row.remarks ?? "").trim() !== (target?.remarks ?? "").trim();
     const hasNumbers = Object.keys(row.values).length > 0;
-    if (!hasNumbers && !productChanged && !remarksChanged) {
+    if (sid && !hasNumbers && !productChanged && !remarksChanged) {
       patchRow(idx, { msg: "Nothing to apply." });
       return;
     }
     setBusyKey(g.key);
     patchRow(idx, { msg: null });
     try {
+      // 0) A live TT Stars doesn't have yet: create it (date, start time and
+      // length from the screenshot), then apply to it like any other live —
+      // so the numbers go through the same screenshot audit.
+      if (!sid && row.newLive) {
+        const cRes = await fetch("/api/tiktok-live/sessions", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            accountId: row.newLive.accountId,
+            date: row.newLive.date,
+            startTime: row.newLive.startTime,
+            durationMinutes: g.durationMinutes ?? 0,
+          }),
+        });
+        const cJson = await cRes.json().catch(() => ({}));
+        if (!cRes.ok || cJson.ok === false || typeof cJson.id !== "string") {
+          patchRow(idx, {
+            msg: cJson.error ?? (cRes.status === 403 ? "That handle isn't yours." : `Couldn't add the live (${cRes.status}).`),
+          });
+          return;
+        }
+        sid = cJson.id as string;
+        // Remember it, so a retry after a later failure can't add it twice.
+        patchRow(idx, { selectedSessionId: sid, newLive: null });
+      }
       // 1) Tag the product/service + remarks (session PATCH, separate from the
       // numbers apply, so it still saves even when every captured number is locked).
       if (productChanged || remarksChanged) {
@@ -312,7 +354,7 @@ export function ScreenshotImporter() {
         if (productChanged) patchBody.products = row.selectedProducts;
         if (remarksChanged)
           patchBody.remarks = row.remarks.trim() === "" ? null : row.remarks.trim();
-        const pRes = await fetch(`/api/tiktok-live/sessions/${row.selectedSessionId}`, {
+        const pRes = await fetch(`/api/tiktok-live/sessions/${sid}`, {
           method: "PATCH",
           headers: { "content-type": "application/json" },
           body: JSON.stringify(patchBody),
@@ -326,7 +368,7 @@ export function ScreenshotImporter() {
       // 2) Apply the read numbers.
       if (hasNumbers) {
         const res = await fetch(
-          `/api/tiktok-live/sessions/${row.selectedSessionId}/apply-screenshot`,
+          `/api/tiktok-live/sessions/${sid}/apply-screenshot`,
           {
             method: "POST",
             headers: { "content-type": "application/json" },
@@ -350,7 +392,6 @@ export function ScreenshotImporter() {
       // and hand the countdown bar the navigation.
       setSheetKey(null);
       // Green for a beat, then open this live's detail page to check the metrics.
-      const sid = row.selectedSessionId;
       // Applying a second group inside the 1.5s window would otherwise leave
       // the first timer pending and land on the FIRST live, not this one.
       if (redirectTimer.current != null) window.clearTimeout(redirectTimer.current);
@@ -557,7 +598,9 @@ export function ScreenshotImporter() {
             row.applied
               ? { label: "Applied ✓", tone: "emerald" }
               : !row.selectedSessionId
-                ? { label: "Pick a live", tone: "amber" }
+                ? row.newLive
+                  ? { label: "New live", tone: "zinc" }
+                  : { label: "Pick a live", tone: "amber" }
                 : g.conflicts.length > 0
                   ? {
                       label: `${g.conflicts.length} conflict${
@@ -566,6 +609,42 @@ export function ScreenshotImporter() {
                       tone: "amber",
                     }
                   : { label: "Matched", tone: "zinc" };
+          const applyLabel = !row.selectedSessionId && row.newLive ? "Add as new live" : "Apply to this live";
+
+          // Picking a live from the list drops the new-live plan; "New live"
+          // brings it back (filled from the screenshot again).
+          const pickLive = (sid: string) => {
+            const sess = review.sessions.find((s) => s.sessionId === sid);
+            patchRow(idx, {
+              selectedSessionId: sid,
+              selectedProducts: sess?.products ?? [],
+              remarks: sess?.remarks ?? "",
+              newLive: sid ? null : row.newLive,
+              applied: false,
+              msg: null,
+            });
+          };
+          const startNewLive = () =>
+            patchRow(idx, {
+              selectedSessionId: "",
+              selectedProducts: [],
+              remarks: "",
+              newLive: newLiveDefaults(g, review.accounts ?? []),
+              applied: false,
+              msg: null,
+            });
+          const setNew = (patch: Partial<NewLive>) =>
+            row.newLive && patchRow(idx, { newLive: { ...row.newLive, ...patch }, msg: null });
+          const accounts = review.accounts ?? [];
+          const newLiveFields = (
+            <NewLiveFields
+              newLive={row.newLive}
+              accounts={accounts}
+              disabled={row.applied}
+              onChange={setNew}
+              onStart={accounts.length > 0 && !row.applied ? startNewLive : undefined}
+            />
+          );
 
           const numField = (c: string, autoFocus?: boolean) => (
             <NumberField
@@ -590,7 +669,7 @@ export function ScreenshotImporter() {
                   tone={
                     row.applied
                       ? "good"
-                      : !row.selectedSessionId || g.conflicts.length > 0
+                      : (!row.selectedSessionId && !row.newLive) || g.conflicts.length > 0
                         ? "warn"
                         : "neutral"
                   }
@@ -615,7 +694,7 @@ export function ScreenshotImporter() {
                        12px below the first. */
                     <div className="-mt-3">
                       <StickyAction
-                        label={row.applied ? "Applied ✓" : "Apply to this live"}
+                        label={row.applied ? "Applied ✓" : applyLabel}
                         onClick={() => apply(idx, g)}
                         busy={busyKey === g.key}
                         disabled={row.applied}
@@ -640,18 +719,11 @@ export function ScreenshotImporter() {
                       <LivePicker
                         lives={review.sessions}
                         value={row.selectedSessionId}
-                        onChange={(sid) => {
-                          const sess = review.sessions.find((s) => s.sessionId === sid);
-                          patchRow(idx, {
-                            selectedSessionId: sid,
-                            selectedProducts: sess?.products ?? [],
-                            remarks: sess?.remarks ?? "",
-                            applied: false,
-                            msg: null,
-                          });
-                        }}
+                        onChange={pickLive}
                         disabled={row.applied}
+                        placeholder={row.newLive ? "— new live —" : undefined}
                       />
+                      {newLiveFields}
                     </div>
 
                     <div>
@@ -807,23 +879,16 @@ export function ScreenshotImporter() {
               <div className="flex flex-col sm:flex-row gap-3">
                 <div className="block flex-1">
                   <div className="text-xs font-medium mb-1">Apply to live</div>
+                  {/* Switching the target live re-syncs the product picker to
+                      whatever that live is already tagged with. */}
                   <LivePicker
                     lives={review.sessions}
                     value={row.selectedSessionId}
-                    onChange={(sid) => {
-                      // Switching the target live re-syncs the product picker to
-                      // whatever that live is already tagged with.
-                      const sess = review.sessions.find((s) => s.sessionId === sid);
-                      patchRow(idx, {
-                        selectedSessionId: sid,
-                        selectedProducts: sess?.products ?? [],
-                        remarks: sess?.remarks ?? "",
-                        applied: false,
-                        msg: null,
-                      });
-                    }}
+                    onChange={pickLive}
                     disabled={row.applied}
+                    placeholder={row.newLive ? "— new live —" : undefined}
                   />
+                  {newLiveFields}
                 </div>
 
                 <div className="block sm:w-auto">
@@ -962,7 +1027,7 @@ export function ScreenshotImporter() {
                   disabled={row.applied || busyKey === g.key}
                   className={row.applied ? btnDone : btnPrimary}
                 >
-                  {row.applied ? "Applied ✓" : busyKey === g.key ? "Applying…" : "Apply to this live"}
+                  {row.applied ? "Applied ✓" : busyKey === g.key ? "Applying…" : applyLabel}
                 </button>
                 {row.msg && !row.applied && <span className="text-xs text-zinc-500">{row.msg}</span>}
               </div>
@@ -983,3 +1048,88 @@ const btnPrimary =
   "inline-flex items-center rounded-md bg-zinc-900 dark:bg-zinc-50 text-zinc-50 dark:text-zinc-900 px-4 py-2 text-sm font-medium disabled:opacity-50";
 const btnDone =
   "inline-flex items-center rounded-md bg-emerald-600 text-white px-4 py-2 text-sm font-medium disabled:opacity-70";
+
+// 48px / 16px on a phone (iOS zooms on anything smaller), 40px from `lg` up.
+const NEW_FIELD =
+  "h-12 w-full rounded-lg border border-zinc-300 bg-white px-3 text-base text-zinc-900 focus-visible:border-blue-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 disabled:opacity-50 lg:h-10 lg:text-sm dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100";
+
+/**
+ * The live a screenshot belongs to isn't in TT Stars yet (a new streamer's
+ * first live, or one the tracker missed): handle, date and start time, filled
+ * from the screenshot, so Apply can add it. With a live picked, just the way
+ * back to adding a new one.
+ */
+function NewLiveFields({
+  newLive,
+  accounts,
+  disabled,
+  onChange,
+  onStart,
+}: {
+  newLive: NewLive | null;
+  accounts: { id: string; handle: string }[];
+  disabled: boolean;
+  onChange: (patch: Partial<NewLive>) => void;
+  onStart?: () => void;
+}) {
+  if (!newLive) {
+    return onStart ? (
+      <button
+        type="button"
+        onClick={onStart}
+        className="mt-2 inline-flex min-h-11 items-center text-sm font-medium text-blue-600 active:text-blue-800 lg:min-h-0 lg:hover:underline dark:text-blue-400"
+      >
+        + New live
+      </button>
+    ) : null;
+  }
+  const only = accounts.length === 1 ? accounts[0] : null;
+  return (
+    <div className="mt-3 space-y-3 rounded-xl border border-blue-200 bg-blue-50/60 p-3 dark:border-blue-900 dark:bg-blue-950/20">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-sm font-semibold">New live</span>
+        {only && <span className="truncate text-sm text-zinc-600 dark:text-zinc-400">@{only.handle}</span>}
+      </div>
+      {!only && (
+        <label className="block">
+          <span className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-200">Handle</span>
+          <select
+            value={newLive.accountId}
+            onChange={(e) => onChange({ accountId: e.target.value })}
+            disabled={disabled}
+            className={NEW_FIELD}
+          >
+            <option value="">— pick —</option>
+            {accounts.map((a) => (
+              <option key={a.id} value={a.id}>
+                @{a.handle}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      <div className="grid grid-cols-2 gap-3">
+        <label className="block">
+          <span className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-200">Date</span>
+          <input
+            type="date"
+            value={newLive.date}
+            onChange={(e) => onChange({ date: e.target.value })}
+            disabled={disabled}
+            className={NEW_FIELD}
+          />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-200">Start time</span>
+          <input
+            type="time"
+            value={newLive.startTime}
+            onChange={(e) => onChange({ startTime: e.target.value.slice(0, 5) })}
+            disabled={disabled}
+            className={NEW_FIELD}
+          />
+        </label>
+      </div>
+    </div>
+  );
+}
