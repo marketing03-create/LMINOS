@@ -38,3 +38,24 @@ export function newLiveProblem(n: NewLive): string | null {
   if (!/^\d{2}:\d{2}$/.test(n.startTime)) return "Enter the start time of the live.";
   return null;
 }
+
+const MONTH = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** "2026-06-25" → "25 Jun" */
+export function shortDate(iso: string): string {
+  return `${Number(iso.slice(8, 10))} ${MONTH.at(Number(iso.slice(5, 7)) - 1) ?? ""}`.trim();
+}
+
+/**
+ * A plain warning for a live whose date is far from today — older than a week
+ * (it won't be on Home's default 7 days) or in the future — e.g.
+ * "25 Jun · 5 months ago". Null when the date is recent or unknown.
+ */
+export function liveDateNote(date: string, today: string): string | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{4}-\d{2}-\d{2}$/.test(today)) return null;
+  const days = Math.round((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${date}T00:00:00Z`)) / 86_400_000);
+  if (days < 0) return `${shortDate(date)} · in the future`;
+  if (days <= 7) return null;
+  const ago = days < 60 ? `${days} days ago` : `${Math.round(days / 30)} months ago`;
+  return `${shortDate(date)} · ${ago}`;
+}

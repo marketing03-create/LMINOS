@@ -621,3 +621,31 @@ export async function tiktokLiveTrend(
     };
   });
 }
+
+/**
+ * Lives ADDED in the last `withinMs` (by hand, a screenshot or the tracker)
+ * whose start falls outside `range` — e.g. a screenshot of an older live. Home
+ * lists them so a live someone just added never seems to vanish. Scoped like
+ * tiktokLiveSessionList (an empty scope = nothing).
+ */
+export async function recentlyAddedOutsideRange(
+  range: DateRange,
+  accountIds?: string[],
+  withinMs = 3 * 86_400_000,
+  now = new Date()
+): Promise<{ id: string; handle: string; startedAt: Date | null }[]> {
+  if (accountIds && accountIds.length === 0) return [];
+  return db
+    .select({ id: tiktokLiveSessions.id, handle: tiktokAccounts.handle, startedAt: tiktokLiveSessions.startedAt })
+    .from(tiktokLiveSessions)
+    .innerJoin(tiktokAccounts, eq(tiktokAccounts.id, tiktokLiveSessions.accountId))
+    .where(
+      and(
+        accountIds ? inArray(tiktokLiveSessions.accountId, accountIds) : undefined,
+        sql`${tiktokLiveSessions.createdAt} >= ${new Date(now.getTime() - withinMs).toISOString()}::timestamptz`,
+        sql`(${tiktokLiveSessions.startedAt} < ${range.start.toISOString()}::timestamptz or ${tiktokLiveSessions.startedAt} >= ${range.end.toISOString()}::timestamptz)`
+      )
+    )
+    .orderBy(desc(tiktokLiveSessions.createdAt))
+    .limit(10);
+}

@@ -4,6 +4,7 @@ import {
   streamerAccountIds,
   tiktokAccountsForPicker,
   tiktokLiveSessionList,
+  recentlyAddedOutsideRange,
   type SessionRow,
 } from "@/lib/tiktok-live/queries";
 import { fmtInt } from "@/lib/date-range";
@@ -158,6 +159,15 @@ export default async function TikTokLivePage({
   } catch (err) {
     error = err instanceof Error ? err.message : String(err);
   }
+  // Lives just added but dated outside this range (an older screenshot): shown
+  // on top so they never seem to vanish. Same scope as the list.
+  let added: { id: string; handle: string; startedAt: Date | null }[] = [];
+  try {
+    added = await recentlyAddedOutsideRange(choice.range, scope);
+  } catch {
+    // just no strip
+  }
+
   // WhatsApp PM per live — ADMIN-ONLY. A streamer's page never queries it, so
   // the number can't reach their browser. For admins it is always an object, so
   // the column is always there; a live with no WATI tracking reads "—".
@@ -257,6 +267,29 @@ export default async function TikTokLivePage({
       {/* Streamers get the to-do list; admins keep the wide table at lg+. */}
       {isStreamer && <PushSwitch />}
       {isStreamer && nudge && <AdminNudgeCard remaining={nudge} />}
+
+      {added.length > 0 && (
+        <section aria-labelledby="added-h" className="mb-5 rounded-2xl border border-blue-200 bg-blue-50/60 p-4 dark:border-blue-900 dark:bg-blue-950/20">
+          <h2 id="added-h" className="mb-2 text-sm font-semibold">Added recently</h2>
+          <ul className="space-y-1.5">
+            {added.map((l) => (
+              <li key={l.id}>
+                <Link
+                  href={`/tiktok-live/${l.id}`}
+                  className="flex min-h-11 items-center justify-between gap-3 rounded-lg bg-white px-3 text-sm active:bg-zinc-50 lg:min-h-9 lg:hover:bg-zinc-50 dark:bg-zinc-900 dark:active:bg-zinc-800"
+                >
+                  <span className="truncate font-medium">@{l.handle}</span>
+                  <span className="shrink-0 tabular-nums text-zinc-600 dark:text-zinc-400">
+                    {l.startedAt
+                      ? new Intl.DateTimeFormat("en-MY", { timeZone: "Asia/Kuala_Lumpur", day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" }).format(l.startedAt)
+                      : "No date"}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {isStreamer && !error && (
         <StreamerHomeFeed sessions={sessions} choice={choice} />

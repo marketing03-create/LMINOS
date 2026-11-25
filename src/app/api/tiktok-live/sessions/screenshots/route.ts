@@ -1,4 +1,4 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { after, NextResponse, type NextRequest } from "next/server";
 import { ADMIN_ROLES, requireRole } from "@/lib/auth/authorize";
 import { serverEnv } from "@/lib/env";
 import { buildReviewFromExtractions } from "@/lib/tiktok-live/import-screenshots";
@@ -97,13 +97,14 @@ export async function POST(request: NextRequest) {
 
   try {
     const extractions = await extractFromImages(images);
-    // Persist the raw images + what Claude read, BEFORE the admin can edit —
-    // the anti-fraud audit trail (best-effort, never blocks the read).
-    await storeUploadedScreenshots({
-      images,
-      extractions,
-      uploaderUserId: auth.userId ?? null,
-    });
+    // Keep the raw images + what Claude read — the anti-fraud audit trail —
+    // right after the reply, so the streamer isn't kept waiting on the upload.
+    // It still lands before anyone can apply (reviewing takes longer).
+    after(() =>
+      storeUploadedScreenshots({ images, extractions, uploaderUserId: auth.userId ?? null }).catch((err) =>
+        console.error("[screenshots] audit copy not stored:", err instanceof Error ? err.name : "error")
+      )
+    );
     const payload = await buildReviewFromExtractions(extractions, scope);
     return NextResponse.json({ ok: true, ...payload });
   } catch (err) {

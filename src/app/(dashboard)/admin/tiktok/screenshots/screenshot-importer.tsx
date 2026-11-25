@@ -14,7 +14,7 @@ import { RecordCard } from "@/components/mobile/record-card";
 import { NoticeStrip } from "@/components/mobile/notice-strip";
 import { HelpChip } from "@/components/mobile/metric-help-sheet";
 import type { ReviewGroup, ReviewPayload } from "@/lib/tiktok-live/import-screenshots";
-import { newLiveDefaults, newLiveProblem, type NewLive } from "@/lib/tiktok-live/new-live-core";
+import { liveDateNote, newLiveDefaults, newLiveProblem, shortDate, type NewLive } from "@/lib/tiktok-live/new-live-core";
 
 const AUTO_SET = new Set<string>(AUTO_COLUMNS);
 // Every TikTok-only "service panel" metric (all MANUAL_TIKTOK_FIELDS except the
@@ -161,6 +161,8 @@ export function ScreenshotImporter() {
    * only ever opens from a tap, and starts closed.
    */
   const [sheetKey, setSheetKey] = useState<string | null>(null);
+  // Today in Malaysia, set when a read comes back (not during render).
+  const [today, setToday] = useState("");
   const [redirect, setRedirect] = useState<{ sid: string; msLeft: number } | null>(
     null
   );
@@ -248,6 +250,7 @@ export function ScreenshotImporter() {
         return;
       }
       const payload = json as ReviewPayload;
+      setToday(new Date(Date.now() + 8 * 3_600_000).toISOString().slice(0, 10));
       setReview(payload);
       setRows(
         payload.groups.map((g) => {
@@ -594,12 +597,17 @@ export function ScreenshotImporter() {
           const heading = g.date
             ? `Live on ${g.date}${g.startTime ? ` · ${g.startTime}` : ""}`
             : "Undated screenshot";
+          // A new live dated far from today (an old screenshot, a misread
+          // date) would land outside Home's 7 days — say so before it's added.
+          const dateNote = !row.selectedSessionId && row.newLive ? liveDateNote(row.newLive.date, today) : null;
           const status: { label: string; tone: "amber" | "emerald" | "zinc" } =
             row.applied
               ? { label: "Applied ✓", tone: "emerald" }
               : !row.selectedSessionId
                 ? row.newLive
-                  ? { label: "New live", tone: "zinc" }
+                  ? dateNote
+                    ? { label: dateNote, tone: "amber" }
+                    : { label: "New live", tone: "zinc" }
                   : { label: "Pick a live", tone: "amber" }
                 : g.conflicts.length > 0
                   ? {
@@ -609,7 +617,12 @@ export function ScreenshotImporter() {
                       tone: "amber",
                     }
                   : { label: "Matched", tone: "zinc" };
-          const applyLabel = !row.selectedSessionId && row.newLive ? "Add as new live" : "Apply to this live";
+          const applyLabel =
+            !row.selectedSessionId && row.newLive
+              ? /^\d{4}-\d{2}-\d{2}$/.test(row.newLive.date)
+                ? `Add live on ${shortDate(row.newLive.date)}`
+                : "Add as new live"
+              : "Apply to this live";
 
           // Picking a live from the list drops the new-live plan; "New live"
           // brings it back (filled from the screenshot again).
@@ -643,6 +656,7 @@ export function ScreenshotImporter() {
               disabled={row.applied}
               onChange={setNew}
               onStart={accounts.length > 0 && !row.applied ? startNewLive : undefined}
+              dateNote={dateNote}
             />
           );
 
@@ -669,7 +683,7 @@ export function ScreenshotImporter() {
                   tone={
                     row.applied
                       ? "good"
-                      : (!row.selectedSessionId && !row.newLive) || g.conflicts.length > 0
+                      : (!row.selectedSessionId && !row.newLive) || dateNote || g.conflicts.length > 0
                         ? "warn"
                         : "neutral"
                   }
@@ -1065,12 +1079,15 @@ function NewLiveFields({
   disabled,
   onChange,
   onStart,
+  dateNote,
 }: {
   newLive: NewLive | null;
   accounts: { id: string; handle: string }[];
   disabled: boolean;
   onChange: (patch: Partial<NewLive>) => void;
   onStart?: () => void;
+  /** "25 Jun · 5 months ago" when the date is far from today. */
+  dateNote?: string | null;
 }) {
   if (!newLive) {
     return onStart ? (
@@ -1116,7 +1133,8 @@ function NewLiveFields({
             value={newLive.date}
             onChange={(e) => onChange({ date: e.target.value })}
             disabled={disabled}
-            className={NEW_FIELD}
+            aria-invalid={dateNote ? true : undefined}
+            className={`${NEW_FIELD} ${dateNote ? "!border-amber-500 ring-1 ring-amber-500/40" : ""}`}
           />
         </label>
         <label className="block">
@@ -1130,6 +1148,11 @@ function NewLiveFields({
           />
         </label>
       </div>
+      {dateNote && (
+        <p role="status" className="text-sm font-medium text-amber-700 dark:text-amber-400">
+          {dateNote}
+        </p>
+      )}
     </div>
   );
 }

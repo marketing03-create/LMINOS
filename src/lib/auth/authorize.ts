@@ -1,3 +1,4 @@
+import { cache } from "react";
 /**
  * Role-based authorization for API routes.
  *
@@ -107,8 +108,9 @@ export type SessionUser = {
  * + proxy), then one indexed lookup gets the role. Returns null when there's no
  * active session. Used by the dashboard layout + pages to render role-aware UI
  * and gate the live-streamer experience. Mutating APIs keep requireRole().
+ * Cached per request: the layout and the page both ask, and it's one lookup.
  */
-export async function getSessionUser(): Promise<SessionUser | null> {
+export const getSessionUser = cache(async function getSessionUser(): Promise<SessionUser | null> {
   if (devBypass()) {
     return { userId: devBypassUserId(), email: "dev@stub.local", role: devBypassRole() };
   }
@@ -129,7 +131,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   if (!row || !row.isActive) return null;
 
   return { userId, email, role: row.role as Role };
-}
+});
 
 /**
  * WHY a page has no user. `getSessionUser()` answers null for two different
@@ -143,7 +145,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
  * for it. A signed-in user with no app row at all is reported as "inactive" too:
  * from her side the problem, and the fix (ask an admin), are the same.
  */
-export async function getAccountStatus(): Promise<"signed-out" | "inactive" | "active"> {
+export const getAccountStatus = cache(async function getAccountStatus(): Promise<"signed-out" | "inactive" | "active"> {
   if (devBypass()) return "active";
 
   const supabase = await createSupabaseServerClient();
@@ -157,4 +159,4 @@ export async function getAccountStatus(): Promise<"signed-out" | "inactive" | "a
     columns: { isActive: true },
   });
   return row?.isActive ? "active" : "inactive";
-}
+});

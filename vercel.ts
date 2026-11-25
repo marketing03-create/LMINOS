@@ -12,7 +12,12 @@ import { type VercelConfig } from "@vercel/config/v1";
  */
 export const config: VercelConfig = {
   framework: "nextjs",
-  regions: ["sin1"], // pin to Singapore for PDPA + Malaysia latency
+  // Next to the database: Supabase (DB + auth) is in AWS ap-south-1 (Mumbai).
+  // From Singapore every query paid ~60ms there and back, and a page makes
+  // 10–30 of them in a row; from Mumbai it's ~1ms each. Malaysia → Mumbai is
+  // ~70ms once per request. (Data already lives in Mumbai — this moves only
+  // where the code runs.)
+  regions: ["bom1"],
   // Vercel Hobby caps cron frequency at "once per day". For real-time SLA
   // detection and 2-min sheets-sync, either:
   //   (a) upgrade to Vercel Pro ($20/mo) — uncomment the Pro block below, OR
