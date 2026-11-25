@@ -18,6 +18,10 @@
  *   npx tsx --env-file=.env.local src/scripts/backfill-wati-chats.ts --dry-run
  *   npx tsx --env-file=.env.local src/scripts/backfill-wati-chats.ts
  *
+ * Numbers whose webhook was never set up (nothing in TT Stars yet), on one account:
+ *   … backfill-wati-chats.ts --conn=Ainn --numbers=60162532681,601133355090 --since=2026-10-01 [--dry-run]
+ *   (reads contacts WATI shows active since --since, minus mass-synced ones)
+ *
  * Only adds or fills rows; never deletes or overwrites a field already set.
  */
 import { and, eq, inArray, isNotNull } from "drizzle-orm";
@@ -26,14 +30,21 @@ import { tiktokWaLinks, watiConnections, whatsappContacts } from "@/db/schema";
 import { decryptToken } from "@/lib/crypto/envelope";
 import { addFromHistory, readChat } from "@/lib/wati/import";
 import { customerIdOf, isPhone } from "@/lib/wati/payload";
+import { looksSynced, splitMassSync } from "@/lib/wati/crosscheck-core";
 
-const SINCE = new Date("2026-10-25T16:00:00Z"); // 26 Oct 00:00 MYT
+const arg = (name: string) => process.argv.find((a) => a.startsWith(`--${name}=`))?.slice(name.length + 3) ?? null;
+const NUMBERS = (arg("numbers") ?? "").split(",").map((n) => n.replace(/\D/g, "")).filter(Boolean);
+const CONN = arg("conn");
+const SINCE_ARG = arg("since");
+const SINCE = SINCE_ARG && /^\d{4}-\d{2}-\d{2}$/.test(SINCE_ARG)
+  ? new Date(`${SINCE_ARG}T00:00:00+08:00`)
+  : new Date("2026-10-25T16:00:00Z"); // 26 Oct 00:00 MYT
 const BURST = 500;
 const MAX_READ = 3000;
 const CONCURRENCY = 4;
 const DRY = process.argv.includes("--dry-run");
 
-type WatiContact = { phone: string; name: string | null; createdDay: string; lastUpdated: number };
+type WatiContact = { phone: string; name: string | null; createdDay: string; lastUpdated: number; synced: boolean };
 
 async function allContacts(endpoint: string, token: string): Promise<WatiContact[]> {
   const out: WatiContact[] = [];
@@ -53,6 +64,7 @@ async function allContacts(endpoint: string, token: string): Promise<WatiContact
         name: name && name.replace(/\D/g, "") !== phone ? name.slice(0, 120) : null,
         createdDay: typeof c.created === "string" ? c.created : "",
         lastUpdated: typeof c.lastUpdated === "string" ? Date.parse(c.lastUpdated) : 0,
+        synced: looksSynced(c.source, c.contactStatus),
       });
     }
     if (list.length < 100) break;
@@ -72,6 +84,7 @@ async function main() {
   console.log(DRY ? "DRY RUN — nothing is written" : "Writing");
   for (const conn of await db.select().from(watiConnections)) {
     if (!conn.apiEndpoint || !conn.apiTokenEnc) continue;
+    if (CONN && !conn.name.toLowerCase().includes(CONN.toLowerCase())) continue;
     const token = decryptToken(conn.apiTokenEnc).replace(/^Bearer\s+/i, "");
 
     // Linked numbers that have ever received a customer message in TT Stars.
@@ -85,7 +98,10 @@ async function main() {
           .where(and(eq(whatsappContacts.connectionId, conn.id), inArray(whatsappContacts.channelPhone, linked), isNotNull(whatsappContacts.channelPhone))))
           .map((r) => r.p!)
       : [];
-    const skipped = linked.filter((n) => !live.includes(n));
+    // --numbers: exactly these numbers (e.g. a webhook never set up, so TT
+    // Stars has nothing from them to go on).
+    if (NUMBERS.length) live.splice(0, live.length, ...NUMBERS);
+    const skipped = NUMBERS.length ? [] : linked.filter((n) => !live.includes(n));
     console.log(`\n== ${conn.name}: numbers ${live.join(", ") || "none"}${skipped.length ? ` (skipped, never received: ${skipped.join(", ")})` : ""}`);
     if (live.length === 0) continue;
 
@@ -100,12 +116,20 @@ async function main() {
       const burst = (perDay.get(c.createdDay) ?? 0) > BURST;
       return !(burst && mytDay(c.lastUpdated) === isoDay(c.createdDay));
     });
+    // --numbers: contacts WATI shows active since SINCE, minus mass-synced ones.
+    if (NUMBERS.length) {
+      const recent = contacts.filter((c) => c.lastUpdated >= SINCE.getTime());
+      const split = splitMassSync(recent.map((c) => ({ phone: c.phone, name: c.name, synced: c.synced, lastUpdated: c.lastUpdated })));
+      const keep = new Set(split.keep.map((c) => c.phone));
+      candidates = recent.filter((c) => keep.has(c.phone));
+      console.log(`active since ${SINCE.toISOString()}: ${recent.length}, mass-synced skipped: ${split.skipped.length}`);
+    }
     // --only-hidden: just the username-only customers (no phone number shared).
     // Bulk imports are phone lists, so the import filter doesn't apply to them.
     if (process.argv.includes("--only-hidden")) candidates = contacts.filter((c) => !isPhone(c.phone));
     // Too many to read one by one (old imports touched again later): keep the
     // known customers and the contacts WATI shows active since SINCE.
-    if (candidates.length > MAX_READ) {
+    if (candidates.length > MAX_READ && !NUMBERS.length) {
       candidates = candidates.filter((c) => known.has(c.phone) || c.lastUpdated >= SINCE.getTime());
       console.log(`more than ${MAX_READ} to read — narrowed to known customers + contacts active since ${SINCE.toISOString()}`);
     }
