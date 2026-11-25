@@ -11,6 +11,7 @@ import { requireAdminPage } from "@/lib/auth/page-guard";
 import { DriveSetup, type DriveHandleView } from "./drive-setup";
 import { Panel, Section, StatusPill, type Tone } from "./ui";
 import { SheetReports, type SheetReportView } from "./sheet-reports";
+import { TikTokDms, type DmChannelView } from "./tiktok-dms";
 import { sheetFormula } from "@/lib/reports/daily-core";
 
 /**
@@ -244,12 +245,42 @@ async function loadReports(): Promise<
   }
 }
 
+/** TikTok DM channels (WATI's TikTok connection). Null = couldn't load (e.g. before migration 0049). */
+async function loadDms(): Promise<{ channels: DmChannelView[]; handles: { id: string; handle: string }[] } | null> {
+  try {
+    const { db } = await import("@/db/client");
+    const { tiktokAccounts } = await import("@/db/schema");
+    const { tiktokDmChannelList } = await import("@/lib/wati/tiktok");
+    const now = Date.now();
+    const [rows, handles] = await Promise.all([
+      tiktokDmChannelList(),
+      db.select({ id: tiktokAccounts.id, handle: tiktokAccounts.handle }).from(tiktokAccounts).orderBy(tiktokAccounts.handle),
+    ]);
+    return {
+      channels: rows.map((r) => ({
+        id: r.id,
+        connectionName: r.connectionName,
+        label: r.label ?? r.handle,
+        channelId: r.channelId,
+        accountId: r.accountId,
+        lastSeenAgo: ago(now - r.lastSeenAt.getTime()),
+        dmsToday: r.dmsToday,
+      })),
+      handles,
+    };
+  } catch (err) {
+    console.error("[integrations] TikTok DMs load failed:", err instanceof Error ? err.name : "error");
+    return null;
+  }
+}
+
 export default async function IntegrationsPage() {
   // Page-level role check: the layout's check can be skipped (see page-guard.ts).
   await requireAdminPage();
   const [{ pairedUsers, error }, wati] = await Promise.all([load(), loadWati()]);
   const drive = await loadDrive();
   const reportRows = await loadReports();
+  const dms = await loadDms();
   // The webhook URL WATI must call, on whatever host this page is served from.
   const h = await headers();
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "lmiros.vercel.app";
@@ -296,6 +327,19 @@ export default async function IntegrationsPage() {
             name: "WhatsApp (WATI)",
             tone: (watiTotal === 0 ? "warn" : watiQuiet ? "warn" : "ok") as Tone,
             status: watiTotal === 0 ? "No account" : `${watiConnected} of ${watiTotal} connected`,
+          },
+        ]
+      : []),
+    ...(dms
+      ? [
+          {
+            href: "#tiktok-dms",
+            name: "TikTok DMs",
+            tone: (dms.channels.length === 0 ? "off" : dms.channels.some((c) => !c.accountId) ? "warn" : "ok") as Tone,
+            status:
+              dms.channels.length === 0
+                ? "Not connected"
+                : `${dms.channels.filter((c) => c.accountId).length} of ${dms.channels.length} linked`,
           },
         ]
       : []),
@@ -346,7 +390,7 @@ export default async function IntegrationsPage() {
         </div>
       )}
 
-      <nav aria-label="Services" className="mb-10 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+      <nav aria-label="Services" className="mb-10 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-7">
         {tiles.map((t) => (
           <a
             key={t.name}
@@ -365,6 +409,8 @@ export default async function IntegrationsPage() {
         {watiViews && wati && (
           <WatiConnections connections={watiViews} handles={wati.handles} yesterday={wati.yesterday} />
         )}
+
+        {dms && <TikTokDms channels={dms.channels} handles={dms.handles} />}
 
         {drive && <DriveSetup email={drive.email} handles={drive.handles} />}
 

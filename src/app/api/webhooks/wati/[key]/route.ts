@@ -12,6 +12,8 @@ import {
 } from "@/lib/wati/payload";
 import { catchUpQuietAccounts, maintainConnection } from "@/lib/wati/missed";
 import { recordChatDay } from "@/lib/wati/chats";
+import { parseTikTokMessage } from "@/lib/wati/tiktok-core";
+import { recordTikTokMessage, recordUnknownEvent } from "@/lib/wati/tiktok";
 
 /**
  * WATI webhook — one URL per connected WATI account:
@@ -25,6 +27,7 @@ import { recordChatDay } from "@/lib/wati/chats";
  * flips the card to connected). A customer message upserts that phone into
  * `whatsapp_contacts`, keeping the EARLIEST message as first contact no matter
  * what order WATI delivers or retries in — a lead is counted once per phone.
+ * A TikTok DM (WATI's TikTok channel) is saved apart (lib/wati/tiktok.ts).
  * A CS message sets that lead's first human reply (see countsAsReply) — though
  * WATI turns out not to send these for Team Inbox / app replies, so reply times
  * mostly come from the API read in `maintainConnection` (lib/wati/missed.ts),
@@ -67,6 +70,13 @@ export async function POST(
   after(() => maintainConnection(connection.id));
   // Accounts whose own webhook has gone silent are caught up from the API here.
   after(() => catchUpQuietAccounts(connection.id));
+
+  // A TikTok DM (WATI's TikTok channel) goes to its own tables — never a WhatsApp lead.
+  const dm = parseTikTokMessage(body, now);
+  if (dm) {
+    await recordTikTokMessage(connection.id, dm, now);
+    return NextResponse.json({ ok: true, stored: true, channel: "tiktok" });
+  }
 
   const out = parseOutbound(body, now);
   if (out) {
@@ -124,7 +134,15 @@ export async function POST(
   }
 
   const msg = parseInbound(body, now);
-  if (!msg) return NextResponse.json({ ok: true, stored: false });
+  if (!msg) {
+    // A customer message in a shape TT Stars can't read yet: keep its field
+    // names and value types (never values) so the format can be supported.
+    const b = body as Record<string, unknown> | null;
+    if (b && typeof b === "object" && b.owner !== true && eventTypeOf(b) === "message") {
+      await recordUnknownEvent(connection.id, b, eventTypeOf(b), now);
+    }
+    return NextResponse.json({ ok: true, stored: false });
+  }
 
   const ex = sql.raw("excluded");
   const [saved] = await db

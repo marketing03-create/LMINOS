@@ -6,6 +6,7 @@ import { asc, eq, gte, and } from "drizzle-orm";
 import { db } from "@/db/client";
 import { tiktokLiveSessions } from "@/db/schema";
 import { waLeadsForLives } from "@/lib/wati/leads";
+import { tiktokDmsForLives } from "@/lib/wati/tiktok";
 import { dailyReport, mytDay, type ReportRow } from "./daily-core";
 
 /** At most a year back — the Sheet stays quick to load. */
@@ -32,10 +33,16 @@ export async function handleDailyReport(accountId: string, now = new Date()): Pr
 
   // WhatsApp leads only where WATI actually tracked the live (else blank).
   const wa = await waLeadsForLives(started.map((l) => l.id)).catch(() => new Map());
+  // DM: what the streamer typed; else the TikTok DMs WATI counted for that live.
+  const dms = await tiktokDmsForLives(started.map((l) => l.id)).catch(() => new Map<string, number>());
   return dailyReport(
     started.map((l) => {
       const w = wa.get(l.id);
-      return { ...l, whatsapp: w && w.tracking !== "none" ? w.waLeads : null };
+      return {
+        ...l,
+        directMessages: l.directMessages ?? dms.get(l.id) ?? null,
+        whatsapp: w && w.tracking !== "none" ? w.waLeads : null,
+      };
     }),
     mytDay(started[0].startedAt),
     mytDay(now)

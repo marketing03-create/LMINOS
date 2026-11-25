@@ -14,7 +14,7 @@ const OPERATIONS = [
 
 const ADMIN = [
   { href: "/admin/users", label: "Users" },
-  { href: "/admin/whatsapp", label: "WhatsApp log" },
+  { href: "/admin/whatsapp", label: "Chats" },
   { href: "/admin/integrations", label: "Integrations" },
   { href: "/admin/audit", label: "Audit log" },
 ];

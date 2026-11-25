@@ -3,6 +3,10 @@ import { rangeFromParams } from "@/lib/date-range";
 import { requireAdminPage } from "@/lib/auth/page-guard";
 import { whatsappChats, whatsappLog, type ChatsResult, type LogResult, type LogStatus } from "@/lib/wati/log";
 import { ChatsView } from "./chats-view";
+import { DmChatsView } from "./dm-chats-view";
+import { TikTokMark, WhatsAppMark } from "@/components/channel-mark";
+import { tiktokDmChats, type DmChatRow } from "@/lib/wati/tiktok";
+import { chatDay } from "@/lib/wati/chats";
 import { LogFilters } from "./log-filters";
 import {
   ChatLink,
@@ -40,6 +44,8 @@ type SP = {
   view?: string;
   /** Chats view filter: new | returning | waiting. */
   only?: string;
+  /** Channel: "tiktok" = TikTok DMs (WATI's TikTok channel); default WhatsApp. */
+  ch?: string;
 };
 
 const STATUSES: { key: "all" | "replied" | "waiting" | "untracked"; label: string }[] = [
@@ -73,11 +79,24 @@ export default async function WhatsAppLogPage({ searchParams }: { searchParams: 
   const view: "chats" | "first" = sp.view === "first" || live || sp.status ? "first" : "chats";
   const only = sp.only === "new" || sp.only === "returning" || sp.only === "waiting" ? sp.only : undefined;
 
+  const channel: "whatsapp" | "tiktok" = sp.ch === "tiktok" && !live ? "tiktok" : "whatsapp";
+
   let data: LogResult | null = null;
   let chats: ChatsResult | null = null;
+  let dmAll: DmChatRow[] | null = null;
+  let dmConnected = false;
   let error: string | null = null;
   try {
-    if (view === "chats") {
+    if (channel === "tiktok") {
+      const fromDay = day ?? chatDay(choice.range.start);
+      const toDay = day ?? chatDay(new Date(choice.range.end.getTime() - 1));
+      dmAll = await tiktokDmChats({ fromDay, toDay, accountId: streamer, connIds });
+      const { db } = await import("@/db/client");
+      const { tiktokDmChannels, watiConnections } = await import("@/db/schema");
+      dmConnected = (await db.select({ id: tiktokDmChannels.id }).from(tiktokDmChannels).limit(1)).length > 0;
+      const conns = await db.select({ id: watiConnections.id, name: watiConnections.name }).from(watiConnections).orderBy(watiConnections.createdAt);
+      chats = { rows: [], total: 0, truncated: false, summary: { chats: 0, newChats: 0, returning: 0, waiting: 0 }, perNumber: [], connections: conns };
+    } else if (view === "chats") {
       chats = await whatsappChats({ range: choice.range, accountId: streamer, connIds, day, q, only });
     } else data = await whatsappLog({
       range: choice.range,
@@ -90,7 +109,7 @@ export default async function WhatsAppLogPage({ searchParams }: { searchParams: 
     });
   } catch (err) {
     console.error("[whatsapp-log] failed:", err);
-    error = "The WhatsApp log couldn't load. Try again in a moment.";
+    error = "Chats couldn't load. Try again in a moment.";
   }
 
   // Links keep every current filter and change one.
@@ -119,11 +138,12 @@ export default async function WhatsAppLogPage({ searchParams }: { searchParams: 
   if (status !== "all") keep.status = status;
   if (view === "first" && !live && status === "all") keep.view = "first";
   if (only) keep.only = only;
+  if (channel === "tiktok") keep.ch = "tiktok";
 
   return (
     <div className="px-4 py-5 sm:p-8">
       <header className="mb-4">
-        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">WhatsApp log</h1>
+        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Chats</h1>
         {data?.live && (
           <p className="mt-1 text-sm text-zinc-500">
             Customers counted for @{data.live.handle} · {timeFmt.format(data.live.startedAt)}
@@ -132,7 +152,36 @@ export default async function WhatsAppLogPage({ searchParams }: { searchParams: 
       </header>
 
       {!live && (
-        <nav aria-label="View" className="mb-4 inline-flex rounded-lg border border-zinc-200 bg-zinc-50 p-1 dark:border-zinc-800 dark:bg-zinc-900">
+        <nav aria-label="Channel" className="mb-4 grid grid-cols-2 gap-1 rounded-xl bg-zinc-100 p-1 sm:inline-grid sm:w-auto dark:bg-zinc-900">
+          {(
+            [
+              ["whatsapp", "WhatsApp"],
+              ["tiktok", "TikTok DM"],
+            ] as const
+          ).map(([key, label]) => {
+            const on = channel === key;
+            return (
+              <Link
+                key={key}
+                href={href({ ch: key === "tiktok" ? "tiktok" : undefined, view: undefined, status: undefined, only: undefined })}
+                aria-current={on ? "page" : undefined}
+                scroll={false}
+                className={`flex min-h-11 items-center justify-center gap-2 rounded-lg px-4 text-sm font-medium sm:min-h-10 ${
+                  on
+                    ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-white"
+                    : "text-zinc-600 active:bg-white/60 lg:hover:text-zinc-900 dark:text-zinc-400 lg:dark:hover:text-zinc-100"
+                }`}
+              >
+                {key === "tiktok" ? <TikTokMark className="h-5 w-5" /> : <WhatsAppMark className="h-5 w-5" />}
+                {label}
+              </Link>
+            );
+          })}
+        </nav>
+      )}
+
+      {!live && channel === "whatsapp" && (
+        <nav aria-label="View" className="mb-4 ml-0 inline-flex sm:ml-3 rounded-lg border border-zinc-200 bg-zinc-50 p-1 dark:border-zinc-800 dark:bg-zinc-900">
           {(
             [
               ["chats", "Chats"],
@@ -188,7 +237,19 @@ export default async function WhatsAppLogPage({ searchParams }: { searchParams: 
         </div>
       )}
 
-      {chats && <ChatsView data={chats} only={only} href={(o) => href({ only: o })} />}
+      {dmAll && (
+        <DmChatsView
+          all={dmAll}
+          rows={dmAll.filter((r) =>
+            only === "new" ? r.isNew : only === "returning" ? !r.isNew : only === "waiting" ? r.latestMessageFrom === "customer" : true
+          )}
+          only={only === "new" || only === "returning" || only === "waiting" ? only : undefined}
+          href={(o) => href({ only: o })}
+          connected={dmConnected}
+        />
+      )}
+
+      {chats && !dmAll && <ChatsView data={chats} only={only} href={(o) => href({ only: o })} />}
 
       {data && (
         <>

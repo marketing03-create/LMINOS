@@ -8,6 +8,8 @@ import { mytDate } from "@/lib/tiktok-live/live-analysis-core";
 import { METRIC_LABEL, missingMetrics } from "@/lib/tiktok-live/completeness";
 import { requireLivePage } from "@/lib/auth/page-guard";
 import { waLeadsForLives, type LiveWa } from "@/lib/wati/leads";
+import { tiktokDmsForLives } from "@/lib/wati/tiktok";
+import { TikTokMark } from "@/components/channel-mark";
 import { WhatsAppLeads } from "./whatsapp-leads";
 import { linkedAccountIds, listCustomers, recentLives, type CustomerRow } from "@/lib/drive/customers";
 import { CustomerList, liveLabel } from "@/components/customers/customer-list";
@@ -73,6 +75,18 @@ export default async function TikTokSessionPage({
       wa = (await waLeadsForLives([s.id])).get(s.id) ?? null;
     } catch (err) {
       console.error("[live] WhatsApp leads failed:", err);
+    }
+  }
+
+  // New TikTok DMs during this live, counted by WATI (its TikTok channel).
+  // Just a number — the streamer's own DMs, no names — so streamers see it too.
+  // Absent when the handle has no TikTok channel linked.
+  let dmAuto: number | null = null;
+  if (s) {
+    try {
+      dmAuto = (await tiktokDmsForLives([s.id])).get(s.id) ?? null;
+    } catch (err) {
+      console.error("[live] TikTok DMs failed:", err instanceof Error ? err.name : "error");
     }
   }
 
@@ -163,6 +177,19 @@ export default async function TikTokSessionPage({
               {missing.length > 0 ? `Missing: ${missing.join(", ")}` : "All numbers in ✓"}
             </p>
           </header>
+
+          {dmAuto !== null && (
+            <div className="mb-4 flex items-center gap-3 rounded-xl border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900">
+              <TikTokMark className="h-8 w-8" />
+              <div className="min-w-0 flex-1">
+                <div className="text-sm text-zinc-500 dark:text-zinc-400">TikTok DMs from WATI</div>
+                <div className="text-lg font-semibold tabular-nums">{dmAuto}</div>
+              </div>
+              {s.directMessages !== null && s.directMessages !== dmAuto && (
+                <span className="text-sm tabular-nums text-zinc-500">Typed: {s.directMessages}</span>
+              )}
+            </div>
+          )}
 
           {/* One editable surface for this live: the metrics list, the camera
               that feeds it, and the product tags. It owns the page's single

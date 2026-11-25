@@ -17,3 +17,4 @@ export * from "./audit-logs";
 export * from "./processed-jobs";
 export * from "./report-links";
 export * from "./source-stats";
+export * from "./tiktok-dms";
